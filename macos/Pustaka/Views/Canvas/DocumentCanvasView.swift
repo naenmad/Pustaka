@@ -49,6 +49,65 @@ enum PresetGradientCover: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Native Title Editor Field (Supports Enter to Jump to Content)
+
+struct TitleEditorField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var onCommit: () -> Void
+    var onTextChanged: (String) -> Void
+
+    func makeNSView(context: Context) -> NSTextField {
+        let tf = NSTextField()
+        tf.isBordered = false
+        tf.drawsBackground = false
+        tf.focusRingType = .none
+        tf.font = NSFont.systemFont(ofSize: 34, weight: .bold)
+        tf.textColor = .labelColor
+        tf.placeholderString = placeholder
+        tf.delegate = context.coordinator
+        tf.cell?.wraps = true
+        tf.cell?.isScrollable = false
+        tf.maximumNumberOfLines = 2
+        tf.lineBreakMode = .byWordWrapping
+        tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return tf
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.placeholderString = placeholder
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: TitleEditorField
+
+        init(_ parent: TitleEditorField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let tf = obj.object as? NSTextField else { return }
+            parent.text = tf.stringValue
+            parent.onTextChanged(tf.stringValue)
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onCommit()
+                return true
+            }
+            return false
+        }
+    }
+}
+
 // MARK: - Document Canvas View
 
 struct DocumentCanvasView: View {
@@ -56,6 +115,7 @@ struct DocumentCanvasView: View {
     let page: DocumentPage
 
     @State private var titleBuffer: String = ""
+    @State private var focusedBlockId: String? = nil
     @State private var isIconPickerOpen: Bool = false
     @State private var isCoverPickerOpen: Bool = false
     @State private var isCoverHovered: Bool = false
@@ -167,6 +227,16 @@ struct DocumentCanvasView: View {
         }
     }
 
+    private func focusFirstBlock() {
+        let blocks = store.parseToUIBlocks(content: currentPage.rawContent)
+        if let first = blocks.first {
+            focusedBlockId = nil
+            DispatchQueue.main.async {
+                self.focusedBlockId = first.id
+            }
+        }
+    }
+
     // MARK: - Document Body
 
     private var documentCanvasBody: some View {
@@ -181,7 +251,7 @@ struct DocumentCanvasView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     notionPageHeaderView
 
-                    BlockListView(store: store, page: currentPage)
+                    BlockListView(store: store, page: currentPage, focusedBlockId: $focusedBlockId)
 
                     Spacer(minLength: 160)
                 }
@@ -343,17 +413,20 @@ struct DocumentCanvasView: View {
                 .help("Click to change or remove icon")
             }
 
-            // Page Title
-            TextField("Untitled", text: $titleBuffer, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(Color.primary)
-                .padding(.top, 2)
-                .onChange(of: titleBuffer) { _, newVal in
-                    store.updatePageTitle(pageId: currentPage.id, newTitle: newVal)
+            // Page Title (Enter jumps down to document content)
+            TitleEditorField(
+                text: $titleBuffer,
+                placeholder: "Untitled",
+                onCommit: {
+                    focusFirstBlock()
+                },
+                onTextChanged: { newTitle in
+                    store.updatePageTitle(pageId: currentPage.id, newTitle: newTitle)
                 }
+            )
+            .padding(.top, 2)
         }
-        .padding(.leading, 38)
+        .padding(.leading, 48)
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
         // Single, reliably anchored Popovers

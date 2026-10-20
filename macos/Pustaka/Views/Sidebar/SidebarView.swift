@@ -215,7 +215,7 @@ struct CategorySectionView: View {
                 ForEach(matchingPages) { page in
                     SidebarDocumentItemRow(
                         store: store,
-                        page: page,
+                        pageId: page.id,
                         isSelected: store.selectedPageId == page.id
                     )
                 }
@@ -337,10 +337,24 @@ struct CategorySectionView: View {
 
 struct SidebarDocumentItemRow: View {
     @ObservedObject var store: WorkspaceStore
-    let page: DocumentPage
+    let pageId: String
     let isSelected: Bool
 
     @State private var isHovered: Bool = false
+
+    private var page: DocumentPage {
+        store.pages.first(where: { $0.id == pageId }) ?? DocumentPage(
+            id: pageId,
+            title: "Untitled",
+            icon: "",
+            coverUrl: "",
+            categoryId: "cat_notes",
+            rawContent: "",
+            isFavorite: false,
+            lastModified: Date(),
+            boardTasks: []
+        )
+    }
 
     var body: some View {
         Button(action: {

@@ -2,6 +2,14 @@ import Foundation
 import SwiftUI
 import Combine
 
+// MARK: - Disk Persistence Container
+
+struct WorkspaceStorageData: Codable {
+    var categories: [SidebarCategory]
+    var pages: [DocumentPage]
+    var selectedPageId: String?
+}
+
 class WorkspaceStore: ObservableObject {
     @Published var categories: [SidebarCategory] = []
     @Published var pages: [DocumentPage] = []
@@ -12,13 +20,72 @@ class WorkspaceStore: ObservableObject {
     @Published var currentSvg: String = ""
 
     init() {
-        // Minimal, personal categories / folders
-        self.categories = [
+        loadFromDisk()
+        self.engineInfo = getEngineInfo()
+        recompileCurrentPage()
+    }
+
+    // MARK: - Disk Storage Management
+
+    private var storageURL: URL {
+        let fileManager = FileManager.default
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let pustakaDir = appSupport.appendingPathComponent("Pustaka", isDirectory: true)
+        if !fileManager.fileExists(atPath: pustakaDir.path) {
+            try? fileManager.createDirectory(at: pustakaDir, withIntermediateDirectories: true, attributes: nil)
+        }
+        return pustakaDir.appendingPathComponent("workspace.json")
+    }
+
+    func loadFromDisk() {
+        let url = storageURL
+        if FileManager.default.fileExists(atPath: url.path),
+           let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode(WorkspaceStorageData.self, from: data),
+           !decoded.pages.isEmpty {
+            self.categories = decoded.categories.isEmpty ? WorkspaceStore.defaultCategories : decoded.categories
+            self.pages = decoded.pages
+            if let sel = decoded.selectedPageId, pages.contains(where: { $0.id == sel }) {
+                self.selectedPageId = sel
+            } else {
+                self.selectedPageId = pages.first?.id
+            }
+        } else {
+            // Seed initial defaults
+            self.categories = WorkspaceStore.defaultCategories
+            self.pages = WorkspaceStore.defaultPages
+            self.selectedPageId = pages.first?.id
+            saveToDisk()
+        }
+    }
+
+    func saveToDisk() {
+        let storage = WorkspaceStorageData(
+            categories: self.categories,
+            pages: self.pages,
+            selectedPageId: self.selectedPageId
+        )
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(storage)
+            try data.write(to: storageURL, options: .atomic)
+        } catch {
+            print("[WorkspaceStore] Error saving to disk: \(error)")
+        }
+    }
+
+    // MARK: - Default Seeds
+
+    static var defaultCategories: [SidebarCategory] {
+        [
             SidebarCategory(id: "cat_fav", name: "Favorites", icon: "⭐️", isExpanded: true, showPageCount: true, orderIndex: 0),
             SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 1)
         ]
+    }
 
-        self.pages = [
+    static var defaultPages: [DocumentPage] {
+        [
             DocumentPage(
                 id: "doc_welcome",
                 title: "Welcome to Pustaka",
@@ -54,13 +121,6 @@ class WorkspaceStore: ObservableObject {
                 boardTasks: []
             )
         ]
-
-        if let first = pages.first {
-            self.selectedPageId = first.id
-        }
-
-        self.engineInfo = getEngineInfo()
-        recompileCurrentPage()
     }
 
     var sortedCategories: [SidebarCategory] {
@@ -75,12 +135,14 @@ class WorkspaceStore: ObservableObject {
             if let newValue = newValue,
                let index = pages.firstIndex(where: { $0.id == newValue.id }) {
                 pages[index] = newValue
+                saveToDisk()
             }
         }
     }
 
     func selectPage(id: String) {
         self.selectedPageId = id
+        saveToDisk()
         recompileCurrentPage()
     }
 
@@ -96,12 +158,14 @@ class WorkspaceStore: ObservableObject {
     func toggleCategoryExpanded(id: String) {
         if let idx = categories.firstIndex(where: { $0.id == id }) {
             categories[idx].isExpanded.toggle()
+            saveToDisk()
         }
     }
 
     func toggleShowPageCount(id: String) {
         if let idx = categories.firstIndex(where: { $0.id == id }) {
             categories[idx].showPageCount.toggle()
+            saveToDisk()
         }
     }
 
@@ -109,6 +173,7 @@ class WorkspaceStore: ObservableObject {
         if let idx = categories.firstIndex(where: { $0.id == id }) {
             categories[idx].name = newName
             categories[idx].icon = newIcon
+            saveToDisk()
         }
     }
 
@@ -122,6 +187,7 @@ class WorkspaceStore: ObservableObject {
             let tmp = categories[catIdx].orderIndex
             categories[catIdx].orderIndex = categories[prevCatIdx].orderIndex
             categories[prevCatIdx].orderIndex = tmp
+            saveToDisk()
         }
     }
 
@@ -135,6 +201,7 @@ class WorkspaceStore: ObservableObject {
             let tmp = categories[catIdx].orderIndex
             categories[catIdx].orderIndex = categories[nextCatIdx].orderIndex
             categories[nextCatIdx].orderIndex = tmp
+            saveToDisk()
         }
     }
 
@@ -150,6 +217,7 @@ class WorkspaceStore: ObservableObject {
             orderIndex: maxIndex + 1
         )
         categories.append(newCat)
+        saveToDisk()
     }
 
     func deleteCategory(id: String) {
@@ -159,6 +227,7 @@ class WorkspaceStore: ObservableObject {
             }
         }
         categories.removeAll { $0.id == id }
+        saveToDisk()
     }
 
     // MARK: - Page Actions
@@ -166,6 +235,7 @@ class WorkspaceStore: ObservableObject {
     func toggleFavorite(id: String) {
         if let idx = pages.firstIndex(where: { $0.id == id }) {
             pages[idx].isFavorite.toggle()
+            saveToDisk()
         }
     }
 
@@ -185,6 +255,7 @@ class WorkspaceStore: ObservableObject {
         )
         pages.append(newPage)
         self.selectedPageId = newId
+        saveToDisk()
         recompileCurrentPage()
     }
 
@@ -208,6 +279,7 @@ class WorkspaceStore: ObservableObject {
             pages.append(copy)
         }
         self.selectedPageId = newId
+        saveToDisk()
         recompileCurrentPage()
     }
 
@@ -217,6 +289,7 @@ class WorkspaceStore: ObservableObject {
             selectedPageId = pages.first?.id
             recompileCurrentPage()
         }
+        saveToDisk()
     }
 
     func updatePageCover(pageId: String, newCoverUrl: String) {
@@ -224,6 +297,7 @@ class WorkspaceStore: ObservableObject {
         objectWillChange.send()
         pages[idx].coverUrl = newCoverUrl
         pages[idx].lastModified = Date()
+        saveToDisk()
     }
 
     func updatePageCover(_ newCoverUrl: String) {
@@ -245,17 +319,20 @@ class WorkspaceStore: ObservableObject {
             priority: .medium
         )
         pages[idx].boardTasks.append(newTask)
+        saveToDisk()
     }
 
     func updateTaskStatus(pageId: String, taskId: String, newStatus: TaskStatus) {
         guard let pageIdx = pages.firstIndex(where: { $0.id == pageId }),
               let taskIdx = pages[pageIdx].boardTasks.firstIndex(where: { $0.id == taskId }) else { return }
         pages[pageIdx].boardTasks[taskIdx].status = newStatus
+        saveToDisk()
     }
 
     func deleteTask(pageId: String, taskId: String) {
         guard let pageIdx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         pages[pageIdx].boardTasks.removeAll { $0.id == taskId }
+        saveToDisk()
     }
 
     func updatePageTitle(pageId: String, newTitle: String) {
@@ -263,6 +340,7 @@ class WorkspaceStore: ObservableObject {
         objectWillChange.send()
         pages[idx].title = newTitle
         pages[idx].lastModified = Date()
+        saveToDisk()
     }
 
     func updatePageTitle(_ newTitle: String) {
@@ -276,6 +354,7 @@ class WorkspaceStore: ObservableObject {
         objectWillChange.send()
         pages[idx].icon = newIcon
         pages[idx].lastModified = Date()
+        saveToDisk()
     }
 
     func updatePageIcon(_ newIcon: String) {
@@ -289,6 +368,7 @@ class WorkspaceStore: ObservableObject {
               let idx = pages.firstIndex(where: { $0.id == id }) else { return }
         pages[idx].rawContent = newContent
         pages[idx].lastModified = Date()
+        saveToDisk()
         recompileCurrentPage()
     }
 
@@ -368,8 +448,25 @@ class WorkspaceStore: ObservableObject {
                 let rest = String(trimmed.dropFirst(2))
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .quote, text: rest))
             } else if trimmed.hasPrefix("[bookmark] ") {
-                let rest = String(trimmed.dropFirst(11))
+                let rest = String(trimmed.dropFirst(11)).trimmingCharacters(in: .whitespaces)
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .bookmark(url: rest), text: rest))
+            } else if trimmed.hasPrefix("![") && trimmed.contains("](") && trimmed.hasSuffix(")") {
+                // Markdown image: ![caption](url)
+                if let closeBracket = trimmed.firstIndex(of: "]"),
+                   let openParen = trimmed.range(of: "](", range: closeBracket..<trimmed.endIndex) {
+                    let caption = String(trimmed[trimmed.index(after: trimmed.startIndex)..<closeBracket])
+                    let url = String(trimmed[openParen.upperBound..<trimmed.index(before: trimmed.endIndex)])
+                    items.append(UIBlockItem(id: "blk_\(counter)", kind: .image(url: url, caption: caption), text: caption))
+                } else {
+                    items.append(UIBlockItem(id: "blk_\(counter)", kind: .paragraph, text: trimmed))
+                }
+            } else if trimmed.hasPrefix("$$") && trimmed.hasSuffix("$$") && trimmed.count >= 4 {
+                let expr = String(trimmed.dropFirst(2).dropLast(2)).trimmingCharacters(in: .whitespaces)
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .math(expression: expr), text: expr))
+            } else if trimmed.hasPrefix("[grid]") && trimmed.hasSuffix("[/grid]") {
+                let inner = String(trimmed.dropFirst(6).dropLast(7))
+                let cols = inner.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .grid(columns: cols), text: inner))
             } else if trimmed.hasPrefix(":info ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💡", theme: .blue), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":warn ") {
@@ -407,35 +504,65 @@ class WorkspaceStore: ObservableObject {
         var lines: [String] = []
         for block in blocks {
             let text = block.text.trimmingCharacters(in: .whitespaces)
-            if text.isEmpty { continue }
 
             switch block.kind {
             case .heading(let level):
-                let prefix = String(repeating: ".", count: level)
-                lines.append("\(prefix) \(text)")
+                if !text.isEmpty {
+                    let prefix = String(repeating: ".", count: level)
+                    lines.append("\(prefix) \(text)")
+                }
             case .paragraph:
-                lines.append(text)
+                if !text.isEmpty {
+                    lines.append(text)
+                }
             case .bullet:
-                lines.append("- \(text)")
+                if !text.isEmpty {
+                    lines.append("- \(text)")
+                }
             case .numbered(let idx):
-                lines.append("\(idx). \(text)")
+                if !text.isEmpty {
+                    lines.append("\(idx). \(text)")
+                }
             case .toggle:
-                lines.append(">> \(text)")
+                if !text.isEmpty {
+                    lines.append(">> \(text)")
+                }
             case .quote:
-                lines.append("> \(text)")
+                if !text.isEmpty {
+                    lines.append("> \(text)")
+                }
             case .divider:
                 lines.append("---")
             case .bookmark(let url):
-                lines.append("[bookmark] \(url)")
+                let validUrl = url.trimmingCharacters(in: .whitespaces)
+                if !validUrl.isEmpty {
+                    lines.append("[bookmark] \(validUrl)")
+                } else if !text.isEmpty {
+                    lines.append("[bookmark] \(text)")
+                }
+            case .image(let url, let caption):
+                let cap = caption.isEmpty ? text : caption
+                if !url.isEmpty {
+                    lines.append("![\(cap)](\(url))")
+                }
+            case .math(let expression):
+                let expr = expression.isEmpty ? text : expression
+                if !expr.isEmpty {
+                    lines.append("$$ \(expr) $$")
+                }
             case .callout(_, let theme):
-                switch theme {
-                case .blue: lines.append(":info \(text)")
-                case .red: lines.append(":warn \(text)")
-                case .green: lines.append(":tip \(text)")
-                case .standard: lines.append(":callout \(text)")
+                if !text.isEmpty {
+                    switch theme {
+                    case .blue: lines.append(":info \(text)")
+                    case .red: lines.append(":warn \(text)")
+                    case .green: lines.append(":tip \(text)")
+                    case .standard: lines.append(":callout \(text)")
+                    }
                 }
             case .todo:
-                lines.append(", \(text)")
+                if !text.isEmpty {
+                    lines.append(", \(text)")
+                }
             case .code(let lang):
                 lines.append("```\(lang)")
                 lines.append(block.text)

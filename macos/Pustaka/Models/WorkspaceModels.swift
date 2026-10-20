@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Customizable Sidebar Category / Folder
 
-struct SidebarCategory: Identifiable, Hashable {
+struct SidebarCategory: Identifiable, Hashable, Codable {
     let id: String
     var name: String
     var icon: String // Emoji or symbol
@@ -22,7 +22,7 @@ struct SidebarCategory: Identifiable, Hashable {
 
 // MARK: - Document Page
 
-struct DocumentPage: Identifiable, Hashable {
+struct DocumentPage: Identifiable, Hashable, Codable {
     let id: String
     var title: String
     var icon: String // Emoji or symbol
@@ -44,7 +44,7 @@ struct DocumentPage: Identifiable, Hashable {
 
 // MARK: - Kanban Board Models
 
-enum TaskStatus: String, CaseIterable, Identifiable, Equatable, Hashable {
+enum TaskStatus: String, CaseIterable, Identifiable, Equatable, Hashable, Codable {
     case todo = "To Do"
     case inProgress = "In Progress"
     case inReview = "In Review"
@@ -71,7 +71,7 @@ enum TaskStatus: String, CaseIterable, Identifiable, Equatable, Hashable {
     }
 }
 
-enum TaskPriority: String, CaseIterable {
+enum TaskPriority: String, CaseIterable, Codable {
     case high = "High"
     case medium = "Med"
     case low = "Low"
@@ -85,7 +85,7 @@ enum TaskPriority: String, CaseIterable {
     }
 }
 
-struct TaskCard: Identifiable, Hashable {
+struct TaskCard: Identifiable, Hashable, Codable {
     let id: String
     var title: String
     var status: TaskStatus
@@ -153,6 +153,8 @@ enum UIBlockKind: Equatable {
     case callout(icon: String, theme: BlockColorTheme)
     case code(lang: String)
     case bookmark(url: String)
+    case image(url: String, caption: String)
+    case math(expression: String)
     case grid(columns: [String])
 }
 
