@@ -7,32 +7,32 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(store: store)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
                 .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
         } detail: {
             if let page = store.selectedPage {
                 DocumentCanvasView(store: store, page: page)
             } else {
                 VStack(spacing: 16) {
-                    Image(systemName: "books.vertical.fill")
+                    Image(systemName: "doc.text")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 48, height: 48)
-                        .foregroundStyle(.tint.opacity(0.8))
+                        .frame(width: 44, height: 44)
+                        .foregroundStyle(.secondary.opacity(0.5))
 
                     Text("No Document Selected")
-                        .font(.title2.bold())
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
 
-                    Text("Choose a page from the sidebar or create a new one.")
+                    Text("Choose a document from the sidebar or create a new one.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
                     Button(action: {
                         store.addNewPage()
                     }) {
-                        Label("Create New Page", systemImage: "plus.circle.fill")
-                            .font(.subheadline.weight(.semibold))
+                        Label("New Document", systemImage: "plus")
+                            .font(.subheadline.weight(.medium))
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)

@@ -6,7 +6,6 @@ class WorkspaceStore: ObservableObject {
     @Published var categories: [SidebarCategory] = []
     @Published var pages: [DocumentPage] = []
     @Published var selectedPageId: String? = nil
-    @Published var agents: [AgentItem] = []
     @Published var currentViewMode: CanvasViewMode = .document
     @Published var isPreviewDrawerPresented: Bool = false
     @Published var engineInfo: String = "Connecting..."
@@ -14,23 +13,22 @@ class WorkspaceStore: ObservableObject {
     @Published var currentSvg: String = ""
 
     init() {
-        // Default customizable categories with emojis
+        // Simple, clean local categories
         self.categories = [
             SidebarCategory(id: "cat_fav", name: "Favorites", icon: "⭐️", isExpanded: true, showPageCount: true, orderIndex: 0),
-            SidebarCategory(id: "cat_agents", name: "ACP Agents", icon: "🤖", isExpanded: true, showPageCount: true, orderIndex: 1, isAgentsCategory: true),
-            SidebarCategory(id: "cat_team", name: "Teamspaces", icon: "👥", isExpanded: true, showPageCount: true, orderIndex: 2),
-            SidebarCategory(id: "cat_personal", name: "Private", icon: "🔒", isExpanded: true, showPageCount: true, orderIndex: 3)
+            SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 1)
         ]
 
+        // All pages start with a clean, uniform document icon ("doc.text")
         self.pages = [
             DocumentPage(
                 id: "doc_architecture",
                 title: "Engineering Architecture & Typst Pipeline",
-                icon: "cpu.fill",
+                icon: "doc.text",
                 categoryId: "cat_fav",
                 rawContent: """
                 . Engineering Architecture & Typst Pipeline
-                .. High-Speed Vector Typesetting for Notion-like Workspaces
+                .. High-Speed Vector Typesetting for Local Workspaces
                 :info All documents are stored as typed RON-RS block trees and compiled in-memory via Typst.
                 :warn Zero cloud transmission. Complete offline data privacy.
 
@@ -55,7 +53,7 @@ class WorkspaceStore: ObservableObject {
                 boardTasks: [
                     TaskCard(id: "t1", title: "Implement in-memory Typst SVG compiler", status: .done, tag: "Core", assignee: "Rust Team", priority: .high),
                     TaskCard(id: "t2", title: "Build UniFFI C-ABI bridge for Swift 6", status: .done, tag: "FFI", assignee: "Systems Eng", priority: .high),
-                    TaskCard(id: "t3", title: "Design Notion-style macOS Sidebar", status: .inProgress, tag: "UI/UX", assignee: "SwiftUI Dev", priority: .high),
+                    TaskCard(id: "t3", title: "Design clean minimalist macOS Sidebar", status: .inProgress, tag: "UI/UX", assignee: "SwiftUI Dev", priority: .high),
                     TaskCard(id: "t4", title: "Add Drag-and-Drop to Kanban View", status: .inReview, tag: "UI/UX", assignee: "Frontend", priority: .medium),
                     TaskCard(id: "t5", title: "Implement Multi-tab Document Workspace", status: .todo, tag: "Feature", assignee: "Design Team", priority: .low),
                 ]
@@ -63,7 +61,7 @@ class WorkspaceStore: ObservableObject {
             DocumentPage(
                 id: "doc_sprint",
                 title: "Sprint 24: Desktop MVP & ACP Server",
-                icon: "bolt.fill",
+                icon: "doc.text",
                 categoryId: "cat_fav",
                 rawContent: """
                 . Sprint 24: Desktop MVP & ACP Server
@@ -72,8 +70,8 @@ class WorkspaceStore: ObservableObject {
                 :info AI agents can mutate blocks in real-time while user edits.
 
                 ### Objectives
-                - Ship Native macOS NavigationSplitView sidebar
-                - Enable WYSIWYG inline block edits
+                - Clean minimalist macOS NavigationSplitView sidebar
+                - In-place WYSIWYG block editing
                 - Interactive Kanban view with task status management
 
                 , ACP protocol handler tested with 100% test pass rate.
@@ -89,11 +87,11 @@ class WorkspaceStore: ObservableObject {
             ),
             DocumentPage(
                 id: "doc_product",
-                title: "Product Requirements & Notion Comparison",
-                icon: "doc.plaintext.fill",
-                categoryId: "cat_team",
+                title: "Product Requirements & Vision",
+                icon: "doc.text",
+                categoryId: "cat_notes",
                 rawContent: """
-                . Product Requirements & Notion Comparison
+                . Product Requirements & Vision
                 .. Why Local-First Matters
                 :info Traditional SaaS workspaces suffer from 200ms+ network roundtrips.
                 :callout Pustaka achieves 60+ FPS locally with native Apple Silicon speed.
@@ -113,8 +111,8 @@ class WorkspaceStore: ObservableObject {
             DocumentPage(
                 id: "doc_personal",
                 title: "Daily Notes & Scratchpad",
-                icon: "note.text",
-                categoryId: "cat_personal",
+                icon: "doc.text",
+                categoryId: "cat_notes",
                 rawContent: """
                 . Daily Notes & Scratchpad
                 .. Quick ideas and reminders
@@ -125,33 +123,6 @@ class WorkspaceStore: ObservableObject {
                 isFavorite: false,
                 lastModified: Date().addingTimeInterval(-7200),
                 boardTasks: []
-            )
-        ]
-
-        self.agents = [
-            AgentItem(
-                id: "agent_antigravity",
-                name: "Antigravity Assistant",
-                role: "Primary Pair Programmer & Architect",
-                status: "Active (ACP Connected)",
-                icon: "brain.head.profile",
-                endpoint: "ws://127.0.0.1:8080"
-            ),
-            AgentItem(
-                id: "agent_reviewer",
-                name: "Doc Reviewer Agent",
-                role: "Typo & Typography Consistency",
-                status: "Idle",
-                icon: "character.magnifyingglass",
-                endpoint: "ws://127.0.0.1:8080"
-            ),
-            AgentItem(
-                id: "agent_research",
-                name: "Deep Research Subagent",
-                role: "Knowledge Base & Docs Indexer",
-                status: "Listening",
-                icon: "sparkles",
-                endpoint: "ws://127.0.0.1:8080"
             )
         ]
 
@@ -253,10 +224,9 @@ class WorkspaceStore: ObservableObject {
     }
 
     func deleteCategory(id: String) {
-        // Move pages in this category to private
         for i in 0..<pages.count {
             if pages[i].categoryId == id {
-                pages[i].categoryId = "cat_personal"
+                pages[i].categoryId = "cat_notes"
             }
         }
         categories.removeAll { $0.id == id }
@@ -270,14 +240,14 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
-    func addNewPage(in categoryId: String = "cat_personal") {
+    func addNewPage(in categoryId: String = "cat_notes") {
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
         let newPage = DocumentPage(
             id: newId,
-            title: "Untitled Page",
+            title: "Untitled",
             icon: "doc.text",
             categoryId: categoryId,
-            rawContent: ". Untitled Page\n.. Start typing your content here\n:info Press + to add structured blocks.",
+            rawContent: ". Untitled\n.. Start typing here\nType your notes freely.",
             isFavorite: categoryId == "cat_fav",
             lastModified: Date(),
             boardTasks: []
@@ -325,7 +295,7 @@ class WorkspaceStore: ObservableObject {
             id: "t_\(UUID().uuidString.prefix(6))",
             title: title,
             status: status,
-            tag: "Feature",
+            tag: "Task",
             assignee: "You",
             priority: .medium
         )

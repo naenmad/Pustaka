@@ -1,16 +1,15 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Customizable Sidebar Category
+// MARK: - Customizable Sidebar Category / Folder
 
 struct SidebarCategory: Identifiable, Hashable {
     let id: String
     var name: String
-    var icon: String // Emoji or symbol string: e.g. "⭐️", "🤖", "👥", "🔒", "🚀", "📁"
+    var icon: String // Emoji or symbol
     var isExpanded: Bool = true
     var showPageCount: Bool = true
     var orderIndex: Int
-    var isAgentsCategory: Bool = false
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -26,7 +25,7 @@ struct SidebarCategory: Identifiable, Hashable {
 struct DocumentPage: Identifiable, Hashable {
     let id: String
     var title: String
-    var icon: String // Emoji or SF Symbol
+    var icon: String // Default to "doc.text", user can customize
     var categoryId: String // References SidebarCategory.id
     var rawContent: String
     var isFavorite: Bool
@@ -40,17 +39,6 @@ struct DocumentPage: Identifiable, Hashable {
     static func == (lhs: DocumentPage, rhs: DocumentPage) -> Bool {
         lhs.id == rhs.id
     }
-}
-
-// MARK: - AI Agent Integration (ACP)
-
-struct AgentItem: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let role: String
-    var status: String
-    let icon: String
-    let endpoint: String
 }
 
 // MARK: - Kanban Board Models
@@ -117,8 +105,8 @@ enum CanvasViewMode: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .document: return "doc.text.fill"
-        case .board: return "square.grid.3x2.fill"
+        case .document: return "doc.text"
+        case .board: return "square.grid.3x2"
         case .preview: return "sparkles"
         case .source: return "curlybraces"
         }

@@ -14,24 +14,24 @@ struct SidebarView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top Workspace Switcher
-                workspaceHeaderView
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 6)
+                // Top App Header
+                appHeaderView
+                    .padding(.horizontal, 14)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
 
-                // Quick Search Bar
+                // Minimalist Search Bar
                 searchBarView
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
 
                 Divider()
-                    .padding(.horizontal, 8)
-                    .opacity(0.6)
+                    .padding(.horizontal, 10)
+                    .opacity(0.4)
 
-                // Scrollable Category Sections
+                // Scrollable Categories / Folders
                 ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: 12) {
                         ForEach(store.sortedCategories) { category in
                             CategorySectionView(
                                 store: store,
@@ -43,12 +43,12 @@ struct SidebarView: View {
                             )
                         }
 
-                        // Inline Add New Category Box
+                        // Inline New Category Input Box
                         if isAddingCategory {
                             HStack(spacing: 6) {
                                 Text("📁")
                                     .font(.subheadline)
-                                TextField("New Category...", text: $newCategoryName)
+                                TextField("Folder / Category Name...", text: $newCategoryName)
                                     .textFieldStyle(.plain)
                                     .font(.subheadline)
 
@@ -76,16 +76,17 @@ struct SidebarView: View {
                             .padding(.horizontal, 10)
                         }
                     }
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                 }
 
                 Divider()
-                    .padding(.horizontal, 8)
-                    .opacity(0.6)
+                    .padding(.horizontal, 10)
+                    .opacity(0.4)
 
-                // Bottom Action Bar
+                // Bottom Minimal Action Bar
                 bottomActionBar
-                    .padding(10)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
             }
         }
         .sheet(item: $categoryToCustomize) { cat in
@@ -97,55 +98,34 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Workspace Header
+    // MARK: - App Header
 
-    private var workspaceHeaderView: some View {
-        Menu {
-            Button("Personal Workspace") {}
-            Button("Engineering & Specs Hub") {}
-            Divider()
-            Button("Add Category...") {
-                isAddingCategory = true
+    private var appHeaderView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "books.vertical.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.tint)
+
+            Text("Pustaka")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Button(action: {
+                store.addNewPage(in: "cat_notes")
+            }) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
             }
-            Button("Workspace Settings...") {}
-        } label: {
-            HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.accentColor.opacity(0.18))
-                        .frame(width: 24, height: 24)
-
-                    Text("P")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.tint)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Pustaka Workspace")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Text("Local-First • Typst Core")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .buttonStyle(.plain)
+            .help("New Document (Cmd+N)")
         }
-        .menuStyle(.borderlessButton)
     }
 
-    // MARK: - Search Bar
+    // MARK: - Minimal Search Bar
 
     private var searchBarView: some View {
         HStack(spacing: 6) {
@@ -153,7 +133,7 @@ struct SidebarView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField("Search or jump to...", text: $searchText)
+            TextField("Search documents...", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.subheadline)
 
@@ -168,7 +148,7 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.05))
+        .background(Color.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
@@ -177,38 +157,34 @@ struct SidebarView: View {
     private var bottomActionBar: some View {
         HStack(spacing: 8) {
             Button(action: {
-                store.addNewPage(in: "cat_personal")
+                store.addNewPage(in: "cat_notes")
             }) {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
                         .font(.caption.bold())
-                    Text("New Page")
+                    Text("New Document")
                         .font(.subheadline.weight(.medium))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.primary.opacity(0.06))
+                .background(Color.primary.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
 
-            Menu {
-                Button(action: { isAddingCategory = true }) {
-                    Label("Add New Category...", systemImage: "folder.badge.plus")
-                }
-                Button(action: { store.isPreviewDrawerPresented.toggle() }) {
-                    Label("Toggle Typst Preview (Cmd+P)", systemImage: "sparkles")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.caption.bold())
-                    .padding(7)
-                    .background(Color.primary.opacity(0.06))
+            Button(action: {
+                isAddingCategory = true
+            }) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+                    .background(Color.primary.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            .menuStyle(.borderlessButton)
-            .frame(width: 26)
+            .buttonStyle(.plain)
+            .help("New Category / Folder")
         }
     }
 }
@@ -228,36 +204,29 @@ struct CategorySectionView: View {
             // Category Header with Collapse & Customize
             categoryHeader
 
-            // Category Items (Collapsible)
+            // Category Items (Collapsible / expandable)
             if category.isExpanded {
-                if category.isAgentsCategory {
-                    // ACP AI Agents list
-                    ForEach(store.agents) { agent in
-                        SidebarAgentItemRow(agent: agent)
-                    }
-                } else {
-                    let matchingPages = store.pages(in: category.id).filter { page in
-                        searchText.isEmpty ||
-                        page.title.localizedCaseInsensitiveContains(searchText) ||
-                        page.rawContent.localizedCaseInsensitiveContains(searchText)
-                    }
+                let matchingPages = store.pages(in: category.id).filter { page in
+                    searchText.isEmpty ||
+                    page.title.localizedCaseInsensitiveContains(searchText) ||
+                    page.rawContent.localizedCaseInsensitiveContains(searchText)
+                }
 
-                    ForEach(matchingPages) { page in
-                        SidebarDocumentItemRow(
-                            store: store,
-                            page: page,
-                            isSelected: store.selectedPageId == page.id
-                        )
-                    }
+                ForEach(matchingPages) { page in
+                    SidebarDocumentItemRow(
+                        store: store,
+                        page: page,
+                        isSelected: store.selectedPageId == page.id
+                    )
+                }
 
-                    if matchingPages.isEmpty {
-                        Text("No pages")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 34)
-                            .padding(.vertical, 4)
-                    }
+                if matchingPages.isEmpty {
+                    Text("No documents")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 28)
+                        .padding(.vertical, 3)
                 }
             }
         }
@@ -273,8 +242,8 @@ struct CategorySectionView: View {
                 }
             }) {
                 Image(systemName: category.isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary.opacity(0.8))
                     .frame(width: 14, height: 14)
             }
             .buttonStyle(.plain)
@@ -289,8 +258,8 @@ struct CategorySectionView: View {
                     Text(category.icon)
                         .font(.caption)
 
-                    Text(category.name.uppercased())
-                        .font(.system(size: 11, weight: .bold))
+                    Text(category.name)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -299,7 +268,7 @@ struct CategorySectionView: View {
 
             // Show page count if enabled
             if category.showPageCount {
-                let count = category.isAgentsCategory ? store.agents.count : store.pages(in: category.id).count
+                let count = store.pages(in: category.id).count
                 Text("\(count)")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
@@ -313,7 +282,7 @@ struct CategorySectionView: View {
 
             // Hover Controls: "+" and "..." (Three dots) menu
             HStack(spacing: 2) {
-                if isHovered && !category.isAgentsCategory {
+                if isHovered {
                     Button(action: {
                         store.addNewPage(in: category.id)
                     }) {
@@ -323,7 +292,7 @@ struct CategorySectionView: View {
                             .padding(3)
                     }
                     .buttonStyle(.plain)
-                    .help("Add page in \(category.name)")
+                    .help("Add document to \(category.name)")
                 }
 
                 // Three-dots menu for customizing category
@@ -337,7 +306,7 @@ struct CategorySectionView: View {
                     Divider()
                     Button(action: { store.toggleShowPageCount(id: category.id) }) {
                         Label(
-                            category.showPageCount ? "Hide Page Count" : "Show Page Count",
+                            category.showPageCount ? "Hide Document Count" : "Show Document Count",
                             systemImage: category.showPageCount ? "checkmark" : "number"
                         )
                     }
@@ -345,12 +314,10 @@ struct CategorySectionView: View {
                     Button(action: onCustomize) {
                         Label("Customize (Rename & Emoji)...", systemImage: "pencil.and.outline")
                     }
-                    if !category.isAgentsCategory {
-                        Button(action: { store.addNewPage(in: category.id) }) {
-                            Label("Add Page Here", systemImage: "plus")
-                        }
+                    Button(action: { store.addNewPage(in: category.id) }) {
+                        Label("New Document Here", systemImage: "plus")
                     }
-                    if !["cat_fav", "cat_agents", "cat_personal"].contains(category.id) {
+                    if !["cat_fav", "cat_notes"].contains(category.id) {
                         Divider()
                         Button(role: .destructive, action: { store.deleteCategory(id: category.id) }) {
                             Label("Delete Category", systemImage: "trash")
@@ -373,7 +340,7 @@ struct CategorySectionView: View {
     }
 }
 
-// MARK: - Individual Document Row
+// MARK: - Individual Document Row (Always Simple Document Icon)
 
 struct SidebarDocumentItemRow: View {
     @ObservedObject var store: WorkspaceStore
@@ -387,9 +354,10 @@ struct SidebarDocumentItemRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 8) {
-                Image(systemName: page.icon)
+                // Simple, consistent document icon
+                Image(systemName: "doc.text")
                     .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
                     .frame(width: 14)
 
                 Text(page.title)
@@ -404,17 +372,16 @@ struct SidebarDocumentItemRow: View {
                         Button(action: { store.toggleFavorite(id: page.id) }) {
                             Image(systemName: page.isFavorite ? "star.fill" : "star")
                                 .font(.system(size: 10))
-                                .foregroundStyle(page.isFavorite ? Color.yellow : Color.secondary)
+                                .foregroundStyle(page.isFavorite ? Color.yellow : Color.secondary.opacity(0.6))
                         }
                         .buttonStyle(.plain)
 
                         Menu {
-                            Button("Open in Tab") {}
                             Button(page.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
                                 store.toggleFavorite(id: page.id)
                             }
                             Divider()
-                            Button("Delete Page", role: .destructive) {
+                            Button("Delete Document", role: .destructive) {
                                 store.deletePage(id: page.id)
                             }
                         } label: {
@@ -436,48 +403,6 @@ struct SidebarDocumentItemRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-    }
-}
-
-// MARK: - ACP Agent Row
-
-struct SidebarAgentItemRow: View {
-    let agent: AgentItem
-    @State private var isHovered: Bool = false
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: agent.icon)
-                .font(.system(size: 12))
-                .foregroundStyle(.tint)
-                .frame(width: 14)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(agent.name)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Text(agent.role)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Circle()
-                .fill(agent.status.contains("Active") ? Color.green : Color.orange)
-                .frame(width: 6, height: 6)
-                .help("Status: \(agent.status) (\(agent.endpoint))")
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isHovered ? Color.primary.opacity(0.05) : Color.clear)
-        )
         .onHover { isHovered = $0 }
     }
 }

@@ -7,6 +7,6 @@ struct PustakaApp: App {
             ContentView()
         }
         .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified)
+        .windowToolbarStyle(.unified(showsTitle: false))
     }
 }
