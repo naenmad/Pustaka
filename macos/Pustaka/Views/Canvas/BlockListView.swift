@@ -2,30 +2,20 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// MARK: - Focusable Block Text Field
-
-class FocusableBlockTextField: NSTextField {
-    var onDidBecomeFirstResponder: (() -> Void)?
-
-    override func becomeFirstResponder() -> Bool {
-        let ok = super.becomeFirstResponder()
-        if ok {
-            onDidBecomeFirstResponder?()
-        }
-        return ok
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        onDidBecomeFirstResponder?()
-        super.mouseDown(with: event)
-    }
-}
-
 // MARK: - Live Inline Markdown Styler Engine (True WYSIWYG - Zero Delimiters on Screen)
 
+struct MarkdownStyleFlags: OptionSet {
+    let rawValue: Int
+    static let bold      = MarkdownStyleFlags(rawValue: 1 << 0)
+    static let italic    = MarkdownStyleFlags(rawValue: 1 << 1)
+    static let strike    = MarkdownStyleFlags(rawValue: 1 << 2)
+    static let highlight = MarkdownStyleFlags(rawValue: 1 << 3)
+    static let code      = MarkdownStyleFlags(rawValue: 1 << 4)
+}
+
 enum MarkdownStyler {
-    /// Converts a Markdown string into an NSAttributedString by stripping out delimiters (***...***, **...**, *...*, etc.)
-    /// and applying real font traits (Bold, Italic, Bold+Italic) and styles to the visible text, so no formatting symbols appear on screen.
+    /// Converts a Markdown string into an NSAttributedString by recursively stripping delimiters (***...***, **...**, ~~...~~, etc.)
+    /// and applying font traits (Bold, Italic) and styles (Strike, Highlight, Code) so no formatting symbols ever appear on screen.
     static func markdownToAttributedString(
         _ md: String,
         baseFont: NSFont,
@@ -36,91 +26,127 @@ enum MarkdownStyler {
         }
 
         let result = NSMutableAttributedString()
-        // Priority order: Bold+Italic (*** or **_ or _**), then Bold (**), then Italic (* or _), Strike, Code, Highlight
-        let pattern = #"(\*\*\*([^\*]+)\*\*\*)|(\*\*_([^\*]+)_\*\*)|(_\*\*([^_]+)\*\*_)|(\*\*([^\*]+)\*\*)|((?<!\*)\*([^\*]+)\*(?!\*))|((?<!\w)_([^_]+)_(?!\w))|(~~([^~]+)~~)|(`([^`]+)`)|(==([^=]+)==)"#
+        parseNode(md, currentFlags: [], baseFont: baseFont, baseColor: baseColor, into: result)
+        return result
+    }
+
+    private static func parseNode(
+        _ text: String,
+        currentFlags: MarkdownStyleFlags,
+        baseFont: NSFont,
+        baseColor: NSColor,
+        into output: NSMutableAttributedString
+    ) {
+        guard !text.isEmpty else { return }
+
+        // Matches inline formatting blocks:
+        // Group 2: ***...*** (Bold+Italic)
+        // Group 4: **...** (Bold)
+        // Group 6: *...* (Italic)
+        // Group 8: _..._ (Italic)
+        // Group 10: ~~...~~ (Strikethrough)
+        // Group 12: `...` (Inline Code)
+        // Group 14: ==...== (Highlight)
+        let pattern = #"(\*\*\*([^\*]+)\*\*\*)|(\*\*([^\*]+)\*\*)|((?<!\*)\*([^\*]+)\*(?!\*))|((?<!\w)_([^_]+)_(?!\w))|(~~([^~]+)~~)|(`([^`]+)`)|(==([^=]+)==)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return NSAttributedString(string: md, attributes: [.font: baseFont, .foregroundColor: baseColor])
+            appendLeaf(text, flags: currentFlags, baseFont: baseFont, baseColor: baseColor, into: output)
+            return
+        }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        if matches.isEmpty {
+            appendLeaf(text, flags: currentFlags, baseFont: baseFont, baseColor: baseColor, into: output)
+            return
         }
 
         var lastIndex = 0
-        let nsMd = md as NSString
-        let matches = regex.matches(in: md, range: NSRange(location: 0, length: nsMd.length))
-
         for match in matches {
             if match.range.location > lastIndex {
-                let plainRange = NSRange(location: lastIndex, length: match.range.location - lastIndex)
-                let plainText = nsMd.substring(with: plainRange)
-                result.append(NSAttributedString(string: plainText, attributes: [
-                    .font: baseFont,
-                    .foregroundColor: baseColor
-                ]))
+                let plain = nsText.substring(with: NSRange(location: lastIndex, length: match.range.location - lastIndex))
+                appendLeaf(plain, flags: currentFlags, baseFont: baseFont, baseColor: baseColor, into: output)
             }
 
-            // Group 2 (***), Group 4 (**_), Group 6 (_**): BOLD + ITALIC COMBINED
-            if let r = Range(match.range(at: 2), in: md) ?? Range(match.range(at: 4), in: md) ?? Range(match.range(at: 6), in: md) {
-                let text = String(md[r])
-                var biFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
-                biFont = NSFontManager.shared.convert(biFont, toHaveTrait: .italicFontMask)
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: biFont,
-                    .foregroundColor: baseColor
-                ]))
-            } else if let r = Range(match.range(at: 8), in: md) {
-                // Group 8: Bold: **text** -> text rendered in bold font
-                let text = String(md[r])
-                let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: boldFont,
-                    .foregroundColor: baseColor
-                ]))
-            } else if let r = Range(match.range(at: 10), in: md) ?? Range(match.range(at: 12), in: md) {
-                // Group 10 (*), Group 12 (_): Italic -> text rendered in italic font
-                let text = String(md[r])
-                let italicFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: italicFont,
-                    .foregroundColor: baseColor
-                ]))
-            } else if let r = Range(match.range(at: 14), in: md) {
-                // Group 14: Strikethrough: ~~text~~ -> text with strikethrough line
-                let text = String(md[r])
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: baseFont,
-                    .foregroundColor: baseColor,
-                    .strikethroughStyle: NSUnderlineStyle.single.rawValue
-                ]))
-            } else if let r = Range(match.range(at: 16), in: md) {
-                // Group 16: Inline Code: `text` -> monospaced text with rounded pill background
-                let text = String(md[r])
-                let codeFont = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: codeFont,
-                    .foregroundColor: NSColor.systemRed,
-                    .backgroundColor: NSColor.quaternaryLabelColor
-                ]))
-            } else if let r = Range(match.range(at: 18), in: md) {
-                // Group 18: Highlight: ==text== -> text with yellow background highlight
-                let text = String(md[r])
-                result.append(NSAttributedString(string: text, attributes: [
-                    .font: baseFont,
-                    .foregroundColor: baseColor,
-                    .backgroundColor: NSColor.systemYellow.withAlphaComponent(0.28)
-                ]))
+            if let r = Range(match.range(at: 2), in: text) {
+                // ***text***
+                let inner = String(text[r])
+                parseNode(inner, currentFlags: currentFlags.union([.bold, .italic]), baseFont: baseFont, baseColor: baseColor, into: output)
+            } else if let r = Range(match.range(at: 4), in: text) {
+                // **text**
+                let inner = String(text[r])
+                parseNode(inner, currentFlags: currentFlags.union([.bold]), baseFont: baseFont, baseColor: baseColor, into: output)
+            } else if let r = Range(match.range(at: 6), in: text) ?? Range(match.range(at: 8), in: text) {
+                // *text* or _text_
+                let inner = String(text[r])
+                parseNode(inner, currentFlags: currentFlags.union([.italic]), baseFont: baseFont, baseColor: baseColor, into: output)
+            } else if let r = Range(match.range(at: 10), in: text) {
+                // ~~text~~
+                let inner = String(text[r])
+                parseNode(inner, currentFlags: currentFlags.union([.strike]), baseFont: baseFont, baseColor: baseColor, into: output)
+            } else if let r = Range(match.range(at: 12), in: text) {
+                // `text` (code does not parse markdown inside)
+                let inner = String(text[r])
+                appendLeaf(inner, flags: currentFlags.union([.code]), baseFont: baseFont, baseColor: baseColor, into: output)
+            } else if let r = Range(match.range(at: 14), in: text) {
+                // ==text==
+                let inner = String(text[r])
+                parseNode(inner, currentFlags: currentFlags.union([.highlight]), baseFont: baseFont, baseColor: baseColor, into: output)
             }
 
             lastIndex = match.range.location + match.range.length
         }
 
-        if lastIndex < nsMd.length {
-            let plainRange = NSRange(location: lastIndex, length: nsMd.length - lastIndex)
-            let plainText = nsMd.substring(with: plainRange)
-            result.append(NSAttributedString(string: plainText, attributes: [
-                .font: baseFont,
-                .foregroundColor: baseColor
-            ]))
+        if lastIndex < nsText.length {
+            let plain = nsText.substring(with: NSRange(location: lastIndex, length: nsText.length - lastIndex))
+            appendLeaf(plain, flags: currentFlags, baseFont: baseFont, baseColor: baseColor, into: output)
+        }
+    }
+
+    private static func appendLeaf(
+        _ str: String,
+        flags: MarkdownStyleFlags,
+        baseFont: NSFont,
+        baseColor: NSColor,
+        into output: NSMutableAttributedString
+    ) {
+        guard !str.isEmpty else { return }
+
+        var font = baseFont
+        if flags.contains(.code) {
+            font = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
+        } else {
+            let isBold = flags.contains(.bold)
+            let isItalic = flags.contains(.italic)
+            if isBold && isItalic {
+                var bi = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+                bi = NSFontManager.shared.convert(bi, toHaveTrait: .italicFontMask)
+                font = bi
+            } else if isBold {
+                font = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+            } else if isItalic {
+                font = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
+            }
         }
 
-        return result
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: baseColor
+        ]
+
+        if flags.contains(.strike) {
+            attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        }
+
+        if flags.contains(.highlight) {
+            attrs[.backgroundColor] = NSColor.systemYellow.withAlphaComponent(0.28)
+        }
+
+        if flags.contains(.code) {
+            attrs[.foregroundColor] = NSColor.systemRed
+            attrs[.backgroundColor] = NSColor.quaternaryLabelColor
+        }
+
+        output.append(NSAttributedString(string: str, attributes: attrs))
     }
 
     /// Converts an NSAttributedString back into standard Markdown for disk persistence
@@ -160,7 +186,148 @@ enum MarkdownStyler {
     }
 }
 
-// MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete, Slash Commands & Clean WYSIWYG)
+// MARK: - Auto-Growing Word-Wrapping Block Editor Text View (Zero Horizontal Scrolling)
+
+final class BlockEditorTextView: NSTextView {
+    var placeholderText: String = ""
+    var onCommit: (() -> Void)?
+    var onDeleteEmpty: (() -> Void)?
+    var onSlashCommit: (() -> Bool)?
+    var onEscape: (() -> Bool)?
+    var onSelectAllBlocks: (() -> Void)?
+    var onFocus: (() -> Void)?
+    var onFormattingStateChanged: ((EditorFormattingState) -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok {
+            onFocus?()
+            updateFormattingState()
+            needsDisplay = true
+        }
+        return ok
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let ok = super.resignFirstResponder()
+        needsDisplay = true
+        return ok
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onFocus?()
+        super.mouseDown(with: event)
+        updateFormattingState()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if string.isEmpty && !placeholderText.isEmpty {
+            let padding = textContainer?.lineFragmentPadding ?? 0
+            let rect = NSRect(
+                x: textContainerInset.width + padding,
+                y: textContainerInset.height,
+                width: bounds.width - (textContainerInset.width + padding) * 2,
+                height: bounds.height
+            )
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: self.font ?? NSFont.systemFont(ofSize: 15),
+                .foregroundColor: NSColor.placeholderTextColor
+            ]
+            (placeholderText as NSString).draw(in: rect, withAttributes: attrs)
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        // Return / Enter Key (keyCode 36)
+        if event.keyCode == 36 {
+            if event.modifierFlags.contains(.shift) {
+                // Shift+Enter: soft newline inside the same block
+                super.keyDown(with: event)
+                invalidateIntrinsicContentSize()
+                return
+            }
+            if let slashHandler = onSlashCommit, slashHandler() {
+                return
+            }
+            onCommit?()
+            return
+        }
+
+        // Escape Key (keyCode 53)
+        if event.keyCode == 53 {
+            if let escHandler = onEscape, escHandler() {
+                return
+            }
+        }
+
+        // Backspace / Delete Key (keyCode 51)
+        if event.keyCode == 51 {
+            if string.isEmpty {
+                onDeleteEmpty?()
+                return
+            }
+        }
+
+        // Cmd+A inside text: if all text already selected, trigger multi-block selection
+        if event.keyCode == 0 && event.modifierFlags.contains(.command) { // 'a' key
+            let selLen = selectedRange().length
+            let totalLen = (string as NSString).length
+            if selLen == totalLen && totalLen > 0 {
+                onSelectAllBlocks?()
+                return
+            }
+        }
+
+        super.keyDown(with: event)
+    }
+
+    func updateFormattingState() {
+        guard let storage = textStorage else { return }
+        let sel = selectedRange()
+        var traits: NSFontTraitMask = []
+        var hasStrike = false
+        var hasCode = false
+
+        if sel.length > 0 && sel.location < storage.length {
+            let attrs = storage.attributes(at: sel.location, effectiveRange: nil)
+            if let f = attrs[.font] as? NSFont {
+                traits = NSFontManager.shared.traits(of: f)
+                if f.isFixedPitch { hasCode = true }
+            }
+            if let s = attrs[.strikethroughStyle] as? Int, s != 0 {
+                hasStrike = true
+            }
+            if (attrs[.backgroundColor] as? NSColor) == NSColor.quaternaryLabelColor {
+                hasCode = true
+            }
+        } else {
+            let attrs = typingAttributes
+            if let f = attrs[.font] as? NSFont {
+                traits = NSFontManager.shared.traits(of: f)
+                if f.isFixedPitch { hasCode = true }
+            }
+            if let s = attrs[.strikethroughStyle] as? Int, s != 0 {
+                hasStrike = true
+            }
+            if (attrs[.backgroundColor] as? NSColor) == NSColor.quaternaryLabelColor {
+                hasCode = true
+            }
+        }
+
+        let state = EditorFormattingState(
+            isBold: traits.contains(.boldFontMask),
+            isItalic: traits.contains(.italicFontMask),
+            isStrike: hasStrike,
+            isCode: hasCode
+        )
+        onFormattingStateChanged?(state)
+    }
+}
+
+// MARK: - Native AppKit Block Editor Field (Multiline Word-Wrapping, True WYSIWYG, Real-time Formatting)
 
 struct BlockEditorField: NSViewRepresentable {
     @Binding var text: String
@@ -175,50 +342,67 @@ struct BlockEditorField: NSViewRepresentable {
     var onTextChanged: ((String) -> Void)? = nil
     var onFocus: (() -> Void)? = nil
     var onSelectAllBlocks: (() -> Void)? = nil
+    var onFormattingStateChanged: ((EditorFormattingState) -> Void)? = nil
 
-    func makeNSView(context: Context) -> NSTextField {
-        let tf = FocusableBlockTextField()
-        tf.isBordered = false
-        tf.drawsBackground = false
-        tf.focusRingType = .none
-        tf.font = font
-        tf.textColor = textColor
-        tf.placeholderString = placeholder
-        tf.delegate = context.coordinator
-        tf.cell?.wraps = true
-        tf.cell?.isScrollable = false
-        tf.maximumNumberOfLines = 0
-        tf.lineBreakMode = .byWordWrapping
-        tf.allowsEditingTextAttributes = true
-        tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        tf.setAccessibilityLabel(placeholder)
+    func makeNSView(context: Context) -> BlockEditorTextView {
+        let tv = BlockEditorTextView()
+        tv.isRichText = true
+        tv.importsGraphics = false
+        tv.allowsUndo = true
+        tv.isEditable = true
+        tv.isSelectable = true
+        tv.drawsBackground = false
+        tv.focusRingType = .none
+        tv.font = font
+        tv.textColor = textColor
+        tv.placeholderText = placeholder
+        tv.isHorizontallyResizable = false
+        tv.isVerticallyResizable = true
+        tv.textContainer?.widthTracksTextView = true
+        tv.textContainer?.lineFragmentPadding = 0
+        tv.textContainerInset = NSSize(width: 0, height: 2)
+        tv.delegate = context.coordinator
 
-        tf.onDidBecomeFirstResponder = {
-            context.coordinator.parent.onFocus?()
-        }
-        return tf
+        tv.onCommit = onCommit
+        tv.onDeleteEmpty = onDeleteEmpty
+        tv.onSlashCommit = onSlashCommit
+        tv.onEscape = onEscape
+        tv.onSelectAllBlocks = onSelectAllBlocks
+        tv.onFocus = onFocus
+        tv.onFormattingStateChanged = onFormattingStateChanged
+
+        let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
+        tv.textStorage?.setAttributedString(styled)
+
+        return tv
     }
 
-    func updateNSView(_ nsView: NSTextField, context: Context) {
-        let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
-        let currentAttr = nsView.attributedStringValue
-
-        // Only update if the text or attributes actually differ, to prevent resetting cursor
-        if currentAttr.string != styled.string || currentAttr != styled {
-            nsView.attributedStringValue = styled
-        }
+    func updateNSView(_ nsView: BlockEditorTextView, context: Context) {
+        nsView.placeholderText = placeholder
         nsView.font = font
         nsView.textColor = textColor
-        if nsView.placeholderString != placeholder {
-            nsView.placeholderString = placeholder
-            nsView.needsDisplay = true
+        nsView.onCommit = onCommit
+        nsView.onDeleteEmpty = onDeleteEmpty
+        nsView.onSlashCommit = onSlashCommit
+        nsView.onEscape = onEscape
+        nsView.onSelectAllBlocks = onSelectAllBlocks
+        nsView.onFocus = onFocus
+        nsView.onFormattingStateChanged = onFormattingStateChanged
+
+        let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
+        if nsView.attributedString() != styled && nsView.textStorage?.string != styled.string {
+            let prevRange = nsView.selectedRange()
+            nsView.textStorage?.setAttributedString(styled)
+            if prevRange.location <= (styled.string as NSString).length {
+                nsView.setSelectedRange(prevRange)
+            }
         }
 
         if isFocused {
             if !context.coordinator.didFocusOnce {
                 context.coordinator.didFocusOnce = true
                 DispatchQueue.main.async {
-                    if let window = nsView.window, window.firstResponder != nsView.currentEditor() {
+                    if let window = nsView.window, window.firstResponder != nsView {
                         window.makeFirstResponder(nsView)
                     }
                 }
@@ -226,13 +410,31 @@ struct BlockEditorField: NSViewRepresentable {
         } else {
             context.coordinator.didFocusOnce = false
         }
+        nsView.needsDisplay = true
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: BlockEditorTextView, context: Context) -> CGSize? {
+        let targetWidth = proposal.width ?? 600
+        guard targetWidth > 0 else { return nil }
+        if nsView.frame.width != targetWidth {
+            nsView.frame.size.width = targetWidth
+            nsView.textContainer?.containerSize = NSSize(width: targetWidth, height: .greatestFiniteMagnitude)
+        }
+        if let lm = nsView.layoutManager, let tc = nsView.textContainer {
+            lm.ensureLayout(for: tc)
+            let used = lm.usedRect(for: tc)
+            let minH = (nsView.font?.pointSize ?? 15) * 1.35
+            let h = max(used.height + nsView.textContainerInset.height * 2, minH)
+            return CGSize(width: targetWidth, height: ceil(h))
+        }
+        return nil
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    class Coordinator: NSObject, NSTextFieldDelegate {
+    class Coordinator: NSObject, NSTextViewDelegate {
         var parent: BlockEditorField
         var didFocusOnce: Bool = false
         static weak var activeTextView: NSTextView?
@@ -241,79 +443,41 @@ struct BlockEditorField: NSViewRepresentable {
             self.parent = parent
         }
 
-        func controlTextDidBeginEditing(_ obj: Notification) {
-            if let tf = obj.object as? NSTextField, let tv = tf.currentEditor() as? NSTextView {
+        func textDidBeginEditing(_ notification: Notification) {
+            if let tv = notification.object as? BlockEditorTextView {
                 Coordinator.activeTextView = tv
+                tv.updateFormattingState()
             }
             parent.onFocus?()
         }
 
-        func controlTextDidChange(_ obj: Notification) {
-            guard let tf = obj.object as? NSTextField else { return }
-            if let tv = tf.currentEditor() as? NSTextView {
-                Coordinator.activeTextView = tv
-            }
+        func textDidChange(_ notification: Notification) {
+            guard let tv = notification.object as? BlockEditorTextView else { return }
+            Coordinator.activeTextView = tv
 
-            // Auto-convert typed markdown delimiters (e.g. typing **bold**) into real formatting
-            let rawStr = tf.stringValue
+            // Auto-convert typed markdown delimiters (e.g. typing **bold** or ~~strike~~) into real WYSIWYG
+            let rawStr = tv.string
             if rawStr.contains("**") || rawStr.contains("~~") || rawStr.contains("==") {
                 let styled = MarkdownStyler.markdownToAttributedString(rawStr, baseFont: parent.font, baseColor: parent.textColor)
                 if styled.string != rawStr {
-                    tf.attributedStringValue = styled
+                    let sel = tv.selectedRange()
+                    tv.textStorage?.setAttributedString(styled)
+                    let safeLoc = min(sel.location, (styled.string as NSString).length)
+                    tv.setSelectedRange(NSRange(location: safeLoc, length: 0))
                 }
             }
 
-            let md = MarkdownStyler.attributedStringToMarkdown(tf.attributedStringValue)
+            let md = MarkdownStyler.attributedStringToMarkdown(tv.attributedString())
             parent.text = md
             parent.onTextChanged?(md)
+            tv.updateFormattingState()
+            tv.needsDisplay = true
         }
 
-        func controlTextDidEndEditing(_ obj: Notification) {
-            if let tf = obj.object as? NSTextField {
-                let md = MarkdownStyler.attributedStringToMarkdown(tf.attributedStringValue)
-                parent.text = md
-                parent.onTextChanged?(md)
-            }
-        }
-
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            Coordinator.activeTextView = textView
-
-            // Cmd+A inside text: if all text is already selected, select all blocks in canvas
-            if commandSelector == #selector(NSResponder.selectAll(_:)) {
-                let selLen = textView.selectedRange().length
-                let totalLen = textView.string.count
-                if selLen == totalLen && totalLen > 0 {
-                    parent.onSelectAllBlocks?()
-                    return true
-                }
-            }
-
-            // 1. Enter Key pressed
-            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                if let slashHandler = parent.onSlashCommit, slashHandler() {
-                    return true
-                }
-                parent.onCommit()
-                return true
-            }
-
-            // 2. Escape Key pressed
-            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-                if let escHandler = parent.onEscape, escHandler() {
-                    return true
-                }
-            }
-
-            // 3. Backspace / Delete Key pressed on empty text
-            if commandSelector == #selector(NSResponder.deleteBackward(_:)) {
-                if textView.string.isEmpty {
-                    parent.onDeleteEmpty()
-                    return true
-                }
-            }
-
-            return false
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let tv = notification.object as? BlockEditorTextView else { return }
+            Coordinator.activeTextView = tv
+            tv.updateFormattingState()
         }
     }
 }
@@ -378,6 +542,7 @@ struct BlockListView: View {
     @Binding var focusedBlockId: String?
     @Binding var selectedBlockIds: Set<String>
     @Binding var blockActionTrigger: BlockActionCommand?
+    @Binding var formattingState: EditorFormattingState
 
     @State private var blocks: [UIBlockItem] = []
     @State private var hoveredBlockId: String? = nil
@@ -396,6 +561,7 @@ struct BlockListView: View {
                     isFirstBlock: index == 0,
                     isLastBlock: index == blocks.count - 1,
                     isFocused: focusedBlockId == block.id,
+                    formattingState: $formattingState,
                     onFocus: {
                         focusedBlockId = block.id
                         if !selectedBlockIds.contains(block.id) {
@@ -682,6 +848,9 @@ struct BlockListView: View {
                 }
                 storage.endEditing()
                 textView.didChangeText()
+                if let blockTV = textView as? BlockEditorTextView {
+                    blockTV.updateFormattingState()
+                }
                 return
             } else if textView.window?.firstResponder == textView {
                 var attrs = textView.typingAttributes
@@ -718,6 +887,9 @@ struct BlockListView: View {
                     break
                 }
                 textView.typingAttributes = attrs
+                if let blockTV = textView as? BlockEditorTextView {
+                    blockTV.updateFormattingState()
+                }
                 return
             }
         }
@@ -755,6 +927,7 @@ struct BlockListView: View {
                 ? NSFontManager.shared.convert(font, toNotHaveTrait: .boldFontMask)
                 : NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
             mutable.addAttribute(.font, value: newFont, range: full)
+            formattingState.isBold = !isBold
         case "*":
             let font = (mutable.attribute(.font, at: 0, effectiveRange: nil) as? NSFont) ?? baseFont
             let isItalic = NSFontManager.shared.traits(of: font).contains(.italicFontMask)
@@ -762,12 +935,15 @@ struct BlockListView: View {
                 ? NSFontManager.shared.convert(font, toNotHaveTrait: .italicFontMask)
                 : NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
             mutable.addAttribute(.font, value: newFont, range: full)
+            formattingState.isItalic = !isItalic
         case "~~":
             let currentStrike = (mutable.attribute(.strikethroughStyle, at: 0, effectiveRange: nil) as? Int) ?? 0
             if currentStrike != 0 {
                 mutable.removeAttribute(.strikethroughStyle, range: full)
+                formattingState.isStrike = false
             } else {
                 mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: full)
+                formattingState.isStrike = true
             }
         case "`":
             let currentBg = mutable.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -775,11 +951,13 @@ struct BlockListView: View {
                 mutable.addAttribute(.font, value: baseFont, range: full)
                 mutable.removeAttribute(.backgroundColor, range: full)
                 mutable.removeAttribute(.foregroundColor, range: full)
+                formattingState.isCode = false
             } else {
                 let codeFont = NSFont.monospacedSystemFont(ofSize: 15 * 0.9, weight: .regular)
                 mutable.addAttribute(.font, value: codeFont, range: full)
                 mutable.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: full)
                 mutable.addAttribute(.foregroundColor, value: NSColor.systemRed, range: full)
+                formattingState.isCode = true
             }
         default:
             break
@@ -973,6 +1151,7 @@ struct BlockRowView: View {
     let isFirstBlock: Bool
     let isLastBlock: Bool
     let isFocused: Bool
+    @Binding var formattingState: EditorFormattingState
     let onFocus: () -> Void
     let onSelectHandle: () -> Void
     let onSelectAllBlocks: () -> Void
@@ -1137,7 +1316,8 @@ struct BlockRowView: View {
                 onEscape: { isSlashCommandOpen = false; return true },
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
-                onSelectAllBlocks: onSelectAllBlocks
+                onSelectAllBlocks: onSelectAllBlocks,
+                onFormattingStateChanged: { state in formattingState = state }
             )
 
         // 2. Plain Text Paragraph
@@ -1156,7 +1336,8 @@ struct BlockRowView: View {
                 onEscape: { isSlashCommandOpen = false; return true },
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
-                onSelectAllBlocks: onSelectAllBlocks
+                onSelectAllBlocks: onSelectAllBlocks,
+                onFormattingStateChanged: { state in formattingState = state }
             )
 
         // 3. Bulleted List
@@ -1181,7 +1362,8 @@ struct BlockRowView: View {
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
             }
 
@@ -1207,7 +1389,8 @@ struct BlockRowView: View {
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
             }
 
@@ -1238,7 +1421,8 @@ struct BlockRowView: View {
                         onEscape: { isSlashCommandOpen = false; return true },
                         onTextChanged: checkSlashCommand,
                         onFocus: onFocus,
-                        onSelectAllBlocks: onSelectAllBlocks
+                        onSelectAllBlocks: onSelectAllBlocks,
+                        onFormattingStateChanged: { state in formattingState = state }
                     )
                 }
 
@@ -1273,7 +1457,8 @@ struct BlockRowView: View {
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
             }
             .padding(.vertical, 2)
@@ -1323,7 +1508,8 @@ struct BlockRowView: View {
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
             }
 
@@ -1363,7 +1549,8 @@ struct BlockRowView: View {
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
 
                 if isHovered || isSelected {
@@ -1409,7 +1596,8 @@ struct BlockRowView: View {
                         onEscape: { isSlashCommandOpen = false; return true },
                         onTextChanged: checkSlashCommand,
                         onFocus: onFocus,
-                        onSelectAllBlocks: onSelectAllBlocks
+                        onSelectAllBlocks: onSelectAllBlocks,
+                        onFormattingStateChanged: { state in formattingState = state }
                     )
 
                     Spacer()
@@ -1554,7 +1742,8 @@ struct BlockRowView: View {
                         onUpdateText(newCap)
                     },
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
             }
             .padding(10)
@@ -1602,7 +1791,8 @@ struct BlockRowView: View {
                         onUpdateText(newExpr)
                     },
                     onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks
+                    onSelectAllBlocks: onSelectAllBlocks,
+                    onFormattingStateChanged: { state in formattingState = state }
                 )
 
                 if !textBuffer.isEmpty {

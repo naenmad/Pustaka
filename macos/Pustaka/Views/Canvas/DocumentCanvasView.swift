@@ -149,6 +149,7 @@ struct DocumentCanvasView: View {
     @State private var focusedBlockId: String? = nil
     @State private var selectedBlockIds: Set<String> = []
     @State private var blockActionTrigger: BlockActionCommand? = nil
+    @State private var formattingState = EditorFormattingState()
     @State private var isIconPickerOpen: Bool = false
     @State private var isCoverPickerOpen: Bool = false
     @State private var isStatsPopoverOpen: Bool = false
@@ -345,32 +346,24 @@ struct DocumentCanvasView: View {
                 }
                 .help("Insert block into document")
 
-                // 2. Formatting Control Group
-                ControlGroup {
-                    Button(action: { blockActionTrigger = .formatActiveBlock("**") }) {
-                        Image(systemName: "bold")
-                            .font(.system(size: 11, weight: .semibold))
+                // 2. Formatting Control Group with Live Active Indicators
+                HStack(spacing: 2) {
+                    topToolbarFormatButton(icon: "bold", isActive: formattingState.isBold, help: "Bold (⌘B)") {
+                        blockActionTrigger = .formatActiveBlock("**")
                     }
-                    .help("Bold (⌘B)")
-
-                    Button(action: { blockActionTrigger = .formatActiveBlock("*") }) {
-                        Image(systemName: "italic")
-                            .font(.system(size: 11, weight: .semibold))
+                    topToolbarFormatButton(icon: "italic", isActive: formattingState.isItalic, help: "Italic (⌘I)") {
+                        blockActionTrigger = .formatActiveBlock("*")
                     }
-                    .help("Italic (⌘I)")
-
-                    Button(action: { blockActionTrigger = .formatActiveBlock("~~") }) {
-                        Image(systemName: "strikethrough")
-                            .font(.system(size: 11, weight: .semibold))
+                    topToolbarFormatButton(icon: "strikethrough", isActive: formattingState.isStrike, help: "Strikethrough") {
+                        blockActionTrigger = .formatActiveBlock("~~")
                     }
-                    .help("Strikethrough")
-
-                    Button(action: { blockActionTrigger = .formatActiveBlock("`") }) {
-                        Image(systemName: "curlybraces")
-                            .font(.system(size: 11, weight: .semibold))
+                    topToolbarFormatButton(icon: "curlybraces", isActive: formattingState.isCode, help: "Inline Code") {
+                        blockActionTrigger = .formatActiveBlock("`")
                     }
-                    .help("Inline Code")
                 }
+                .padding(2)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
 
                 // 3. Quick Table Shortcut Button
                 Button(action: {
@@ -693,18 +686,18 @@ struct DocumentCanvasView: View {
 
             Divider().frame(height: 16)
 
-            // 3. Formatting Buttons
+            // 3. Formatting Buttons with Live Active Indicators
             HStack(spacing: 2) {
-                toolbarButton(icon: "bold", help: "Bold (⌘B)") {
+                toolbarButton(icon: "bold", isActive: formattingState.isBold, help: "Bold (⌘B)") {
                     blockActionTrigger = .formatActiveBlock("**")
                 }
-                toolbarButton(icon: "italic", help: "Italic (⌘I)") {
+                toolbarButton(icon: "italic", isActive: formattingState.isItalic, help: "Italic (⌘I)") {
                     blockActionTrigger = .formatActiveBlock("*")
                 }
-                toolbarButton(icon: "strikethrough", help: "Strikethrough") {
+                toolbarButton(icon: "strikethrough", isActive: formattingState.isStrike, help: "Strikethrough") {
                     blockActionTrigger = .formatActiveBlock("~~")
                 }
-                toolbarButton(icon: "curlybraces", help: "Inline Code") {
+                toolbarButton(icon: "curlybraces", isActive: formattingState.isCode, help: "Inline Code") {
                     blockActionTrigger = .formatActiveBlock("`")
                 }
             }
@@ -756,12 +749,37 @@ struct DocumentCanvasView: View {
     }
 
     @ViewBuilder
-    private func toolbarButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+    private func topToolbarFormatButton(icon: String, isActive: Bool, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: isActive ? .bold : .medium))
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .frame(width: 24, height: 20)
+                .background(isActive ? Color.accentColor.opacity(0.22) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    @ViewBuilder
+    private func toolbarButton(icon: String, isActive: Bool = false, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: isActive ? .bold : .medium))
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
                 .frame(width: 26, height: 26)
+                .background(isActive ? Color.accentColor.opacity(0.22) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -785,13 +803,14 @@ struct DocumentCanvasView: View {
                         page: currentPage,
                         focusedBlockId: $focusedBlockId,
                         selectedBlockIds: $selectedBlockIds,
-                        blockActionTrigger: $blockActionTrigger
+                        blockActionTrigger: $blockActionTrigger,
+                        formattingState: $formattingState
                     )
 
                     Spacer(minLength: 200)
                 }
-                .frame(maxWidth: 740)
-                .padding(.horizontal, 36)
+                .frame(maxWidth: 920)
+                .padding(.horizontal, 28)
                 .padding(.top, currentPage.coverUrl.isEmpty ? 28 : 16)
                 .frame(maxWidth: .infinity)
             }

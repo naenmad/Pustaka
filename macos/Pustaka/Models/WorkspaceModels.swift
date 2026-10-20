@@ -192,3 +192,12 @@ struct UIBlockItem: Identifiable, Equatable {
     var kind: UIBlockKind
     var text: String
 }
+
+// MARK: - Live Text Formatting State (Bold, Italic, Strikethrough, Code)
+
+struct EditorFormattingState: Equatable {
+    var isBold: Bool = false
+    var isItalic: Bool = false
+    var isStrike: Bool = false
+    var isCode: Bool = false
+}
