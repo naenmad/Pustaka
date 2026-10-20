@@ -1,0 +1,163 @@
+import Foundation
+import SwiftUI
+
+// MARK: - Navigation & Page Sections
+
+enum PageSection: String, CaseIterable, Identifiable {
+    case favorites = "Favorites"
+    case teamspaces = "Teamspaces"
+    case privateDocs = "Private"
+
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .favorites: return "star.fill"
+        case .teamspaces: return "person.2.fill"
+        case .privateDocs: return "lock.fill"
+        }
+    }
+}
+
+struct DocumentPage: Identifiable, Hashable {
+    let id: String
+    var title: String
+    var icon: String
+    var section: PageSection
+    var rawContent: String
+    var isFavorite: Bool
+    var lastModified: Date
+    var boardTasks: [TaskCard]
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: DocumentPage, rhs: DocumentPage) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+// MARK: - AI Agent Integration (ACP)
+
+struct AgentItem: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let role: String
+    var status: String
+    let icon: String
+    let endpoint: String
+}
+
+// MARK: - Kanban Board Models
+
+enum TaskStatus: String, CaseIterable, Identifiable {
+    case todo = "To Do"
+    case inProgress = "In Progress"
+    case inReview = "In Review"
+    case done = "Done"
+
+    var id: String { rawValue }
+
+    var color: Color {
+        switch self {
+        case .todo: return .secondary
+        case .inProgress: return .blue
+        case .inReview: return .orange
+        case .done: return .green
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .todo: return "circle"
+        case .inProgress: return "arrow.triangle.2.circlepath.circle.fill"
+        case .inReview: return "magnifyingglass.circle.fill"
+        case .done: return "checkmark.circle.fill"
+        }
+    }
+}
+
+enum TaskPriority: String, CaseIterable {
+    case high = "High"
+    case medium = "Med"
+    case low = "Low"
+
+    var color: Color {
+        switch self {
+        case .high: return .red
+        case .medium: return .orange
+        case .low: return .secondary
+        }
+    }
+}
+
+struct TaskCard: Identifiable, Hashable {
+    let id: String
+    var title: String
+    var status: TaskStatus
+    var tag: String
+    var assignee: String
+    var priority: TaskPriority
+}
+
+// MARK: - View Mode
+
+enum CanvasViewMode: String, CaseIterable, Identifiable {
+    case document = "Document"
+    case board = "Board / Kanban"
+    case preview = "Typst Preview"
+    case source = "Source (RON)"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .document: return "doc.text.fill"
+        case .board: return "square.grid.3x2.fill"
+        case .preview: return "sparkles"
+        case .source: return "curlybraces"
+        }
+    }
+}
+
+// MARK: - WYSIWYG Block Representation
+
+enum BlockColorTheme: String, CaseIterable {
+    case standard = "Default"
+    case blue = "Blue"
+    case red = "Red"
+    case green = "Green"
+
+    var bg: Color {
+        switch self {
+        case .standard: return Color(nsColor: .controlBackgroundColor).opacity(0.6)
+        case .blue: return Color.blue.opacity(0.08)
+        case .red: return Color.red.opacity(0.08)
+        case .green: return Color.green.opacity(0.08)
+        }
+    }
+
+    var stroke: Color {
+        switch self {
+        case .standard: return Color.secondary.opacity(0.3)
+        case .blue: return Color.blue
+        case .red: return Color.red
+        case .green: return Color.green
+        }
+    }
+}
+
+enum UIBlockKind: Equatable {
+    case heading(level: Int)
+    case paragraph
+    case callout(icon: String, theme: BlockColorTheme)
+    case todo(checked: Bool)
+    case code(lang: String)
+    case grid(columns: [String])
+}
+
+struct UIBlockItem: Identifiable, Equatable {
+    let id: String
+    var kind: UIBlockKind
+    var text: String
+}

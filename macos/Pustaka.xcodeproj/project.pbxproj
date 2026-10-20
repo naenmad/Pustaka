@@ -7,24 +7,72 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75D6E66F74E96C369E4F2E /* BlockListView.swift */; };
 		2F7011EBF695835398C48874 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453BE2BFC9AC54F9709DB879 /* ContentView.swift */; };
+		44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B77260BF368417A5E852534 /* TypstPreviewView.swift */; };
+		5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */; };
+		5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */; };
 		773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */; };
+		7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8275816DA33CAC37606CF1 /* SidebarView.swift */; };
+		8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508C85AAC360F0814E117474 /* KanbanBoardView.swift */; };
+		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		176EC69F5B6BE4AE64CC37BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24F64070562EB2504B1772B5 /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
+		3A75D6E66F74E96C369E4F2E /* BlockListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockListView.swift; sourceTree = "<group>"; };
 		453BE2BFC9AC54F9709DB879 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		508C85AAC360F0814E117474 /* KanbanBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanBoardView.swift; sourceTree = "<group>"; };
+		5A8275816DA33CAC37606CF1 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PustakaApp.swift; sourceTree = "<group>"; };
 		67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pustaka.entitlements; sourceTree = "<group>"; };
+		6B77260BF368417A5E852534 /* TypstPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypstPreviewView.swift; sourceTree = "<group>"; };
+		7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModels.swift; sourceTree = "<group>"; };
 		997CBAA8E88BE3A435C7891F /* Pustaka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pustaka.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
 		AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pustaka_ffi.swift; sourceTree = "<group>"; };
+		B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCanvasView.swift; sourceTree = "<group>"; };
 		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		108C290891C354D5DDB53230 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				6B77260BF368417A5E852534 /* TypstPreviewView.swift */,
+			);
+			path = Preview;
+			sourceTree = "<group>";
+		};
+		1DDDF2C1C9E35B248BC87125 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				5A8275816DA33CAC37606CF1 /* SidebarView.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		4ECEBF9A62B55877B487E36F /* Canvas */ = {
+			isa = PBXGroup;
+			children = (
+				3A75D6E66F74E96C369E4F2E /* BlockListView.swift */,
+				B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */,
+			);
+			path = Canvas;
+			sourceTree = "<group>";
+		};
+		8C619F854E12EFA1B5E316C0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */,
+				24F64070562EB2504B1772B5 /* WorkspaceStore.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		9EDC0C358FC104AD2B93381D /* Generated */ = {
 			isa = PBXGroup;
 			children = (
@@ -35,6 +83,14 @@
 			path = Generated;
 			sourceTree = "<group>";
 		};
+		A9D0F98EDD7C19E922EC42EE /* Kanban */ = {
+			isa = PBXGroup;
+			children = (
+				508C85AAC360F0814E117474 /* KanbanBoardView.swift */,
+			);
+			path = Kanban;
+			sourceTree = "<group>";
+		};
 		BBABF7D2E6B68BCA15D5E337 /* Pustaka */ = {
 			isa = PBXGroup;
 			children = (
@@ -43,6 +99,8 @@
 				67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */,
 				CB4AD995BE39ECE621859A96 /* App */,
 				9EDC0C358FC104AD2B93381D /* Generated */,
+				8C619F854E12EFA1B5E316C0 /* Models */,
+				DC83FE2B60159C31607FB256 /* Views */,
 			);
 			path = Pustaka;
 			sourceTree = "<group>";
@@ -70,6 +128,17 @@
 				997CBAA8E88BE3A435C7891F /* Pustaka.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DC83FE2B60159C31607FB256 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				4ECEBF9A62B55877B487E36F /* Canvas */,
+				A9D0F98EDD7C19E922EC42EE /* Kanban */,
+				108C290891C354D5DDB53230 /* Preview */,
+				1DDDF2C1C9E35B248BC87125 /* Sidebar */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -150,8 +219,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */,
 				2F7011EBF695835398C48874 /* ContentView.swift in Sources */,
+				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
+				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
+				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,
+				44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */,
+				5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */,
+				9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */,
 				773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
