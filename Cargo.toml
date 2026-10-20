@@ -26,3 +26,9 @@ thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uniffi = { version = "0.32", features = ["cli", "tokio"] }
+ron = "0.12"
+typst = "0.15.1"
+typst-svg = "0.15.1"
+typst-pdf = "0.15.1"
+typst-layout = "0.15.1"
+typst-assets = { version = "0.15.1", features = ["fonts"] }

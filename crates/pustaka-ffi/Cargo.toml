@@ -16,6 +16,7 @@ path = "src/bin/uniffi-bindgen.rs"
 [dependencies]
 pustaka-core = { path = "../pustaka-core" }
 pustaka-acp = { path = "../pustaka-acp" }
+ron = { workspace = true }
 uniffi = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }

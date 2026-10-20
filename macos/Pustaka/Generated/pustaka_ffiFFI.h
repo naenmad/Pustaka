@@ -249,10 +249,26 @@ RustBuffer uniffi_pustaka_ffi_fn_func_get_app_version(RustCallStatus *_Nonnull o
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_GET_ENGINE_INFO
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_GET_ENGINE_INFO
+RustBuffer uniffi_pustaka_ffi_fn_func_get_engine_info(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_INIT_ENGINE
 #define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_INIT_ENGINE
 RustBuffer uniffi_pustaka_ffi_fn_func_init_engine(RustCallStatus *_Nonnull out_status
     
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_PARSE_PFS_TO_RON
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_PARSE_PFS_TO_RON
+RustBuffer uniffi_pustaka_ffi_fn_func_parse_pfs_to_ron(RustBuffer input, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_RENDER_RON_TO_SVG
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_FN_FUNC_RENDER_RON_TO_SVG
+RustBuffer uniffi_pustaka_ffi_fn_func_render_ron_to_svg(RustBuffer ron_str, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_PUSTAKA_FFI_RUSTBUFFER_ALLOC
@@ -521,9 +537,27 @@ uint16_t uniffi_pustaka_ffi_checksum_func_get_app_version(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_GET_ENGINE_INFO
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_GET_ENGINE_INFO
+uint16_t uniffi_pustaka_ffi_checksum_func_get_engine_info(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_INIT_ENGINE
 #define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_INIT_ENGINE
 uint16_t uniffi_pustaka_ffi_checksum_func_init_engine(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_PARSE_PFS_TO_RON
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_PARSE_PFS_TO_RON
+uint16_t uniffi_pustaka_ffi_checksum_func_parse_pfs_to_ron(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_RENDER_RON_TO_SVG
+#define UNIFFI_FFIDEF_UNIFFI_PUSTAKA_FFI_CHECKSUM_FUNC_RENDER_RON_TO_SVG
+uint16_t uniffi_pustaka_ffi_checksum_func_render_ron_to_svg(void
     
 );
 #endif

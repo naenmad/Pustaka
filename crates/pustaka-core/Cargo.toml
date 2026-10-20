@@ -6,10 +6,17 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-rusqlite = { workspace = true }
-pulldown-cmark = { workspace = true }
+ron = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tokio = { workspace = true }
+typst = { workspace = true }
+typst-svg = { workspace = true }
+typst-pdf = { workspace = true }
+typst-layout = { workspace = true }
+typst-assets = { workspace = true }
+rusqlite = { workspace = true }
+pulldown-cmark = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }

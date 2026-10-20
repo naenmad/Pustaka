@@ -514,10 +514,33 @@ public func getAppVersion() -> String  {
     )
 })
 }
+public func getEngineInfo() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_pustaka_ffi_fn_func_get_engine_info(uniffiCallStatus
+    )
+})
+}
 public func initEngine() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_pustaka_ffi_fn_func_init_engine(uniffiCallStatus
+    )
+})
+}
+public func parsePfsToRon(input: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_pustaka_ffi_fn_func_parse_pfs_to_ron(
+        FfiConverterString.lower(input),uniffiCallStatus
+    )
+})
+}
+public func renderRonToSvg(ronStr: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_pustaka_ffi_fn_func_render_ron_to_svg(
+        FfiConverterString.lower(ronStr),uniffiCallStatus
     )
 })
 }
@@ -540,7 +563,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_pustaka_ffi_checksum_func_get_app_version() != 62208) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_pustaka_ffi_checksum_func_get_engine_info() != 43297) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_pustaka_ffi_checksum_func_init_engine() != 55590) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_pustaka_ffi_checksum_func_parse_pfs_to_ron() != 11369) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_pustaka_ffi_checksum_func_render_ron_to_svg() != 63444) {
         return InitializationResult.apiChecksumMismatch
     }
 

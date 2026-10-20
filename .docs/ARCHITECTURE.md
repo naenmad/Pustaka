@@ -1,36 +1,81 @@
-# Technical Architecture — Pustaka Monorepo
+# Technical Architecture — Pustaka (RON-RS & Typst Engine)
 
-## 1. High-Level Architecture
-Pustaka enforces a **Decoupled Architecture**:
+## 1. High-Level Architecture Pipeline
 
-+---------------------------------------------------------+
-|                  SwiftUI (macOS App)                    |
-|   • View Layer & Native macOS UX                        |
-|   • Reactive State Management (@Observable)             |
-+----------------------------+----------------------------+
-                             | UniFFI (C-ABI Bridge)
-+----------------------------v----------------------------+
-|                    Rust Core Engine                     |
-|  +-------------------------+-------------------------+  |
-|  |      pustaka-core       |       pustaka-acp       |  |
-|  |  • SQLite Manager       |  • Tokio WS Server      |  |
-|  |  • Block Engine & CRDT  |  • JSON-RPC Router      |  |
-|  +-------------------------+-------------------------+  |
-+---------------------------------------------------------+
+Pustaka uses a decoupled, high-performance compiler pipeline from user input to vector rendering:
 
-## 2. Repository Structure
-The monorepo is managed using a Cargo Workspace for Rust crate isolation alongside an Xcode Project for the macOS application:
++-----------------------------------------------------------------------------+
+|                                User Input                                   |
+|   • Pustaka Fast Syntax (PFS: `. `, `.. `, `, `, `:info `)                  |
+|   • Standard Markdown (MD: `# `, `## `, `- `, `> `)                         |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|                                Normalizer                                   |
+|   • Parses PFS shortcuts & Markdown tokens                                  |
+|   • Generates unique block IDs and normalizes hierarchy                     |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|                           RON Block Tree (`ron-rs`)                         |
+|   • Strongly-typed Rust data structures (`PustakaDocument`, `Block`)        |
+|   • BlockKind: Heading, Paragraph, Callout, Grid, CodeBlock                 |
+|   • BlockColor: Default, Red, Blue, Green, Custom                           |
+|   • Serialization / Deserialization via `ron`                               |
++------------------+----------------------------------+-----------------------+
+                   |                                  |
+                   v                                  v
++-----------------------------------+  +--------------------------------------+
+|        Typst AST Compiler         |  |         pustaka-acp (WebSocket)     |
+|   • Transpiles RON blocks to Typst|  |   • JSON-RPC 2.0 Server (:8080)      |
+|   • Emits layout & style functions|  |   • Queries & mutates RON blocks     |
++------------------+----------------+  +--------------------------------------+
+                   |
+                   v
++-----------------------------------------------------------------------------+
+|                         Typst Engine (In-Memory)                            |
+|   • Custom in-memory `typst::World` with embedded assets                    |
+|   • Compiles Typst source to document pages                                 |
+|   • `typst-svg` renders vector SVG strings                                  |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|                       UniFFI C-ABI Bridge (`pustaka-ffi`)                   |
+|   • `parse_pfs_to_ron(input: String) -> String`                             |
+|   • `render_ron_to_svg(ron_str: String) -> String`                          |
+|   • `get_engine_info() -> String`                                           |
++-------------------------------------+---------------------------------------+
+                                      |
+                                      v
++-----------------------------------------------------------------------------+
+|                            SwiftUI (macOS App)                              |
+|   • Native macOS UI & Editor                                                |
+|   • Live vector SVG rendering with instant sub-millisecond feedback         |
+|   • Reactive `@Observable` workspace state                                  |
++-----------------------------------------------------------------------------+
+
+## 2. Monorepo Structure
 
 pustaka/
-├── Cargo.toml                  # Rust Workspace manifest
+├── Cargo.toml                  # Workspace manifest
 ├── crates/
-│   ├── pustaka-core/           # Block schemas, SQLite manager, Markdown parser
-│   ├── pustaka-acp/            # WebSocket Server & ACP Protocol Handler
-│   └── pustaka-ffi/            # UniFFI interface exporter for Swift
-└── macos/                      # Xcode Project / SwiftUI App
+│   ├── pustaka-core/           # RON block models, PFS normalizer, Typst compiler
+│   ├── pustaka-acp/            # WebSocket JSON-RPC server for typed RON blocks
+│   └── pustaka-ffi/            # UniFFI bridge exporting parser & SVG renderer
+├── macos/                      # Native macOS SwiftUI application
+├── scripts/                    # FFI compilation and binding automation
+└── .docs/                      # PRD, Architecture, and ACP protocol specs
 
-## 3. Core Components Detail
-- **`pustaka-core`**: Leverages `rusqlite`/`sqlx` for local storage and `pulldown-cmark` for fast Markdown conversion.
-- **`pustaka-acp`**: Utilizes `tokio` and `tokio-tungstenite` to run a non-blocking WebSocket server on a background thread.
-- **`pustaka-ffi`**: Generates a C-static library (`.a`) and Swift bindings using Mozilla's UniFFI.
-- **`macos/`**: Native SwiftUI application importing UniFFI bindings to interact with the Rust Core Engine.
+## 3. Crate Responsibilities
+- **`pustaka-core`**:
+  - `block`: Strongly-typed block structures and `ron` serde bindings.
+  - `normalizer`: Translates PFS syntax and Markdown into RON `Block` items.
+  - `typst_compiler`: Translates RON blocks into Typst markup and compiles directly to SVG.
+- **`pustaka-acp`**:
+  - Serves JSON-RPC on `127.0.0.1:8080` via `tokio` and `tokio-tungstenite`.
+  - Dispatches methods on structured RON blocks.
+- **`pustaka-ffi`**:
+  - Exposes C-ABI static library and autogenerated Swift bindings via UniFFI.
