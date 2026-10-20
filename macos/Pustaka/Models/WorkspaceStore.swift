@@ -50,6 +50,35 @@ class WorkspaceStore: ObservableObject {
         vaultURL.appendingPathComponent("workspace.json")
     }
 
+    /// Obsidian-compatible .trash directory inside ~/Documents/Pustaka/.trash/
+    var trashURL: URL {
+        let trashDir = vaultURL.appendingPathComponent(".trash", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: trashDir.path) {
+            try? FileManager.default.createDirectory(at: trashDir, withIntermediateDirectories: true, attributes: nil)
+        }
+        return trashDir
+    }
+
+    /// All active (non-deleted) document pages
+    var activePages: [DocumentPage] {
+        pages.filter { !$0.isDeleted }
+    }
+
+    /// All soft-deleted pages currently residing in the Trash
+    var trashPages: [DocumentPage] {
+        pages.filter { $0.isDeleted }
+    }
+
+    /// Starred active pages for quick 1-click access
+    var favoritePages: [DocumentPage] {
+        activePages.filter { $0.isFavorite }
+    }
+
+    /// Recent active pages sorted by last modified (newest first)
+    var recentPages: [DocumentPage] {
+        Array(activePages.sorted { $0.lastModified > $1.lastModified }.prefix(8))
+    }
+
     func loadFromDisk() {
         let fileManager = FileManager.default
         let url = storageURL
@@ -71,10 +100,21 @@ class WorkspaceStore: ObservableObject {
            !decoded.pages.isEmpty {
             self.categories = decoded.categories.isEmpty ? WorkspaceStore.defaultCategories : decoded.categories
             self.pages = decoded.pages
-            if let sel = decoded.selectedPageId, pages.contains(where: { $0.id == sel }) {
+
+            // Ensure categories don't have cat_fav as a folder (Favorites has its own pinned group)
+            for i in 0..<self.pages.count {
+                if self.pages[i].categoryId == "cat_fav" {
+                    self.pages[i].categoryId = "cat_notes"
+                    self.pages[i].isFavorite = true
+                }
+            }
+            self.categories.removeAll { $0.id == "cat_fav" }
+
+            let nonDeleted = self.pages.filter { !$0.isDeleted }
+            if let sel = decoded.selectedPageId, nonDeleted.contains(where: { $0.id == sel }) {
                 self.selectedPageId = sel
             } else {
-                self.selectedPageId = pages.first?.id
+                self.selectedPageId = nonDeleted.first?.id
             }
         } else {
             // Seed initial defaults
@@ -124,14 +164,25 @@ class WorkspaceStore: ObservableObject {
         return "\(base).md"
     }
 
-    /// Synchronizes all document pages as standard Markdown files (.md) in ~/Documents/Pustaka/
+    /// Synchronizes all document pages as standard Markdown files (.md) in ~/Documents/Pustaka/ or .trash/
     private func syncMarkdownVault() {
         let vault = vaultURL
+        let trash = trashURL
         let isoFormatter = ISO8601DateFormatter()
+        let fileManager = FileManager.default
 
         for page in pages {
             let fileName = safeFileName(for: page)
-            let fileURL = vault.appendingPathComponent(fileName)
+            let activeFileURL = vault.appendingPathComponent(fileName)
+            let trashFileURL = trash.appendingPathComponent(fileName)
+
+            let targetURL = page.isDeleted ? trashFileURL : activeFileURL
+            let staleURL = page.isDeleted ? activeFileURL : trashFileURL
+
+            // Clean up stale file from previous state if location changed
+            if fileManager.fileExists(atPath: staleURL.path) {
+                try? fileManager.removeItem(at: staleURL)
+            }
 
             let categoryName = categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
             let isoDate = isoFormatter.string(from: page.lastModified)
@@ -150,6 +201,7 @@ class WorkspaceStore: ObservableObject {
                 md += "parentPageId: \"\(parentId)\"\n"
             }
             md += "isFavorite: \(page.isFavorite)\n"
+            md += "isDeleted: \(page.isDeleted)\n"
             md += "lastModified: \"\(isoDate)\"\n"
             md += "---\n\n"
 
@@ -159,7 +211,7 @@ class WorkspaceStore: ObservableObject {
             md += page.rawContent
 
             if let data = md.data(using: .utf8) {
-                try? data.write(to: fileURL, options: .atomic)
+                try? data.write(to: targetURL, options: .atomic)
             }
         }
     }
@@ -169,9 +221,9 @@ class WorkspaceStore: ObservableObject {
         let targetId = pageId ?? selectedPageId
         if let targetId = targetId,
            let page = pages.first(where: { $0.id == targetId }) {
-            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
-            if FileManager.default.fileExists(atPath: fileURL.path) {
-                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            let targetURL = page.isDeleted ? trashURL.appendingPathComponent(safeFileName(for: page)) : vaultURL.appendingPathComponent(safeFileName(for: page))
+            if FileManager.default.fileExists(atPath: targetURL.path) {
+                NSWorkspace.shared.activateFileViewerSelecting([targetURL])
                 return
             }
         }
@@ -182,8 +234,7 @@ class WorkspaceStore: ObservableObject {
 
     static var defaultCategories: [SidebarCategory] {
         [
-            SidebarCategory(id: "cat_fav", name: "Favorites", icon: "⭐️", isExpanded: true, showPageCount: true, orderIndex: 0),
-            SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 1)
+            SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 0)
         ]
     }
 
@@ -194,7 +245,7 @@ class WorkspaceStore: ObservableObject {
                 title: "Welcome to Pustaka",
                 icon: "👋",
                 coverUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80",
-                categoryId: "cat_fav",
+                categoryId: "cat_notes",
                 rawContent: """
                 . Welcome to Pustaka
                 A minimal, ultra-fast local workspace for your thoughts and documents.
@@ -204,6 +255,7 @@ class WorkspaceStore: ObservableObject {
                 Hover on the left of any block to add new blocks or drag to reorder.
                 """,
                 isFavorite: true,
+                isDeleted: false,
                 lastModified: Date(),
                 boardTasks: []
             ),
@@ -220,6 +272,7 @@ class WorkspaceStore: ObservableObject {
                 :tip Sub-millisecond rendering running completely in-memory via Rust and Typst.
                 """,
                 isFavorite: false,
+                isDeleted: false,
                 lastModified: Date().addingTimeInterval(-3600),
                 boardTasks: []
             )
@@ -232,7 +285,7 @@ class WorkspaceStore: ObservableObject {
 
     var selectedPage: DocumentPage? {
         get {
-            pages.first { $0.id == selectedPageId }
+            pages.first { $0.id == selectedPageId && !$0.isDeleted } ?? pages.first { $0.id == selectedPageId }
         }
         set {
             if let newValue = newValue,
@@ -256,22 +309,22 @@ class WorkspaceStore: ObservableObject {
 
     func pages(in categoryId: String) -> [DocumentPage] {
         if categoryId == "cat_fav" {
-            return pages.filter { $0.isFavorite }
+            return activePages.filter { $0.isFavorite }
         }
-        return pages.filter { $0.categoryId == categoryId }
+        return activePages.filter { $0.categoryId == categoryId }
     }
 
     func subpages(of parentPageId: String) -> [DocumentPage] {
-        pages.filter { $0.parentPageId == parentPageId }
+        activePages.filter { $0.parentPageId == parentPageId }
     }
 
     func rootPages(in categoryId: String) -> [DocumentPage] {
         if categoryId == "cat_fav" {
-            return pages.filter { $0.isFavorite }
+            return activePages.filter { $0.isFavorite }
         }
-        return pages.filter { page in
+        return activePages.filter { page in
             guard page.categoryId == categoryId else { return false }
-            if let parentId = page.parentPageId, pages.contains(where: { $0.id == parentId }) {
+            if let parentId = page.parentPageId, activePages.contains(where: { $0.id == parentId }) {
                 return false
             }
             return true
@@ -479,7 +532,68 @@ class WorkspaceStore: ObservableObject {
         recompileCurrentPage()
     }
 
-    func deletePage(id: String) {
+    // MARK: - Soft-Delete, Trash & Organization (Obsidian .trash/ compatible)
+
+    /// Soft-deletes a document and its subpages, moving markdown files to ~/Documents/Pustaka/.trash/
+    func moveToTrash(id: String) {
+        var toTrashIds = Set<String>([id])
+        var addedMore = true
+        while addedMore {
+            addedMore = false
+            for p in pages {
+                if let parent = p.parentPageId, toTrashIds.contains(parent), !toTrashIds.contains(p.id) {
+                    toTrashIds.insert(p.id)
+                    addedMore = true
+                }
+            }
+        }
+
+        objectWillChange.send()
+        for idx in 0..<pages.count {
+            if toTrashIds.contains(pages[idx].id) {
+                pages[idx].isDeleted = true
+                pages[idx].lastModified = Date()
+            }
+        }
+
+        // If the active document was trashed, switch selection to next available note
+        if let sel = selectedPageId, toTrashIds.contains(sel) {
+            selectedPageId = activePages.first?.id
+            recompileCurrentPage()
+        }
+
+        saveToDisk()
+    }
+
+    /// Restores a soft-deleted document and its subpages from Trash back to active notes
+    func restoreFromTrash(id: String) {
+        var toRestoreIds = Set<String>([id])
+        var addedMore = true
+        while addedMore {
+            addedMore = false
+            for p in pages {
+                if let parent = p.parentPageId, toRestoreIds.contains(parent), !toRestoreIds.contains(p.id) {
+                    toRestoreIds.insert(p.id)
+                    addedMore = true
+                }
+            }
+        }
+
+        objectWillChange.send()
+        for idx in 0..<pages.count {
+            if toRestoreIds.contains(pages[idx].id) {
+                pages[idx].isDeleted = false
+                pages[idx].lastModified = Date()
+            }
+        }
+
+        self.selectedPageId = id
+        saveToDisk()
+        recompileCurrentPage()
+    }
+
+    /// Permanently destroys a document and its subpages from disk and memory
+    func permanentlyDelete(id: String) {
         var toDeleteIds = Set<String>([id])
         var addedMore = true
         while addedMore {
@@ -495,15 +609,48 @@ class WorkspaceStore: ObservableObject {
         for delId in toDeleteIds {
             if let page = pages.first(where: { $0.id == delId }) {
                 let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
+                let trashFileURL = trashURL.appendingPathComponent(safeFileName(for: page))
                 try? FileManager.default.removeItem(at: fileURL)
+                try? FileManager.default.removeItem(at: trashFileURL)
             }
         }
 
+        objectWillChange.send()
         pages.removeAll { toDeleteIds.contains($0.id) }
         if let sel = selectedPageId, toDeleteIds.contains(sel) {
-            selectedPageId = pages.first?.id
+            selectedPageId = activePages.first?.id
             recompileCurrentPage()
         }
+        saveToDisk()
+    }
+
+    /// Empties the entire trash, permanently deleting all soft-deleted files
+    func emptyTrash() {
+        let deleted = trashPages
+        for page in deleted {
+            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
+            let trashFileURL = trashURL.appendingPathComponent(safeFileName(for: page))
+            try? FileManager.default.removeItem(at: fileURL)
+            try? FileManager.default.removeItem(at: trashFileURL)
+        }
+
+        objectWillChange.send()
+        pages.removeAll { $0.isDeleted }
+        saveToDisk()
+    }
+
+    /// Alias for deletePage - redirects safely to moveToTrash
+    func deletePage(id: String) {
+        moveToTrash(id: id)
+    }
+
+    /// Moves a document to a different category/folder (e.g. via drag-and-drop or context menu)
+    func movePage(id: String, toCategory categoryId: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == id }) else { return }
+        objectWillChange.send()
+        pages[idx].categoryId = categoryId
+        pages[idx].parentPageId = nil // Move to root level of folder
+        pages[idx].lastModified = Date()
         saveToDisk()
     }
 

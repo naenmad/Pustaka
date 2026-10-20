@@ -31,11 +31,12 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var parentPageId: String? = nil // Optional parent page id for nested subpages
     var rawContent: String
     var isFavorite: Bool
+    var isDeleted: Bool = false // Soft-delete flag (Obsidian .trash/ compatible)
     var lastModified: Date
     var boardTasks: [TaskCard]
 
     enum CodingKeys: String, CodingKey {
-        case id, title, icon, coverUrl, categoryId, parentPageId, rawContent, isFavorite, lastModified, boardTasks
+        case id, title, icon, coverUrl, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
     }
 
     init(
@@ -47,6 +48,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         parentPageId: String? = nil,
         rawContent: String,
         isFavorite: Bool,
+        isDeleted: Bool = false,
         lastModified: Date,
         boardTasks: [TaskCard]
     ) {
@@ -58,6 +60,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         self.parentPageId = parentPageId
         self.rawContent = rawContent
         self.isFavorite = isFavorite
+        self.isDeleted = isDeleted
         self.lastModified = lastModified
         self.boardTasks = boardTasks
     }
@@ -72,6 +75,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         parentPageId = try container.decodeIfPresent(String.self, forKey: .parentPageId)
         rawContent = try container.decode(String.self, forKey: .rawContent)
         isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
         lastModified = try container.decode(Date.self, forKey: .lastModified)
         boardTasks = try container.decodeIfPresent([TaskCard].self, forKey: .boardTasks) ?? []
     }
