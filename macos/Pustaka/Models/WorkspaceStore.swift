@@ -353,18 +353,35 @@ class WorkspaceStore: ObservableObject {
             } else if trimmed.hasPrefix(". ") || trimmed.hasPrefix("# ") {
                 let rest = String(trimmed.dropFirst(2))
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .heading(level: 1), text: rest))
+            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                let rest = String(trimmed.dropFirst(2))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .bullet, text: rest))
+            } else if trimmed.hasPrefix("1. ") {
+                let rest = String(trimmed.dropFirst(3))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .numbered(index: 1), text: rest))
+            } else if trimmed.hasPrefix(">> ") {
+                let rest = String(trimmed.dropFirst(3))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .toggle(isExpanded: false), text: rest))
+            } else if trimmed == "---" || trimmed == "___" {
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .divider, text: ""))
+            } else if trimmed.hasPrefix("> ") {
+                let rest = String(trimmed.dropFirst(2))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .quote, text: rest))
+            } else if trimmed.hasPrefix("[bookmark] ") {
+                let rest = String(trimmed.dropFirst(11))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .bookmark(url: rest), text: rest))
             } else if trimmed.hasPrefix(":info ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💡", theme: .blue), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":warn ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "⚠️", theme: .red), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":tip ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "✅", theme: .green), text: String(trimmed.dropFirst(5))))
+            } else if trimmed.hasPrefix(":idea ") {
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "🎯", theme: .standard), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":callout ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💬", theme: .standard), text: String(trimmed.dropFirst(9))))
             } else if trimmed.hasPrefix(", ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .todo(checked: false), text: String(trimmed.dropFirst(2))))
-            } else if trimmed.hasPrefix("> ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💬", theme: .standard), text: String(trimmed.dropFirst(2))))
             } else {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .paragraph, text: trimmed))
             }
@@ -398,6 +415,18 @@ class WorkspaceStore: ObservableObject {
                 lines.append("\(prefix) \(text)")
             case .paragraph:
                 lines.append(text)
+            case .bullet:
+                lines.append("- \(text)")
+            case .numbered(let idx):
+                lines.append("\(idx). \(text)")
+            case .toggle:
+                lines.append(">> \(text)")
+            case .quote:
+                lines.append("> \(text)")
+            case .divider:
+                lines.append("---")
+            case .bookmark(let url):
+                lines.append("[bookmark] \(url)")
             case .callout(_, let theme):
                 switch theme {
                 case .blue: lines.append(":info \(text)")

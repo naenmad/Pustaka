@@ -353,6 +353,7 @@ struct DocumentCanvasView: View {
                     store.updatePageTitle(pageId: currentPage.id, newTitle: newVal)
                 }
         }
+        .padding(.leading, 38)
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
         // Single, reliably anchored Popovers

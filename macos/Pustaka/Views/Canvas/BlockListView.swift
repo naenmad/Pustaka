@@ -1,5 +1,91 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
+
+// MARK: - Native AppKit Block Editor Field (Guaranteed Enter & Delete Support)
+
+struct BlockEditorField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var font: NSFont
+    var textColor: NSColor = .labelColor
+    var isFocused: Bool
+    var onCommit: () -> Void
+    var onDeleteEmpty: () -> Void
+    var onTextChanged: ((String) -> Void)? = nil
+
+    func makeNSView(context: Context) -> NSTextField {
+        let tf = NSTextField()
+        tf.isBordered = false
+        tf.drawsBackground = false
+        tf.focusRingType = .none
+        tf.font = font
+        tf.textColor = textColor
+        tf.placeholderString = placeholder
+        tf.delegate = context.coordinator
+        tf.cell?.wraps = true
+        tf.cell?.isScrollable = false
+        tf.maximumNumberOfLines = 0
+        tf.lineBreakMode = .byWordWrapping
+        tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return tf
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.font = font
+        nsView.textColor = textColor
+        nsView.placeholderString = placeholder
+
+        if isFocused {
+            DispatchQueue.main.async {
+                if let window = nsView.window, window.firstResponder != nsView.currentEditor() {
+                    window.makeFirstResponder(nsView)
+                }
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: BlockEditorField
+
+        init(_ parent: BlockEditorField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let tf = obj.object as? NSTextField else { return }
+            parent.text = tf.stringValue
+            parent.onTextChanged?(tf.stringValue)
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            // 1. Enter Key pressed -> Insert new block below and move focus
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onCommit()
+                return true
+            }
+
+            // 2. Backspace / Delete Key pressed on empty text -> Delete block and move focus up
+            if commandSelector == #selector(NSResponder.deleteBackward(_:)) {
+                if textView.string.isEmpty {
+                    parent.onDeleteEmpty()
+                    return true
+                }
+            }
+
+            return false
+        }
+    }
+}
+
+// MARK: - Block List View
 
 struct BlockListView: View {
     @ObservedObject var store: WorkspaceStore
@@ -8,17 +94,20 @@ struct BlockListView: View {
     @State private var blocks: [UIBlockItem] = []
     @State private var hoveredBlockId: String? = nil
     @State private var draggedBlock: UIBlockItem? = nil
-    @FocusState private var focusedBlockId: String?
+    @State private var focusedBlockId: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 BlockRowView(
                     block: block,
                     isHovered: hoveredBlockId == block.id,
                     isFirstBlock: index == 0,
                     isLastBlock: index == blocks.count - 1,
-                    focusedBlockId: $focusedBlockId,
+                    isFocused: focusedBlockId == block.id,
+                    onFocus: {
+                        focusedBlockId = block.id
+                    },
                     onUpdateText: { newText in
                         blocks[index].text = newText
                         syncBackToStore()
@@ -26,6 +115,12 @@ struct BlockListView: View {
                     onToggleTodo: {
                         if case .todo(let checked) = blocks[index].kind {
                             blocks[index].kind = .todo(checked: !checked)
+                            syncBackToStore()
+                        }
+                    },
+                    onToggleExpand: {
+                        if case .toggle(let isExpanded) = blocks[index].kind {
+                            blocks[index].kind = .toggle(isExpanded: !isExpanded)
                             syncBackToStore()
                         }
                     },
@@ -37,7 +132,6 @@ struct BlockListView: View {
                             text: initialText
                         )
                         blocks.insert(newBlock, at: index + 1)
-                        hoveredBlockId = newId
                         syncBackToStore()
                         DispatchQueue.main.async {
                             self.focusedBlockId = newId
@@ -71,29 +165,16 @@ struct BlockListView: View {
                         }
                     },
                     onDelete: {
-                        if blocks.count > 1 {
-                            let prevId = (index > 0) ? blocks[index - 1].id : nil
-                            blocks.remove(at: index)
-                            syncBackToStore()
-                            if let prevId = prevId {
-                                DispatchQueue.main.async {
-                                    self.focusedBlockId = prevId
-                                }
-                            }
-                        } else {
-                            blocks[0] = UIBlockItem(id: "blk_1", kind: .paragraph, text: "")
-                            syncBackToStore()
-                        }
+                        deleteBlockAt(index: index)
                     },
                     onDeleteEmpty: {
-                        guard blocks.count > 1 else { return }
-                        let prevId = (index > 0) ? blocks[index - 1].id : nil
-                        blocks.remove(at: index)
-                        syncBackToStore()
-                        if let prevId = prevId {
-                            DispatchQueue.main.async {
-                                self.focusedBlockId = prevId
-                            }
+                        // If it's a list or quote, convert to normal paragraph first
+                        switch block.kind {
+                        case .bullet, .numbered, .quote, .todo, .toggle:
+                            blocks[index].kind = .paragraph
+                            syncBackToStore()
+                        default:
+                            deleteBlockAt(index: index)
                         }
                     }
                 )
@@ -119,7 +200,7 @@ struct BlockListView: View {
             // Clickable bottom buffer to start writing at end
             Color.clear
                 .frame(maxWidth: .infinity)
-                .frame(height: 120)
+                .frame(height: 140)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     let newId = "blk_\(UUID().uuidString.prefix(6))"
@@ -144,6 +225,22 @@ struct BlockListView: View {
         }
         .onChange(of: page.id) { _, _ in
             self.blocks = store.parseToUIBlocks(content: page.rawContent)
+        }
+    }
+
+    private func deleteBlockAt(index: Int) {
+        if blocks.count > 1 {
+            let prevId = (index > 0) ? blocks[index - 1].id : nil
+            blocks.remove(at: index)
+            syncBackToStore()
+            if let prevId = prevId {
+                DispatchQueue.main.async {
+                    self.focusedBlockId = prevId
+                }
+            }
+        } else {
+            blocks[0] = UIBlockItem(id: "blk_1", kind: .paragraph, text: "")
+            syncBackToStore()
         }
     }
 
@@ -183,7 +280,7 @@ struct BlockDropDelegate: DropDelegate {
     }
 }
 
-// MARK: - Six Dots Notion-Style Handle View
+// MARK: - Six Dots Notion-Style Handle (::)
 
 struct SixDotsHandleView: View {
     var body: some View {
@@ -199,7 +296,7 @@ struct SixDotsHandleView: View {
                 Circle().frame(width: 2.5, height: 2.5)
             }
         }
-        .foregroundStyle(.secondary.opacity(0.8))
+        .foregroundStyle(.secondary.opacity(0.85))
         .frame(width: 14, height: 16)
         .contentShape(Rectangle())
     }
@@ -212,9 +309,11 @@ struct BlockRowView: View {
     let isHovered: Bool
     let isFirstBlock: Bool
     let isLastBlock: Bool
-    var focusedBlockId: FocusState<String?>.Binding
+    let isFocused: Bool
+    let onFocus: () -> Void
     let onUpdateText: (String) -> Void
     let onToggleTodo: () -> Void
+    let onToggleExpand: () -> Void
     let onInsertBelow: (UIBlockKind, String) -> Void
     let onTransformKind: (UIBlockKind) -> Void
     let onMoveUp: () -> Void
@@ -226,15 +325,10 @@ struct BlockRowView: View {
     @State private var textBuffer: String = ""
     @State private var isSlashCommandOpen: Bool = false
 
-    var isCodeBlock: Bool {
-        if case .code = block.kind { return true }
-        return false
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top, spacing: 4) {
-                // Left Notion Gutter: [+] [⠿] [🗑]
+                // Left Notion Gutter: [+] and [::] (width: 34pt)
                 leftGutterControls
                     .padding(.top, topGutterPadding)
 
@@ -246,11 +340,11 @@ struct BlockRowView: View {
             // Inline Notion Slash Command Palette (Opens when typing "/")
             if isSlashCommandOpen {
                 slashCommandPaletteView
-                    .padding(.leading, 56)
+                    .padding(.leading, 38)
                     .padding(.top, 4)
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onAppear {
             self.textBuffer = block.text
@@ -262,40 +356,13 @@ struct BlockRowView: View {
         }
     }
 
-    // MARK: - Left Gutter Controls: [+] [⠿] [🗑]
+    // MARK: - Left Gutter Controls: [+] and [::]
 
     private var leftGutterControls: some View {
         HStack(spacing: 2) {
             // "+" Add Block Below Menu
             Menu {
-                Button(action: { onInsertBelow(.paragraph, "") }) {
-                    Label("Text", systemImage: "text.alignleft")
-                }
-                Button(action: { onInsertBelow(.heading(level: 1), "") }) {
-                    Label("Heading 1", systemImage: "number")
-                }
-                Button(action: { onInsertBelow(.heading(level: 2), "") }) {
-                    Label("Heading 2", systemImage: "number")
-                }
-                Button(action: { onInsertBelow(.heading(level: 3), "") }) {
-                    Label("Heading 3", systemImage: "number")
-                }
-                Divider()
-                Button(action: { onInsertBelow(.todo(checked: false), "") }) {
-                    Label("To-do List", systemImage: "checkmark.square")
-                }
-                Button(action: { onInsertBelow(.callout(icon: "💡", theme: .blue), "") }) {
-                    Label("Info Callout", systemImage: "lightbulb.fill")
-                }
-                Button(action: { onInsertBelow(.callout(icon: "⚠️", theme: .red), "") }) {
-                    Label("Warning Callout", systemImage: "exclamationmark.triangle.fill")
-                }
-                Button(action: { onInsertBelow(.callout(icon: "✅", theme: .green), "") }) {
-                    Label("Tip Callout", systemImage: "checkmark.circle.fill")
-                }
-                Button(action: { onInsertBelow(.code(lang: "rust"), "") }) {
-                    Label("Code Block", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
+                allBlocksInsertionMenu
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .bold))
@@ -307,37 +374,10 @@ struct BlockRowView: View {
             .menuIndicator(.hidden)
             .help("Click to add block below")
 
-            // "⠿" Drag Handle & Turn Into Menu
+            // "::" Drag Handle & Options Menu
             Menu {
                 Menu("Turn into") {
-                    Button(action: { onTransformKind(.paragraph) }) {
-                        Label("Text", systemImage: "text.alignleft")
-                    }
-                    Button(action: { onTransformKind(.heading(level: 1)) }) {
-                        Label("Heading 1", systemImage: "number")
-                    }
-                    Button(action: { onTransformKind(.heading(level: 2)) }) {
-                        Label("Heading 2", systemImage: "number")
-                    }
-                    Button(action: { onTransformKind(.heading(level: 3)) }) {
-                        Label("Heading 3", systemImage: "number")
-                    }
-                    Divider()
-                    Button(action: { onTransformKind(.todo(checked: false)) }) {
-                        Label("To-do List", systemImage: "checkmark.square")
-                    }
-                    Button(action: { onTransformKind(.callout(icon: "💡", theme: .blue)) }) {
-                        Label("Info Callout", systemImage: "lightbulb.fill")
-                    }
-                    Button(action: { onTransformKind(.callout(icon: "⚠️", theme: .red)) }) {
-                        Label("Warning Callout", systemImage: "exclamationmark.triangle.fill")
-                    }
-                    Button(action: { onTransformKind(.callout(icon: "✅", theme: .green)) }) {
-                        Label("Tip Callout", systemImage: "checkmark.circle.fill")
-                    }
-                    Button(action: { onTransformKind(.code(lang: "rust")) }) {
-                        Label("Code Block", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
+                    allBlocksTransformMenu
                 }
 
                 Divider()
@@ -367,19 +407,8 @@ struct BlockRowView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .help("Drag to rearrange or click for block options")
-
-            // Direct 1-Click Delete Button
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.red.opacity(0.8))
-                    .frame(width: 14, height: 16)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Delete block")
         }
-        .frame(width: 52)
+        .frame(width: 34)
         .opacity(isHovered ? 1.0 : 0.0)
         .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
@@ -389,62 +418,186 @@ struct BlockRowView: View {
     @ViewBuilder
     private var blockContentBody: some View {
         switch block.kind {
+        // 1. Headings
         case .heading(let level):
-            TextField("Heading \(level)...", text: $textBuffer, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(headingFont(level))
-                .fontWeight(.bold)
-                .foregroundStyle(Color.primary)
-                .focused(focusedBlockId, equals: block.id)
-                .onKeyPress(.delete) {
-                    if textBuffer.isEmpty {
-                        onDeleteEmpty()
-                        return .handled
-                    }
-                    return .ignored
-                }
-                .onChange(of: textBuffer) { _, newVal in
-                    handleTextChange(newVal, nextKind: .paragraph)
-                }
+            BlockEditorField(
+                text: $textBuffer,
+                placeholder: "Heading \(level)...",
+                font: NSFont.systemFont(ofSize: headingFontSize(level), weight: .bold),
+                textColor: .labelColor,
+                isFocused: isFocused,
+                onCommit: {
+                    onInsertBelow(.paragraph, "")
+                },
+                onDeleteEmpty: onDeleteEmpty,
+                onTextChanged: checkSlashCommand
+            )
 
+        // 2. Plain Text Paragraph
         case .paragraph:
-            TextField("Type '/' for commands, or start writing...", text: $textBuffer, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15))
-                .lineSpacing(4)
-                .foregroundStyle(Color.primary)
-                .focused(focusedBlockId, equals: block.id)
-                .onKeyPress(.delete) {
-                    if textBuffer.isEmpty {
-                        onDeleteEmpty()
-                        return .handled
+            BlockEditorField(
+                text: $textBuffer,
+                placeholder: "Type '/' for commands, or start writing...",
+                font: NSFont.systemFont(ofSize: 15),
+                textColor: .labelColor,
+                isFocused: isFocused,
+                onCommit: {
+                    onInsertBelow(.paragraph, "")
+                },
+                onDeleteEmpty: onDeleteEmpty,
+                onTextChanged: checkSlashCommand
+            )
+
+        // 3. Bulleted List
+        case .bullet:
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("•")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+
+                BlockEditorField(
+                    text: $textBuffer,
+                    placeholder: "List item...",
+                    font: NSFont.systemFont(ofSize: 15),
+                    textColor: .labelColor,
+                    isFocused: isFocused,
+                    onCommit: {
+                        onInsertBelow(.bullet, "")
+                    },
+                    onDeleteEmpty: onDeleteEmpty,
+                    onTextChanged: checkSlashCommand
+                )
+            }
+
+        // 4. Numbered List
+        case .numbered(let idx):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(idx).")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, alignment: .trailing)
+
+                BlockEditorField(
+                    text: $textBuffer,
+                    placeholder: "List item...",
+                    font: NSFont.systemFont(ofSize: 15),
+                    textColor: .labelColor,
+                    isFocused: isFocused,
+                    onCommit: {
+                        onInsertBelow(.numbered(index: idx + 1), "")
+                    },
+                    onDeleteEmpty: onDeleteEmpty,
+                    onTextChanged: checkSlashCommand
+                )
+            }
+
+        // 5. Toggle List
+        case .toggle(let isExpanded):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Button(action: onToggleExpand) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
                     }
-                    return .ignored
-                }
-                .onChange(of: textBuffer) { _, newVal in
-                    handleTextChange(newVal, nextKind: .paragraph)
+                    .buttonStyle(.plain)
+
+                    BlockEditorField(
+                        text: $textBuffer,
+                        placeholder: "Toggle list heading...",
+                        font: NSFont.systemFont(ofSize: 15, weight: .semibold),
+                        textColor: .labelColor,
+                        isFocused: isFocused,
+                        onCommit: {
+                            onInsertBelow(.paragraph, "")
+                        },
+                        onDeleteEmpty: onDeleteEmpty,
+                        onTextChanged: checkSlashCommand
+                    )
                 }
 
+                if isExpanded {
+                    Text("Empty toggle. Press '+' on left to add child blocks.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 24)
+                        .padding(.vertical, 2)
+                }
+            }
+
+        // 6. Quote Block
+        case .quote:
+            HStack(spacing: 12) {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.35))
+                    .frame(width: 3)
+                    .clipShape(Capsule())
+
+                BlockEditorField(
+                    text: $textBuffer,
+                    placeholder: "Quote...",
+                    font: NSFont.systemFont(ofSize: 15),
+                    textColor: .secondaryLabelColor,
+                    isFocused: isFocused,
+                    onCommit: {
+                        onInsertBelow(.paragraph, "")
+                    },
+                    onDeleteEmpty: onDeleteEmpty,
+                    onTextChanged: checkSlashCommand
+                )
+            }
+            .padding(.vertical, 2)
+
+        // 7. Divider Block
+        case .divider:
+            Divider()
+                .frame(height: 1)
+                .padding(.vertical, 8)
+
+        // 8. To-do Checkbox
+        case .todo(let checked):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Button(action: onToggleTodo) {
+                    Image(systemName: checked ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 15))
+                        .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+
+                BlockEditorField(
+                    text: $textBuffer,
+                    placeholder: "To-do...",
+                    font: NSFont.systemFont(ofSize: 15),
+                    textColor: checked ? .secondaryLabelColor : .labelColor,
+                    isFocused: isFocused,
+                    onCommit: {
+                        onInsertBelow(.todo(checked: false), "")
+                    },
+                    onDeleteEmpty: onDeleteEmpty,
+                    onTextChanged: checkSlashCommand
+                )
+            }
+
+        // 9. Callout Box
         case .callout(let icon, let theme):
             HStack(alignment: .top, spacing: 10) {
                 Text(icon)
                     .font(.system(size: 18))
 
-                TextField("Callout note...", text: $textBuffer, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.primary)
-                    .focused(focusedBlockId, equals: block.id)
-                    .onKeyPress(.delete) {
-                        if textBuffer.isEmpty {
-                            onDeleteEmpty()
-                            return .handled
-                        }
-                        return .ignored
-                    }
-                    .onChange(of: textBuffer) { _, newVal in
-                        handleTextChange(newVal, nextKind: .paragraph)
-                    }
+                BlockEditorField(
+                    text: $textBuffer,
+                    placeholder: "Callout note...",
+                    font: NSFont.systemFont(ofSize: 15),
+                    textColor: .labelColor,
+                    isFocused: isFocused,
+                    onCommit: {
+                        onInsertBelow(.paragraph, "")
+                    },
+                    onDeleteEmpty: onDeleteEmpty,
+                    onTextChanged: checkSlashCommand
+                )
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -455,33 +608,46 @@ struct BlockRowView: View {
                     .stroke(theme.stroke.opacity(0.35), lineWidth: 1)
             )
 
-        case .todo(let checked):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Button(action: onToggleTodo) {
-                    Image(systemName: checked ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 15))
-                        .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+        // 10. Web Bookmark / Link Card
+        case .bookmark(let url):
+            HStack(spacing: 10) {
+                Image(systemName: "link.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(textBuffer.isEmpty ? "Web Bookmark" : textBuffer)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+
+                    Text(url)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .buttonStyle(.plain)
 
-                TextField("To-do...", text: $textBuffer, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 15))
-                    .strikethrough(checked, color: .secondary)
-                    .foregroundStyle(checked ? Color.secondary : Color.primary)
-                    .focused(focusedBlockId, equals: block.id)
-                    .onKeyPress(.delete) {
-                        if textBuffer.isEmpty {
-                            onDeleteEmpty()
-                            return .handled
-                        }
-                        return .ignored
+                Spacer()
+
+                if let validUrl = URL(string: url) {
+                    Button(action: {
+                        NSWorkspace.shared.open(validUrl)
+                    }) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .onChange(of: textBuffer) { _, newVal in
-                        handleTextChange(newVal, nextKind: .todo(checked: false))
-                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            )
 
+        // 11. Code Block
         case .code(let lang):
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -501,7 +667,6 @@ struct BlockRowView: View {
                     .font(.system(.body, design: .monospaced))
                     .frame(minHeight: 70)
                     .scrollContentBackground(.hidden)
-                    .focused(focusedBlockId, equals: block.id)
                     .onChange(of: textBuffer) { _, newVal in
                         onUpdateText(newVal)
                     }
@@ -514,60 +679,42 @@ struct BlockRowView: View {
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
             )
 
+        // 12. Grid / Columns
         case .grid(let columns):
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 ForEach(columns, id: \.self) { col in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(col)
-                            .font(.subheadline)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
+                    Text(col)
+                        .font(.subheadline)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
             }
         }
     }
 
-    // MARK: - Auto-Add Block on Enter & Slash Command Detection
-
-    private func handleTextChange(_ newVal: String, nextKind: UIBlockKind) {
-        // 1. Check if user pressed Enter (newline inserted)
-        if !isCodeBlock && newVal.contains("\n") {
-            let parts = newVal.components(separatedBy: "\n")
-            let firstPart = parts.first ?? ""
-            let restPart = parts.dropFirst().joined(separator: "\n")
-
-            self.textBuffer = firstPart
-            self.isSlashCommandOpen = false
-            onUpdateText(firstPart)
-            onInsertBelow(nextKind, restPart)
-            return
+    private func checkSlashCommand(_ text: String) {
+        if text == "/" {
+            isSlashCommandOpen = true
+        } else if !text.hasPrefix("/") {
+            isSlashCommandOpen = false
         }
-
-        // 2. Check for Slash Command "/"
-        if newVal == "/" {
-            self.isSlashCommandOpen = true
-        } else if !newVal.hasPrefix("/") {
-            self.isSlashCommandOpen = false
-        }
-
-        onUpdateText(newVal)
+        onUpdateText(text)
     }
 
     // MARK: - Notion Slash Command Palette View
 
     private var slashCommandPaletteView: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("BASIC BLOCKS")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("BASIC BLOCKS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
 
-            Group {
-                slashCommandItem(title: "Text", desc: "Just start writing with plain text.", icon: "text.alignleft") {
+                slashCommandItem(title: "Text", desc: "Start writing with plain text.", icon: "text.alignleft") {
                     applySlashCommand(.paragraph)
                 }
                 slashCommandItem(title: "Heading 1", desc: "Large section heading.", icon: "number") {
@@ -579,27 +726,67 @@ struct BlockRowView: View {
                 slashCommandItem(title: "Heading 3", desc: "Small section heading.", icon: "number") {
                     applySlashCommand(.heading(level: 3))
                 }
-                slashCommandItem(title: "To-do List", desc: "Track tasks with a to-do list.", icon: "checkmark.square") {
+                slashCommandItem(title: "To-do List", desc: "Track tasks with a checkbox.", icon: "checkmark.square") {
                     applySlashCommand(.todo(checked: false))
                 }
-                slashCommandItem(title: "Info Callout", desc: "Highlighted note with icon.", icon: "lightbulb.fill") {
+                slashCommandItem(title: "Bulleted List", desc: "Create a simple bulleted list.", icon: "list.bullet") {
+                    applySlashCommand(.bullet)
+                }
+                slashCommandItem(title: "Numbered List", desc: "Create a numbered list.", icon: "list.number") {
+                    applySlashCommand(.numbered(index: 1))
+                }
+                slashCommandItem(title: "Toggle List", desc: "Collapsible toggle block.", icon: "arrowtriangle.right.fill") {
+                    applySlashCommand(.toggle(isExpanded: false))
+                }
+                slashCommandItem(title: "Quote", desc: "Capture a quote with left bar.", icon: "text.quote") {
+                    applySlashCommand(.quote)
+                }
+                slashCommandItem(title: "Divider", desc: "Visually divide blocks.", icon: "minus") {
+                    applySlashCommand(.divider)
+                }
+
+                Divider().padding(.vertical, 2)
+
+                Text("CALLOUTS & HIGHLIGHTS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+
+                slashCommandItem(title: "Info Callout", desc: "Highlighted note banner.", icon: "lightbulb.fill") {
                     applySlashCommand(.callout(icon: "💡", theme: .blue))
                 }
                 slashCommandItem(title: "Warning Callout", desc: "Highlighted warning banner.", icon: "exclamationmark.triangle.fill") {
                     applySlashCommand(.callout(icon: "⚠️", theme: .red))
                 }
-                slashCommandItem(title: "Code Block", desc: "Capture a code snippet.", icon: "chevron.left.forwardslash.chevron.right") {
+                slashCommandItem(title: "Tip Callout", desc: "Highlighted success tip banner.", icon: "checkmark.circle.fill") {
+                    applySlashCommand(.callout(icon: "✅", theme: .green))
+                }
+                slashCommandItem(title: "Idea Callout", desc: "Highlighted goal note.", icon: "target") {
+                    applySlashCommand(.callout(icon: "🎯", theme: .standard))
+                }
+
+                Divider().padding(.vertical, 2)
+
+                Text("ADVANCED & MEDIA")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+
+                slashCommandItem(title: "Code Block", desc: "Capture code snippet.", icon: "chevron.left.forwardslash.chevron.right") {
                     applySlashCommand(.code(lang: "rust"))
                 }
+                slashCommandItem(title: "Web Bookmark", desc: "Save a link as visual card.", icon: "link") {
+                    applySlashCommand(.bookmark(url: "https://apple.com"))
+                }
             }
+            .padding(6)
         }
-        .padding(6)
-        .frame(width: 270)
+        .frame(width: 290, height: 320)
         .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .shadow(color: Color.black.opacity(0.18), radius: 12, y: 5)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
     }
@@ -629,6 +816,7 @@ struct BlockRowView: View {
             .padding(.vertical, 5)
             .background(Color.primary.opacity(0.04))
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -640,22 +828,68 @@ struct BlockRowView: View {
         onUpdateText("")
     }
 
+    // MARK: - Reusable All Blocks Menus
+
+    @ViewBuilder
+    private var allBlocksInsertionMenu: some View {
+        Section("Basic Blocks") {
+            Button("Text") { onInsertBelow(.paragraph, "") }
+            Button("Heading 1") { onInsertBelow(.heading(level: 1), "") }
+            Button("Heading 2") { onInsertBelow(.heading(level: 2), "") }
+            Button("Heading 3") { onInsertBelow(.heading(level: 3), "") }
+            Button("To-do List") { onInsertBelow(.todo(checked: false), "") }
+            Button("Bulleted List") { onInsertBelow(.bullet, "") }
+            Button("Numbered List") { onInsertBelow(.numbered(index: 1), "") }
+            Button("Toggle List") { onInsertBelow(.toggle(isExpanded: false), "") }
+            Button("Quote") { onInsertBelow(.quote, "") }
+            Button("Divider") { onInsertBelow(.divider, "") }
+        }
+        Section("Callouts") {
+            Button("Info Callout (💡)") { onInsertBelow(.callout(icon: "💡", theme: .blue), "") }
+            Button("Warning Callout (⚠️)") { onInsertBelow(.callout(icon: "⚠️", theme: .red), "") }
+            Button("Tip Callout (✅)") { onInsertBelow(.callout(icon: "✅", theme: .green), "") }
+            Button("Idea Callout (🎯)") { onInsertBelow(.callout(icon: "🎯", theme: .standard), "") }
+        }
+        Section("Advanced") {
+            Button("Code Block") { onInsertBelow(.code(lang: "rust"), "") }
+            Button("Web Bookmark") { onInsertBelow(.bookmark(url: "https://apple.com"), "Apple") }
+        }
+    }
+
+    @ViewBuilder
+    private var allBlocksTransformMenu: some View {
+        Button("Text") { onTransformKind(.paragraph) }
+        Button("Heading 1") { onTransformKind(.heading(level: 1)) }
+        Button("Heading 2") { onTransformKind(.heading(level: 2)) }
+        Button("Heading 3") { onTransformKind(.heading(level: 3)) }
+        Button("To-do List") { onTransformKind(.todo(checked: false)) }
+        Button("Bulleted List") { onTransformKind(.bullet) }
+        Button("Numbered List") { onTransformKind(.numbered(index: 1)) }
+        Button("Toggle List") { onTransformKind(.toggle(isExpanded: false)) }
+        Button("Quote") { onTransformKind(.quote) }
+        Button("Info Callout (💡)") { onTransformKind(.callout(icon: "💡", theme: .blue)) }
+        Button("Warning Callout (⚠️)") { onTransformKind(.callout(icon: "⚠️", theme: .red)) }
+        Button("Tip Callout (✅)") { onTransformKind(.callout(icon: "✅", theme: .green)) }
+        Button("Code Block") { onTransformKind(.code(lang: "rust")) }
+    }
+
     private var topGutterPadding: CGFloat {
         switch block.kind {
         case .heading(1): return 7
         case .heading(2): return 5
         case .heading(3): return 4
-        case .callout: return 10
-        case .code: return 10
+        case .callout: return 12
+        case .code: return 12
+        case .bookmark: return 14
         default: return 2
         }
     }
 
-    private func headingFont(_ level: Int) -> Font {
+    private func headingFontSize(_ level: Int) -> CGFloat {
         switch level {
-        case 1: return .system(size: 24, weight: .bold)
-        case 2: return .system(size: 19, weight: .bold)
-        default: return .system(size: 16, weight: .bold)
+        case 1: return 26
+        case 2: return 20
+        default: return 16
         }
     }
 }

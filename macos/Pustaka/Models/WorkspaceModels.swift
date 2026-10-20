@@ -144,9 +144,15 @@ enum BlockColorTheme: String, CaseIterable {
 enum UIBlockKind: Equatable {
     case heading(level: Int)
     case paragraph
-    case callout(icon: String, theme: BlockColorTheme)
+    case bullet
+    case numbered(index: Int)
+    case toggle(isExpanded: Bool)
+    case quote
+    case divider
     case todo(checked: Bool)
+    case callout(icon: String, theme: BlockColorTheme)
     case code(lang: String)
+    case bookmark(url: String)
     case grid(columns: [String])
 }
 
