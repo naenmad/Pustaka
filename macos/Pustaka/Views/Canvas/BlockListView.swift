@@ -2177,9 +2177,6 @@ struct BlockRowView: View {
                 onUpdateTable: { newHeaders, newRows in
                     onTransformKind(.grid(headers: newHeaders, rows: newRows))
                 },
-                onInsertBelow: {
-                    onInsertBelow(.paragraph, "")
-                },
                 onDelete: onDelete
             )
         }
@@ -2375,7 +2372,6 @@ struct ModernTableView: View {
     let headers: [String]
     let rows: [[String]]
     let onUpdateTable: ([String], [[String]]) -> Void
-    let onInsertBelow: () -> Void
     let onDelete: () -> Void
 
     @State private var hoveredRowIdx: Int? = nil
@@ -2582,24 +2578,6 @@ struct ModernTableView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
-
-                // Unmissable "+ Add block below table" button
-                Button(action: onInsertBelow) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("Add block below table")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.primary.opacity(0.03))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.secondary.opacity(0.18), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
             }
         }
         .padding(.vertical, 4)
