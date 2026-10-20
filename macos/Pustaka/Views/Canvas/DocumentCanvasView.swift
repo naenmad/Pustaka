@@ -322,6 +322,10 @@ struct DocumentCanvasView: View {
 
                 // 2. Page Options Menu (...)
                 Menu {
+                    Button(action: { store.addNewSubpage(parentPageId: currentPage.id) }) {
+                        Label("Add Subpage", systemImage: "doc.badge.plus")
+                    }
+                    Divider()
                     Button(action: { isCoverPickerOpen = true }) {
                         Label(currentPage.coverUrl.isEmpty ? "Add Cover" : "Change Cover", systemImage: "photo")
                     }
@@ -684,6 +688,20 @@ struct DocumentCanvasView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
+                } else if let localPath = store.resolveVaultImagePath(currentPage.coverUrl),
+                          let nsImg = NSImage(contentsOfFile: localPath) {
+                    Image(nsImage: nsImg)
+                        .resizable()
+                        .scaledToFill()
+                } else if currentPage.coverUrl.hasPrefix("/") || currentPage.coverUrl.hasPrefix("file://") {
+                    let cleanPath = currentPage.coverUrl.replacingOccurrences(of: "file://", with: "")
+                    if let nsImg = NSImage(contentsOfFile: cleanPath) {
+                        Image(nsImage: nsImg)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Color.secondary.opacity(0.15)
+                    }
                 } else {
                     AsyncImage(url: URL(string: currentPage.coverUrl)) { phase in
                         switch phase {
@@ -709,7 +727,7 @@ struct DocumentCanvasView: View {
                     }
                 }
             }
-            .frame(height: 180)
+            .frame(height: 270)
             .frame(maxWidth: .infinity)
             .clipped()
 
@@ -762,6 +780,41 @@ struct DocumentCanvasView: View {
 
     private var notionPageHeaderView: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Breadcrumbs for nested Subpages
+            if let parent = store.page(id: currentPage.parentPageId) {
+                HStack(spacing: 5) {
+                    Button(action: {
+                        store.selectPage(id: parent.id)
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 8, weight: .bold))
+                            if !parent.icon.isEmpty {
+                                Text(parent.icon).font(.caption2)
+                            }
+                            Text(parent.title.isEmpty ? "Untitled" : parent.title)
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("/")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+
+                    HStack(spacing: 3) {
+                        if !currentPage.icon.isEmpty {
+                            Text(currentPage.icon).font(.caption2)
+                        }
+                        Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+
             HStack(spacing: 10) {
                 if currentPage.icon.isEmpty {
                     Button(action: {
@@ -803,6 +856,26 @@ struct DocumentCanvasView: View {
                     .buttonStyle(.plain)
                 }
 
+                // Add Subpage button in header actions
+                Button(action: {
+                    store.addNewSubpage(parentPageId: currentPage.id)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.badge.plus")
+                            .font(.caption)
+                        Text("Add subpage")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Create a nested subpage inside this document")
+
                 Spacer()
             }
             .frame(height: 24)
@@ -835,6 +908,74 @@ struct DocumentCanvasView: View {
                 }
             )
             .padding(.top, 2)
+
+            // Subpages Section inside Document Canvas
+            let subpages = store.subpages(of: currentPage.id)
+            if !subpages.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("SUBPAGES")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.tertiary)
+
+                        Spacer()
+
+                        Button(action: {
+                            store.addNewSubpage(parentPageId: currentPage.id)
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 8, weight: .bold))
+                                Text("New Subpage")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 6)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170, maximum: 260), spacing: 8)], spacing: 8) {
+                        ForEach(subpages) { subpage in
+                            Button(action: {
+                                store.selectPage(id: subpage.id)
+                            }) {
+                                HStack(spacing: 8) {
+                                    if !subpage.icon.isEmpty {
+                                        Text(subpage.icon).font(.system(size: 13))
+                                    } else {
+                                        Image(systemName: "doc.text")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.accentColor)
+                                    }
+
+                                    Text(subpage.title.isEmpty ? "Untitled" : subpage.title)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 8, weight: .semibold))
+                                        .foregroundStyle(.secondary.opacity(0.6))
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(Color.primary.opacity(0.04))
+                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                                )
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
         .padding(.leading, 48)
         .contentShape(Rectangle())
@@ -1092,6 +1233,23 @@ struct DocumentCanvasView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+
+                Button(action: {
+                    if let localAsset = store.importLocalImageToVault() {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: localAsset)
+                        isCoverPickerOpen = false
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.up.doc")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Upload")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Upload an image from your computer as cover")
 
                 Button("Random") {
                     let allOptions = PresetGradientCover.allCases.map(\.rawValue) + unsplashPhotos.map(\.1)

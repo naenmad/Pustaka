@@ -206,21 +206,27 @@ struct CategorySectionView: View {
 
             // Category Items (Collapsible / expandable)
             if category.isExpanded {
-                let matchingPages = store.pages(in: category.id).filter { page in
-                    searchText.isEmpty ||
-                    page.title.localizedCaseInsensitiveContains(searchText) ||
-                    page.rawContent.localizedCaseInsensitiveContains(searchText)
-                }
+                let pagesToDisplay: [DocumentPage] = {
+                    if !searchText.isEmpty {
+                        return store.pages(in: category.id).filter { page in
+                            page.title.localizedCaseInsensitiveContains(searchText) ||
+                            page.rawContent.localizedCaseInsensitiveContains(searchText)
+                        }
+                    } else {
+                        return store.rootPages(in: category.id)
+                    }
+                }()
 
-                ForEach(matchingPages) { page in
+                ForEach(pagesToDisplay) { page in
                     SidebarDocumentItemRow(
                         store: store,
                         pageId: page.id,
-                        isSelected: store.selectedPageId == page.id
+                        isSelected: store.selectedPageId == page.id,
+                        depth: 0
                     )
                 }
 
-                if matchingPages.isEmpty {
+                if pagesToDisplay.isEmpty {
                     Text("No documents")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -333,14 +339,16 @@ struct CategorySectionView: View {
     }
 }
 
-// MARK: - Individual Document Row (Always Simple Document Icon)
+// MARK: - Individual Document Row (Supports Hierarchical Subpages)
 
 struct SidebarDocumentItemRow: View {
     @ObservedObject var store: WorkspaceStore
     let pageId: String
     let isSelected: Bool
+    var depth: Int = 0
 
     @State private var isHovered: Bool = false
+    @State private var isSubpagesExpanded: Bool = true
 
     private var page: DocumentPage {
         store.pages.first(where: { $0.id == pageId }) ?? DocumentPage(
@@ -349,6 +357,7 @@ struct SidebarDocumentItemRow: View {
             icon: "",
             coverUrl: "",
             categoryId: "cat_notes",
+            parentPageId: nil,
             rawContent: "",
             isFavorite: false,
             lastModified: Date(),
@@ -356,66 +365,132 @@ struct SidebarDocumentItemRow: View {
         )
     }
 
+    private var subpages: [DocumentPage] {
+        store.subpages(of: page.id)
+    }
+
     var body: some View {
-        Button(action: {
-            store.selectPage(id: page.id)
-        }) {
-            HStack(spacing: 8) {
-                // Document icon: Custom user-selected emoji if set, else clean doc.text
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.system(size: 13))
-                        .frame(width: 14)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 12))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                        .frame(width: 14)
-                }
+        VStack(alignment: .leading, spacing: 1) {
+            Button(action: {
+                store.selectPage(id: page.id)
+            }) {
+                HStack(spacing: 5) {
+                    // Tree Indentation
+                    if depth > 0 {
+                        Spacer()
+                            .frame(width: CGFloat(depth * 14))
+                    }
 
-                Text(page.title.isEmpty ? "Untitled" : page.title)
-                    .font(.subheadline)
-                    .foregroundStyle(page.title.isEmpty ? .secondary.opacity(0.6) : (isSelected ? Color.primary : Color.primary.opacity(0.85)))
-                    .lineLimit(1)
-
-                Spacer()
-
-                if isHovered || isSelected {
-                    HStack(spacing: 4) {
-                        Button(action: { store.toggleFavorite(id: page.id) }) {
-                            Image(systemName: page.isFavorite ? "star.fill" : "star")
-                                .font(.system(size: 10))
-                                .foregroundStyle(page.isFavorite ? Color.yellow : Color.secondary.opacity(0.6))
+                    // Expand / Collapse Chevron for Subpages
+                    if !subpages.isEmpty {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isSubpagesExpanded.toggle()
+                            }
+                        }) {
+                            Image(systemName: isSubpagesExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary.opacity(0.8))
+                                .frame(width: 12, height: 12)
                         }
                         .buttonStyle(.plain)
+                    } else if depth > 0 {
+                        // Small dot placeholder for aligned indentation
+                        Circle()
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(width: 3, height: 3)
+                            .frame(width: 12, height: 12)
+                    }
 
-                        Menu {
-                            Button(page.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
-                                store.toggleFavorite(id: page.id)
+                    // Document icon: Custom user-selected emoji if set, else clean doc.text
+                    if !page.icon.isEmpty {
+                        Text(page.icon)
+                            .font(.system(size: 13))
+                            .frame(width: 14)
+                    } else {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
+                            .frame(width: 14)
+                    }
+
+                    Text(page.title.isEmpty ? "Untitled" : page.title)
+                        .font(.subheadline)
+                        .foregroundStyle(page.title.isEmpty ? .secondary.opacity(0.6) : (isSelected ? Color.primary : Color.primary.opacity(0.85)))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if isHovered || isSelected {
+                        HStack(spacing: 4) {
+                            // Quick "+" button to add a subpage inside this document
+                            Button(action: {
+                                store.addNewSubpage(parentPageId: page.id)
+                                isSubpagesExpanded = true
+                            }) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(2)
                             }
-                            Divider()
-                            Button("Delete Document", role: .destructive) {
-                                store.deletePage(id: page.id)
+                            .buttonStyle(.plain)
+                            .help("Add subpage")
+
+                            Button(action: { store.toggleFavorite(id: page.id) }) {
+                                Image(systemName: page.isFavorite ? "star.fill" : "star")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(page.isFavorite ? Color.yellow : Color.secondary.opacity(0.6))
                             }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                            .buttonStyle(.plain)
+
+                            Menu {
+                                Button("Add Subpage") {
+                                    store.addNewSubpage(parentPageId: page.id)
+                                    isSubpagesExpanded = true
+                                }
+                                Button("Duplicate Document") {
+                                    store.duplicatePage(id: page.id)
+                                }
+                                Divider()
+                                Button(page.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+                                    store.toggleFavorite(id: page.id)
+                                }
+                                Divider()
+                                Button("Delete Document", role: .destructive) {
+                                    store.deletePage(id: page.id)
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .frame(width: 14)
                         }
-                        .menuStyle(.borderlessButton)
-                        .frame(width: 14)
                     }
                 }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color.accentColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
+                )
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
-            )
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
+
+            // Child Subpages (Indented Hierarchy)
+            if isSubpagesExpanded && !subpages.isEmpty {
+                ForEach(subpages) { child in
+                    SidebarDocumentItemRow(
+                        store: store,
+                        pageId: child.id,
+                        isSelected: store.selectedPageId == child.id,
+                        depth: depth + 1
+                    )
+                }
+            }
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
     }
 }

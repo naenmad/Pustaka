@@ -28,10 +28,53 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var icon: String // Emoji or symbol
     var coverUrl: String // Curated free Unsplash cover image URL
     var categoryId: String // References SidebarCategory.id
+    var parentPageId: String? = nil // Optional parent page id for nested subpages
     var rawContent: String
     var isFavorite: Bool
     var lastModified: Date
     var boardTasks: [TaskCard]
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, icon, coverUrl, categoryId, parentPageId, rawContent, isFavorite, lastModified, boardTasks
+    }
+
+    init(
+        id: String,
+        title: String,
+        icon: String,
+        coverUrl: String,
+        categoryId: String,
+        parentPageId: String? = nil,
+        rawContent: String,
+        isFavorite: Bool,
+        lastModified: Date,
+        boardTasks: [TaskCard]
+    ) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.coverUrl = coverUrl
+        self.categoryId = categoryId
+        self.parentPageId = parentPageId
+        self.rawContent = rawContent
+        self.isFavorite = isFavorite
+        self.lastModified = lastModified
+        self.boardTasks = boardTasks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        icon = try container.decode(String.self, forKey: .icon)
+        coverUrl = try container.decode(String.self, forKey: .coverUrl)
+        categoryId = try container.decode(String.self, forKey: .categoryId)
+        parentPageId = try container.decodeIfPresent(String.self, forKey: .parentPageId)
+        rawContent = try container.decode(String.self, forKey: .rawContent)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
+        lastModified = try container.decode(Date.self, forKey: .lastModified)
+        boardTasks = try container.decodeIfPresent([TaskCard].self, forKey: .boardTasks) ?? []
+    }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)

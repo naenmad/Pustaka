@@ -334,6 +334,28 @@ final class BlockEditorTextView: NSTextView {
         super.keyDown(with: event)
     }
 
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let pboard = sender.draggingPasteboard
+        if let types = pboard.types, types.contains(NSPasteboard.PasteboardType("com.pustaka.block-drag")) {
+            return []
+        }
+        if let str = pboard.string(forType: .string), str.hasPrefix("blk_") {
+            return []
+        }
+        return super.draggingEntered(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pboard = sender.draggingPasteboard
+        if let types = pboard.types, types.contains(NSPasteboard.PasteboardType("com.pustaka.block-drag")) {
+            return false
+        }
+        if let str = pboard.string(forType: .string), str.hasPrefix("blk_") {
+            return false
+        }
+        return super.performDragOperation(sender)
+    }
+
     func updateFormattingState() {
         guard let storage = textStorage else { return }
         let sel = selectedRange()
@@ -871,6 +893,7 @@ struct BlockListView: View {
     private func blockItemView(index: Int, block: UIBlockItem) -> some View {
         VStack(spacing: 0) {
             BlockRowView(
+                store: store,
                 block: block,
                 isHovered: hoveredBlockId == block.id,
                 isSelected: selectedBlockIds.contains(block.id),
@@ -965,7 +988,7 @@ struct BlockListView: View {
                     hoveredBlockId = nil
                 }
             }
-            .onDrop(of: [UTType.text], delegate: BlockDropDelegate(
+            .onDrop(of: [UTType(importedAs: "com.pustaka.block-drag")], delegate: BlockDropDelegate(
                 item: block,
                 blocks: $blocks,
                 draggedItem: $draggedBlock,
@@ -1351,6 +1374,7 @@ struct SixDotsHandleView: View {
 // MARK: - Individual Block Row
 
 struct BlockRowView: View {
+    @ObservedObject var store: WorkspaceStore
     let block: UIBlockItem
     let isHovered: Bool
     let isSelected: Bool
@@ -1481,7 +1505,12 @@ struct BlockRowView: View {
         }
         .onDrag {
             onStartDrag()
-            return NSItemProvider(object: block.id as NSString)
+            let provider = NSItemProvider()
+            provider.registerDataRepresentation(forTypeIdentifier: "com.pustaka.block-drag", visibility: .all) { completion in
+                completion(Data(block.id.utf8), nil)
+                return nil
+            }
+            return provider
         }
         .frame(width: 14)
         .opacity((isHovered || isSelected) ? 1.0 : 0.0)
@@ -1868,45 +1897,74 @@ struct BlockRowView: View {
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
             )
 
-        // 11. Image Block (Preview, URL, Caption & Delete)
+        // 11. Image Block (Preview, Online URL, Local File Upload, Caption & Delete)
         case .image(let url, let caption):
             VStack(alignment: .leading, spacing: 6) {
-                if !url.isEmpty, let imgUrl = URL(string: url) {
-                    AsyncImage(url: imgUrl) { phase in
-                        switch phase {
-                        case .empty:
-                            HStack {
-                                ProgressView().controlSize(.small)
-                                Text("Loading image...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                if !url.isEmpty {
+                    if (url.hasPrefix("http://") || url.hasPrefix("https://")), let imgUrl = URL(string: url) {
+                        AsyncImage(url: imgUrl) { phase in
+                            switch phase {
+                            case .empty:
+                                HStack {
+                                    ProgressView().controlSize(.small)
+                                    Text("Loading image...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 120)
+                                .background(Color.secondary.opacity(0.05))
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 320)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            case .failure:
+                                VStack(spacing: 4) {
+                                    Image(systemName: "photo.badge.exclamationmark")
+                                        .font(.title3)
+                                        .foregroundStyle(.secondary)
+                                    Text("Could not load image from URL")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 90)
+                                .background(Color.secondary.opacity(0.05))
+                            @unknown default:
+                                EmptyView()
                             }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 120)
-                            .background(Color.secondary.opacity(0.05))
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 280)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        case .failure:
-                            VStack(spacing: 4) {
-                                Image(systemName: "photo.badge.exclamationmark")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                                Text("Could not load image from URL")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 90)
-                            .background(Color.secondary.opacity(0.05))
-                        @unknown default:
-                            EmptyView()
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else if let localPath = store.resolveVaultImagePath(url),
+                              let nsImg = NSImage(contentsOfFile: localPath) {
+                        Image(nsImage: nsImg)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 320)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else if (url.hasPrefix("/") || url.hasPrefix("file://")),
+                              let nsImg = NSImage(contentsOfFile: url.replacingOccurrences(of: "file://", with: "")) {
+                        Image(nsImage: nsImg)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 320)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        VStack(spacing: 4) {
+                            Image(systemName: "photo.badge.exclamationmark")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                            Text("Could not load image file: \(url)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 90)
+                        .background(Color.secondary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
 
                 HStack(spacing: 8) {
@@ -1914,7 +1972,7 @@ struct BlockRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    TextField("Image URL (https://...)", text: Binding(
+                    TextField("Image URL or local path...", text: Binding(
                         get: { url },
                         set: { newUrl in
                             onTransformKind(.image(url: newUrl, caption: caption))
@@ -1922,7 +1980,28 @@ struct BlockRowView: View {
                     ))
                     .textFieldStyle(.plain)
                     .font(.caption)
-                    .accessibilityLabel("Image URL")
+                    .accessibilityLabel("Image URL or Path")
+
+                    // Upload Local Image File
+                    Button(action: {
+                        if let localAsset = store.importLocalImageToVault() {
+                            onTransformKind(.image(url: localAsset, caption: caption))
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.doc")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Upload File")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.accentColor.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Upload image from your computer")
 
                     Spacer()
 

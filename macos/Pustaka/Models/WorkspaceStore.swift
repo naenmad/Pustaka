@@ -146,6 +146,9 @@ class WorkspaceStore: ObservableObject {
                 md += "cover: \"\(page.coverUrl)\"\n"
             }
             md += "category: \"\(categoryName)\"\n"
+            if let parentId = page.parentPageId {
+                md += "parentPageId: \"\(parentId)\"\n"
+            }
             md += "isFavorite: \(page.isFavorite)\n"
             md += "lastModified: \"\(isoDate)\"\n"
             md += "---\n\n"
@@ -246,11 +249,104 @@ class WorkspaceStore: ObservableObject {
         recompileCurrentPage()
     }
 
+    func page(id: String?) -> DocumentPage? {
+        guard let id = id else { return nil }
+        return pages.first(where: { $0.id == id })
+    }
+
     func pages(in categoryId: String) -> [DocumentPage] {
         if categoryId == "cat_fav" {
             return pages.filter { $0.isFavorite }
         }
         return pages.filter { $0.categoryId == categoryId }
+    }
+
+    func subpages(of parentPageId: String) -> [DocumentPage] {
+        pages.filter { $0.parentPageId == parentPageId }
+    }
+
+    func rootPages(in categoryId: String) -> [DocumentPage] {
+        if categoryId == "cat_fav" {
+            return pages.filter { $0.isFavorite }
+        }
+        return pages.filter { page in
+            guard page.categoryId == categoryId else { return false }
+            if let parentId = page.parentPageId, pages.contains(where: { $0.id == parentId }) {
+                return false
+            }
+            return true
+        }
+    }
+
+    @discardableResult
+    func addNewSubpage(parentPageId: String, title: String = "") -> DocumentPage {
+        let parent = page(id: parentPageId)
+        let catId = parent?.categoryId ?? "cat_notes"
+        let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
+        let subpage = DocumentPage(
+            id: newId,
+            title: title,
+            icon: "📄",
+            coverUrl: "",
+            categoryId: catId,
+            parentPageId: parentPageId,
+            rawContent: "",
+            isFavorite: false,
+            lastModified: Date(),
+            boardTasks: []
+        )
+        if let idx = pages.firstIndex(where: { $0.id == parentPageId }) {
+            pages.insert(subpage, at: idx + 1)
+        } else {
+            pages.append(subpage)
+        }
+        self.selectedPageId = newId
+        saveToDisk()
+        recompileCurrentPage()
+        return subpage
+    }
+
+    // MARK: - Local Image & Asset Management
+
+    /// Opens an NSOpenPanel to let user pick an image file from disk, copies it into ~/Documents/Pustaka/assets/, and returns the relative path "assets/filename.png"
+    func importLocalImageToVault() -> String? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .gif, .webP, .image, .tiff]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Select Image"
+        panel.message = "Choose an image to copy into your Pustaka vault"
+        if panel.runModal() == .OK, let selectedUrl = panel.url {
+            let assetsDir = vaultURL.appendingPathComponent("assets", isDirectory: true)
+            try? FileManager.default.createDirectory(at: assetsDir, withIntermediateDirectories: true)
+            let ext = selectedUrl.pathExtension.isEmpty ? "png" : selectedUrl.pathExtension
+            let destName = "img_\(UUID().uuidString.prefix(8)).\(ext)"
+            let destURL = assetsDir.appendingPathComponent(destName)
+            try? FileManager.default.copyItem(at: selectedUrl, to: destURL)
+            return "assets/\(destName)"
+        }
+        return nil
+    }
+
+    /// Resolves an image URL or vault-relative path to an absolute file path if existing on disk
+    func resolveVaultImagePath(_ pathOrUrl: String) -> String? {
+        if pathOrUrl.hasPrefix("assets/") {
+            let full = vaultURL.appendingPathComponent(pathOrUrl).path
+            if FileManager.default.fileExists(atPath: full) {
+                return full
+            }
+        } else if pathOrUrl.hasPrefix("file://") {
+            let path = pathOrUrl.replacingOccurrences(of: "file://", with: "")
+            if FileManager.default.fileExists(atPath: path) {
+                return path
+            }
+        } else if pathOrUrl.hasPrefix("/") {
+            if FileManager.default.fileExists(atPath: pathOrUrl) {
+                return pathOrUrl
+            }
+        }
+        return nil
     }
 
     // MARK: - Category Management & Customization
@@ -384,12 +480,27 @@ class WorkspaceStore: ObservableObject {
     }
 
     func deletePage(id: String) {
-        if let page = pages.first(where: { $0.id == id }) {
-            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
-            try? FileManager.default.removeItem(at: fileURL)
+        var toDeleteIds = Set<String>([id])
+        var addedMore = true
+        while addedMore {
+            addedMore = false
+            for p in pages {
+                if let parent = p.parentPageId, toDeleteIds.contains(parent), !toDeleteIds.contains(p.id) {
+                    toDeleteIds.insert(p.id)
+                    addedMore = true
+                }
+            }
         }
-        pages.removeAll { $0.id == id }
-        if selectedPageId == id {
+
+        for delId in toDeleteIds {
+            if let page = pages.first(where: { $0.id == delId }) {
+                let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
+
+        pages.removeAll { toDeleteIds.contains($0.id) }
+        if let sel = selectedPageId, toDeleteIds.contains(sel) {
             selectedPageId = pages.first?.id
             recompileCurrentPage()
         }
