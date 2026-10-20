@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 
 class WorkspaceStore: ObservableObject {
+    @Published var categories: [SidebarCategory] = []
     @Published var pages: [DocumentPage] = []
     @Published var selectedPageId: String? = nil
     @Published var agents: [AgentItem] = []
@@ -12,14 +13,21 @@ class WorkspaceStore: ObservableObject {
     @Published var currentRon: String = ""
     @Published var currentSvg: String = ""
 
-    // Initial mock data with rich, realistic Notion-style documents
     init() {
+        // Default customizable categories with emojis
+        self.categories = [
+            SidebarCategory(id: "cat_fav", name: "Favorites", icon: "⭐️", isExpanded: true, showPageCount: true, orderIndex: 0),
+            SidebarCategory(id: "cat_agents", name: "ACP Agents", icon: "🤖", isExpanded: true, showPageCount: true, orderIndex: 1, isAgentsCategory: true),
+            SidebarCategory(id: "cat_team", name: "Teamspaces", icon: "👥", isExpanded: true, showPageCount: true, orderIndex: 2),
+            SidebarCategory(id: "cat_personal", name: "Private", icon: "🔒", isExpanded: true, showPageCount: true, orderIndex: 3)
+        ]
+
         self.pages = [
             DocumentPage(
                 id: "doc_architecture",
                 title: "Engineering Architecture & Typst Pipeline",
                 icon: "cpu.fill",
-                section: .favorites,
+                categoryId: "cat_fav",
                 rawContent: """
                 . Engineering Architecture & Typst Pipeline
                 .. High-Speed Vector Typesetting for Notion-like Workspaces
@@ -56,7 +64,7 @@ class WorkspaceStore: ObservableObject {
                 id: "doc_sprint",
                 title: "Sprint 24: Desktop MVP & ACP Server",
                 icon: "bolt.fill",
-                section: .favorites,
+                categoryId: "cat_fav",
                 rawContent: """
                 . Sprint 24: Desktop MVP & ACP Server
                 .. Deliverables & Weekly Goals
@@ -83,7 +91,7 @@ class WorkspaceStore: ObservableObject {
                 id: "doc_product",
                 title: "Product Requirements & Notion Comparison",
                 icon: "doc.plaintext.fill",
-                section: .teamspaces,
+                categoryId: "cat_team",
                 rawContent: """
                 . Product Requirements & Notion Comparison
                 .. Why Local-First Matters
@@ -106,7 +114,7 @@ class WorkspaceStore: ObservableObject {
                 id: "doc_personal",
                 title: "Daily Notes & Scratchpad",
                 icon: "note.text",
-                section: .privateDocs,
+                categoryId: "cat_personal",
                 rawContent: """
                 . Daily Notes & Scratchpad
                 .. Quick ideas and reminders
@@ -151,9 +159,12 @@ class WorkspaceStore: ObservableObject {
             self.selectedPageId = first.id
         }
 
-        // Initialize engine info from Rust UniFFI
         self.engineInfo = getEngineInfo()
         recompileCurrentPage()
+    }
+
+    var sortedCategories: [SidebarCategory] {
+        categories.sorted { $0.orderIndex < $1.orderIndex }
     }
 
     var selectedPage: DocumentPage? {
@@ -173,27 +184,115 @@ class WorkspaceStore: ObservableObject {
         recompileCurrentPage()
     }
 
+    func pages(in categoryId: String) -> [DocumentPage] {
+        if categoryId == "cat_fav" {
+            return pages.filter { $0.isFavorite }
+        }
+        return pages.filter { $0.categoryId == categoryId }
+    }
+
+    // MARK: - Category Management & Customization
+
+    func toggleCategoryExpanded(id: String) {
+        if let idx = categories.firstIndex(where: { $0.id == id }) {
+            categories[idx].isExpanded.toggle()
+        }
+    }
+
+    func toggleShowPageCount(id: String) {
+        if let idx = categories.firstIndex(where: { $0.id == id }) {
+            categories[idx].showPageCount.toggle()
+        }
+    }
+
+    func updateCategory(id: String, newName: String, newIcon: String) {
+        if let idx = categories.firstIndex(where: { $0.id == id }) {
+            categories[idx].name = newName
+            categories[idx].icon = newIcon
+        }
+    }
+
+    func moveCategoryUp(id: String) {
+        let sorted = sortedCategories
+        guard let currentIdx = sorted.firstIndex(where: { $0.id == id }), currentIdx > 0 else { return }
+        let prevItem = sorted[currentIdx - 1]
+
+        if let catIdx = categories.firstIndex(where: { $0.id == id }),
+           let prevCatIdx = categories.firstIndex(where: { $0.id == prevItem.id }) {
+            let tmp = categories[catIdx].orderIndex
+            categories[catIdx].orderIndex = categories[prevCatIdx].orderIndex
+            categories[prevCatIdx].orderIndex = tmp
+        }
+    }
+
+    func moveCategoryDown(id: String) {
+        let sorted = sortedCategories
+        guard let currentIdx = sorted.firstIndex(where: { $0.id == id }), currentIdx < sorted.count - 1 else { return }
+        let nextItem = sorted[currentIdx + 1]
+
+        if let catIdx = categories.firstIndex(where: { $0.id == id }),
+           let nextCatIdx = categories.firstIndex(where: { $0.id == nextItem.id }) {
+            let tmp = categories[catIdx].orderIndex
+            categories[catIdx].orderIndex = categories[nextCatIdx].orderIndex
+            categories[nextCatIdx].orderIndex = tmp
+        }
+    }
+
+    func addCategory(name: String, icon: String) {
+        let newId = "cat_\(UUID().uuidString.prefix(6))"
+        let maxIndex = categories.map(\.orderIndex).max() ?? 0
+        let newCat = SidebarCategory(
+            id: newId,
+            name: name,
+            icon: icon,
+            isExpanded: true,
+            showPageCount: true,
+            orderIndex: maxIndex + 1
+        )
+        categories.append(newCat)
+    }
+
+    func deleteCategory(id: String) {
+        // Move pages in this category to private
+        for i in 0..<pages.count {
+            if pages[i].categoryId == id {
+                pages[i].categoryId = "cat_personal"
+            }
+        }
+        categories.removeAll { $0.id == id }
+    }
+
+    // MARK: - Page Actions
+
     func toggleFavorite(id: String) {
         if let idx = pages.firstIndex(where: { $0.id == id }) {
             pages[idx].isFavorite.toggle()
         }
     }
 
-    func addNewPage(section: PageSection = .privateDocs) {
+    func addNewPage(in categoryId: String = "cat_personal") {
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
         let newPage = DocumentPage(
             id: newId,
             title: "Untitled Page",
             icon: "doc.text",
-            section: section,
+            categoryId: categoryId,
             rawContent: ". Untitled Page\n.. Start typing your content here\n:info Press + to add structured blocks.",
-            isFavorite: false,
+            isFavorite: categoryId == "cat_fav",
             lastModified: Date(),
             boardTasks: []
         )
         pages.append(newPage)
         self.selectedPageId = newId
         recompileCurrentPage()
+    }
+
+    func deletePage(id: String) {
+        pages.removeAll { $0.id == id }
+        if selectedPageId == id {
+            selectedPageId = pages.first?.id
+            recompileCurrentPage()
+        }
     }
 
     func updatePageTitle(_ newTitle: String) {
@@ -282,13 +381,13 @@ class WorkspaceStore: ObservableObject {
 
             counter += 1
             if trimmed.hasPrefix("... ") || trimmed.hasPrefix("### ") {
-                let rest = trimmed.hasPrefix("... ") ? String(trimmed.dropFirst(4)) : String(trimmed.dropFirst(4))
+                let rest = String(trimmed.dropFirst(4))
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .heading(level: 3), text: rest))
             } else if trimmed.hasPrefix(".. ") || trimmed.hasPrefix("## ") {
-                let rest = trimmed.hasPrefix(".. ") ? String(trimmed.dropFirst(3)) : String(trimmed.dropFirst(3))
+                let rest = String(trimmed.dropFirst(3))
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .heading(level: 2), text: rest))
             } else if trimmed.hasPrefix(". ") || trimmed.hasPrefix("# ") {
-                let rest = trimmed.hasPrefix(". ") ? String(trimmed.dropFirst(2)) : String(trimmed.dropFirst(2))
+                let rest = String(trimmed.dropFirst(2))
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .heading(level: 1), text: rest))
             } else if trimmed.hasPrefix(":info ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💡", theme: .blue), text: String(trimmed.dropFirst(6))))
@@ -333,7 +432,7 @@ class WorkspaceStore: ObservableObject {
                 lines.append("\(prefix) \(block.text)")
             case .paragraph:
                 lines.append(block.text)
-            case .callout(let icon, let theme):
+            case .callout(_, let theme):
                 switch theme {
                 case .blue: lines.append(":info \(block.text)")
                 case .red: lines.append(":warn \(block.text)")

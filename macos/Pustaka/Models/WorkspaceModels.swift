@@ -1,28 +1,33 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Navigation & Page Sections
+// MARK: - Customizable Sidebar Category
 
-enum PageSection: String, CaseIterable, Identifiable {
-    case favorites = "Favorites"
-    case teamspaces = "Teamspaces"
-    case privateDocs = "Private"
+struct SidebarCategory: Identifiable, Hashable {
+    let id: String
+    var name: String
+    var icon: String // Emoji or symbol string: e.g. "⭐️", "🤖", "👥", "🔒", "🚀", "📁"
+    var isExpanded: Bool = true
+    var showPageCount: Bool = true
+    var orderIndex: Int
+    var isAgentsCategory: Bool = false
 
-    var id: String { rawValue }
-    var icon: String {
-        switch self {
-        case .favorites: return "star.fill"
-        case .teamspaces: return "person.2.fill"
-        case .privateDocs: return "lock.fill"
-        }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: SidebarCategory, rhs: SidebarCategory) -> Bool {
+        lhs.id == rhs.id
     }
 }
+
+// MARK: - Document Page
 
 struct DocumentPage: Identifiable, Hashable {
     let id: String
     var title: String
-    var icon: String
-    var section: PageSection
+    var icon: String // Emoji or SF Symbol
+    var categoryId: String // References SidebarCategory.id
     var rawContent: String
     var isFavorite: Bool
     var lastModified: Date
