@@ -1,4 +1,4 @@
-.PHONY: all build-ffi build-ffi-release generate-project build-macos clean test
+.PHONY: all build-ffi build-ffi-release generate-project build-macos build-release install clean test
 
 all: build-macos
 
@@ -13,9 +13,25 @@ build-ffi-release:
 generate-project: build-ffi
 	@cd macos && xcodegen generate
 
-# Build macOS app using xcodebuild
+generate-project-release: build-ffi-release
+	@cd macos && xcodegen generate
+
+# Build macOS app in Debug mode
 build-macos: generate-project
 	@xcodebuild -project macos/Pustaka.xcodeproj -scheme Pustaka -configuration Debug -destination 'platform=macOS' build
+
+# Build macOS app in optimized Release mode
+build-release: generate-project-release
+	@xcodebuild -project macos/Pustaka.xcodeproj -scheme Pustaka -configuration Release -destination 'platform=macOS' -derivedDataPath build/DerivedData build
+
+# Install Pustaka.app to /Applications
+install: build-release
+	@echo "==> Installing Pustaka.app to /Applications..."
+	@rm -rf /Applications/Pustaka.app
+	@cp -R build/DerivedData/Build/Products/Release/Pustaka.app /Applications/
+	@xattr -cr /Applications/Pustaka.app
+	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -R -trusted /Applications/Pustaka.app
+	@echo "==> Pustaka.app successfully installed to /Applications!"
 
 # Run Rust cargo tests
 test:
@@ -24,4 +40,4 @@ test:
 # Clean build artifacts
 clean:
 	@cargo clean
-	@rm -rf macos/Pustaka/Generated macos/Pustaka.xcodeproj
+	@rm -rf build/ macos/Pustaka/Generated macos/Pustaka.xcodeproj
