@@ -1,0 +1,16 @@
+# Rust
+/target
+Cargo.lock
+
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/
+xcuserdata/
+
+# UniFFI generated bindings (re-generated on build)
+# macos/Pustaka/Generated/

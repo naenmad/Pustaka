@@ -1,0 +1,367 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2F7011EBF695835398C48874 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453BE2BFC9AC54F9709DB879 /* ContentView.swift */; };
+		773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */; };
+		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		176EC69F5B6BE4AE64CC37BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		453BE2BFC9AC54F9709DB879 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PustakaApp.swift; sourceTree = "<group>"; };
+		67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pustaka.entitlements; sourceTree = "<group>"; };
+		997CBAA8E88BE3A435C7891F /* Pustaka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pustaka.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
+		AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pustaka_ffi.swift; sourceTree = "<group>"; };
+		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
+		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		9EDC0C358FC104AD2B93381D /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */,
+				A49417886B16D6C79177709E /* pustaka_ffiFFI.h */,
+				FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		BBABF7D2E6B68BCA15D5E337 /* Pustaka */ = {
+			isa = PBXGroup;
+			children = (
+				176EC69F5B6BE4AE64CC37BA /* Info.plist */,
+				EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */,
+				67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */,
+				CB4AD995BE39ECE621859A96 /* App */,
+				9EDC0C358FC104AD2B93381D /* Generated */,
+			);
+			path = Pustaka;
+			sourceTree = "<group>";
+		};
+		CB4AD995BE39ECE621859A96 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				453BE2BFC9AC54F9709DB879 /* ContentView.swift */,
+				5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		CF6C6476DFE5D1C861D3865F = {
+			isa = PBXGroup;
+			children = (
+				BBABF7D2E6B68BCA15D5E337 /* Pustaka */,
+				D36A34161EBC71687B0A92F8 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D36A34161EBC71687B0A92F8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				997CBAA8E88BE3A435C7891F /* Pustaka.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B900CF9A3029789B9967846B /* Pustaka */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F60A1BDC583BF64BF3C5BE92 /* Build configuration list for PBXNativeTarget "Pustaka" */;
+			buildPhases = (
+				D85F74F89B05F69970B4F448 /* Build Rust UniFFI Library */,
+				1247B07AC693F99996471F2A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Pustaka;
+			packageProductDependencies = (
+			);
+			productName = Pustaka;
+			productReference = 997CBAA8E88BE3A435C7891F /* Pustaka.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0F6A23F8C8FB5F5FC72D672B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 9C13E3E7A9A44ADBC4BE9049 /* Build configuration list for PBXProject "Pustaka" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CF6C6476DFE5D1C861D3865F;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D36A34161EBC71687B0A92F8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B900CF9A3029789B9967846B /* Pustaka */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D85F74F89B05F69970B4F448 /* Build Rust UniFFI Library */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust UniFFI Library";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"${CONFIGURATION}\" = \"Release\" ]; then\n  bash \"${SRCROOT}/../scripts/build-ffi.sh\" release\nelse\n  bash \"${SRCROOT}/../scripts/build-ffi.sh\" debug\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1247B07AC693F99996471F2A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2F7011EBF695835398C48874 /* ContentView.swift in Sources */,
+				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
+				773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1E85BF66DF4654D23F8073F1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Pustaka/Pustaka.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Pustaka/Generated",
+				);
+				INFOPLIST_FILE = Pustaka/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/../target/$(CONFIGURATION:lower)",
+					"$(SRCROOT)/../target/debug",
+				);
+				OTHER_LDFLAGS = (
+					"-lpustaka_ffi",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pustaka.desktop;
+				PRODUCT_NAME = Pustaka;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(SRCROOT)/Pustaka/Generated",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "Pustaka/Pustaka-Bridging-Header.h";
+			};
+			name = Debug;
+		};
+		6D19FD4F0E91130E04CC7A69 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Pustaka/Pustaka.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Pustaka/Generated",
+				);
+				INFOPLIST_FILE = Pustaka/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/../target/$(CONFIGURATION:lower)",
+					"$(SRCROOT)/../target/debug",
+				);
+				OTHER_LDFLAGS = (
+					"-lpustaka_ffi",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pustaka.desktop;
+				PRODUCT_NAME = Pustaka;
+				SDKROOT = macosx;
+				SWIFT_INCLUDE_PATHS = (
+					"$(SRCROOT)/Pustaka/Generated",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "Pustaka/Pustaka-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		A448432053AA7B8C85CA9363 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		DA581D0794E776C34513911C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9C13E3E7A9A44ADBC4BE9049 /* Build configuration list for PBXProject "Pustaka" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A448432053AA7B8C85CA9363 /* Debug */,
+				DA581D0794E776C34513911C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F60A1BDC583BF64BF3C5BE92 /* Build configuration list for PBXNativeTarget "Pustaka" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E85BF66DF4654D23F8073F1 /* Debug */,
+				6D19FD4F0E91130E04CC7A69 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0F6A23F8C8FB5F5FC72D672B /* Project object */;
+}

@@ -1,0 +1,42 @@
+name: Pustaka
+options:
+  bundleIdPrefix: com.pustaka
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "5.9"
+
+targets:
+  Pustaka:
+    type: application
+    platform: macOS
+    sources:
+      - path: Pustaka
+    preBuildScripts:
+      - name: Build Rust UniFFI Library
+        script: |
+          if [ "${CONFIGURATION}" = "Release" ]; then
+            bash "${SRCROOT}/../scripts/build-ffi.sh" release
+          else
+            bash "${SRCROOT}/../scripts/build-ffi.sh" debug
+          fi
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pustaka.desktop
+        PRODUCT_NAME: Pustaka
+        INFOPLIST_FILE: Pustaka/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Pustaka/Pustaka.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: Pustaka/Pustaka-Bridging-Header.h
+        SWIFT_INCLUDE_PATHS:
+          - $(SRCROOT)/Pustaka/Generated
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/Pustaka/Generated
+        OTHER_LDFLAGS:
+          - -lpustaka_ffi
+        LIBRARY_SEARCH_PATHS:
+          - $(SRCROOT)/../target/$(CONFIGURATION:lower)
+          - $(SRCROOT)/../target/debug
