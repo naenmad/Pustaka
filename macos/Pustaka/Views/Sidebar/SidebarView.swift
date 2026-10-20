@@ -22,6 +22,33 @@ func relativeTimeString(from date: Date) -> String {
     }
 }
 
+// MARK: - Tree Indentation & Branch Guide Container
+
+struct SidebarTreeContainer<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Subtle vertical tree guide line
+            Rectangle()
+                .fill(Color.secondary.opacity(0.18))
+                .frame(width: 1)
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 1) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 // MARK: - Main Sidebar View
 
 struct SidebarView: View {
@@ -36,30 +63,26 @@ struct SidebarView: View {
     @State private var isFavoritesExpanded: Bool = true
     @State private var isRecentExpanded: Bool = false
     @State private var isTrashSheetPresented: Bool = false
+    @State private var isSettingsSheetPresented: Bool = false
 
     var body: some View {
         ZStack {
-            // Native macOS Translucent Sidebar Background
-            VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+            // Solid, elegant neutral macOS gray background (never tints blue in fullscreen)
+            Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 1. Notion/Obsidian Vault Identity Header
-                vaultHeaderView
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-
-                // 2. Minimalist Search Bar (Shortcut: ⌘K)
+                // 1. Minimalist Search Bar (Shortcut: ⌘K)
                 searchBarView
                     .padding(.horizontal, 10)
+                    .padding(.top, 8)
                     .padding(.bottom, 8)
 
                 Divider()
                     .padding(.horizontal, 10)
                     .opacity(0.35)
 
-                // 3. Main Content: Search Results OR Categorized Vault Tree
+                // 2. Main Content: Search Results OR Categorized Vault Tree
                 if !searchText.isEmpty {
                     searchResultsView
                 } else {
@@ -70,10 +93,16 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .opacity(0.35)
 
-                // 4. Bottom Action Bar
+                // 3. Bottom Action Bar (New Document, Settings, New Folder)
                 bottomActionBar
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
+            }
+        }
+        // App Bar Alignment: Vault Identity placed directly in the window titlebar toolbar
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                vaultToolbarItem
             }
         }
         .sheet(item: $categoryToCustomize) { cat in
@@ -89,47 +118,54 @@ struct SidebarView: View {
                 onDismiss: { isTrashSheetPresented = false }
             )
         }
+        .sheet(isPresented: $isSettingsSheetPresented) {
+            SettingsSheet(
+                store: store,
+                onDismiss: { isSettingsSheetPresented = false }
+            )
+        }
     }
 
-    // MARK: - Vault Identity Header
+    // MARK: - Vault Identity in Titlebar (Aligned with App Bar)
 
-    private var vaultHeaderView: some View {
-        HStack(spacing: 8) {
-            // Vault Icon Badge
+    private var vaultToolbarItem: some View {
+        HStack(spacing: 7) {
+            // Vault Badge Icon
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 5.5, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.75)],
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 26, height: 26)
-                    .shadow(color: Color.accentColor.opacity(0.25), radius: 2, y: 1)
+                    .frame(width: 22, height: 22)
+                    .shadow(color: Color.accentColor.opacity(0.2), radius: 1.5, y: 0.5)
 
                 Image(systemName: "books.vertical.fill")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 10.5, weight: .bold))
                     .foregroundStyle(.white)
             }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0.5) {
                 Text("Pustaka Vault")
-                    .font(.system(size: 12.5, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 Button(action: {
                     store.revealInFinder()
                 }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 2.5) {
                         Text("~/Documents/Pustaka")
-                            .font(.system(size: 10, weight: .regular))
+                            .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
 
                         Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7.5))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -137,39 +173,21 @@ struct SidebarView: View {
                 .help("Reveal ~/Documents/Pustaka in Finder (⇧⌘R)")
             }
 
-            Spacer()
-
-            // Quick Vault Action Buttons
-            HStack(spacing: 2) {
-                Button(action: {
-                    store.revealInFinder()
-                }) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(5)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-                .help("Reveal in Finder (⇧⌘R)")
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-
-                Button(action: {
-                    store.addNewPage(in: "cat_notes")
-                }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(5)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-                .help("New Document (⌘N)")
-                .keyboardShortcut("n", modifiers: .command)
+            // Quick Reveal in Finder Button
+            Button(action: {
+                store.revealInFinder()
+            }) {
+                Image(systemName: "folder")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
+            .buttonStyle(.plain)
+            .help("Reveal in Finder (⇧⌘R)")
         }
+        .padding(.leading, 2)
     }
 
     // MARK: - Minimal Search Bar
@@ -294,7 +312,7 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Favorites Pinned Section
+    // MARK: - Favorites Pinned Section (With Visible Tree Branches)
 
     private var favoritesPinnedSection: some View {
         VStack(spacing: 2) {
@@ -344,20 +362,22 @@ struct SidebarView: View {
                         .padding(.leading, 24)
                         .padding(.vertical, 2)
                 } else {
-                    ForEach(store.favoritePages) { favPage in
-                        SidebarDocumentItemRow(
-                            store: store,
-                            pageId: favPage.id,
-                            isSelected: store.selectedPageId == favPage.id,
-                            depth: 0
-                        )
+                    SidebarTreeContainer {
+                        ForEach(store.favoritePages) { favPage in
+                            SidebarDocumentItemRow(
+                                store: store,
+                                pageId: favPage.id,
+                                isSelected: store.selectedPageId == favPage.id,
+                                depth: 0
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    // MARK: - Recent Pinned Section
+    // MARK: - Recent Pinned Section (With Visible Tree Branches)
 
     private var recentPinnedSection: some View {
         VStack(spacing: 2) {
@@ -397,12 +417,23 @@ struct SidebarView: View {
             .buttonStyle(.plain)
 
             if isRecentExpanded {
-                ForEach(store.recentPages) { recentPage in
-                    RecentDocumentRow(
-                        store: store,
-                        page: recentPage,
-                        isSelected: store.selectedPageId == recentPage.id
-                    )
+                if store.recentPages.isEmpty {
+                    Text("No recent notes.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 24)
+                        .padding(.vertical, 2)
+                } else {
+                    SidebarTreeContainer {
+                        ForEach(store.recentPages) { recentPage in
+                            RecentDocumentRow(
+                                store: store,
+                                page: recentPage,
+                                isSelected: store.selectedPageId == recentPage.id
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -527,10 +558,11 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Bottom Action Bar
+    // MARK: - Bottom Action Bar (New Document, Settings, New Folder)
 
     private var bottomActionBar: some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 6) {
+            // Primary Action: New Document
             Button(action: {
                 store.addNewPage(in: "cat_notes")
             }) {
@@ -538,33 +570,64 @@ struct SidebarView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
                     Text("New Document")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Text("⌘N")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.primary.opacity(0.05))
+                .background(Color.primary.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
 
-            Button(action: {
-                isAddingCategory = true
-            }) {
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 12, weight: .medium))
+            // Secondary Action Row: Settings & New Folder
+            HStack(spacing: 6) {
+                Button(action: {
+                    isSettingsSheetPresented = true
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11))
+                        Text("Settings")
+                            .font(.system(size: 11.5, weight: .medium))
+                    }
                     .foregroundStyle(.secondary)
-                    .padding(6)
-                    .background(Color.primary.opacity(0.05))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.primary.opacity(0.03))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Settings & Vault Preferences (⌘,)")
+                .keyboardShortcut(",", modifiers: .command)
+
+                Button(action: {
+                    isAddingCategory = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 11))
+                        Text("Folder")
+                            .font(.system(size: 11.5, weight: .medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.primary.opacity(0.03))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Create New Folder")
             }
-            .buttonStyle(.plain)
-            .help("New Folder")
         }
     }
 }
 
-// MARK: - Category Section View (Supports Drag-and-Drop Reorganization)
+// MARK: - Category Section View (Supports Drag-and-Drop & Tree Guide Lines)
 
 struct CategorySectionView: View {
     @ObservedObject var store: WorkspaceStore
@@ -593,18 +656,9 @@ struct CategorySectionView: View {
                     return true
                 }
 
-            // Category Items
+            // Category Items with Vertical Tree Guide Lines
             if category.isExpanded {
                 let pagesToDisplay = store.rootPages(in: category.id)
-
-                ForEach(pagesToDisplay) { page in
-                    SidebarDocumentItemRow(
-                        store: store,
-                        pageId: page.id,
-                        isSelected: store.selectedPageId == page.id,
-                        depth: 0
-                    )
-                }
 
                 if pagesToDisplay.isEmpty {
                     Text("Empty folder. Drag notes here.")
@@ -613,6 +667,17 @@ struct CategorySectionView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 24)
                         .padding(.vertical, 2)
+                } else {
+                    SidebarTreeContainer {
+                        ForEach(pagesToDisplay) { page in
+                            SidebarDocumentItemRow(
+                                store: store,
+                                pageId: page.id,
+                                isSelected: store.selectedPageId == page.id,
+                                depth: 0
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -721,7 +786,7 @@ struct CategorySectionView: View {
     }
 }
 
-// MARK: - Individual Document Row (Supports Drag, Inline Rename, Icon Popover, Context Menu)
+// MARK: - Individual Document Row (Supports Drag, Inline Rename, Icon Popover, Context Menu, Subpages Tree)
 
 struct SidebarDocumentItemRow: View {
     @ObservedObject var store: WorkspaceStore
@@ -764,10 +829,10 @@ struct SidebarDocumentItemRow: View {
                 }
             }) {
                 HStack(spacing: 5) {
-                    // Tree Indentation
+                    // Tree Indentation (for deeper nested subpages)
                     if depth > 0 {
                         Spacer()
-                            .frame(width: CGFloat(depth * 12))
+                            .frame(width: CGFloat(depth * 8))
                     }
 
                     // Expand / Collapse Chevron for Subpages
@@ -890,15 +955,17 @@ struct SidebarDocumentItemRow: View {
                 )
             }
 
-            // Child Subpages (Indented Hierarchy)
+            // Child Subpages (Nested Tree Container)
             if isSubpagesExpanded && !subpages.isEmpty {
-                ForEach(subpages) { child in
-                    SidebarDocumentItemRow(
-                        store: store,
-                        pageId: child.id,
-                        isSelected: store.selectedPageId == child.id,
-                        depth: depth + 1
-                    )
+                SidebarTreeContainer {
+                    ForEach(subpages) { child in
+                        SidebarDocumentItemRow(
+                            store: store,
+                            pageId: child.id,
+                            isSelected: store.selectedPageId == child.id,
+                            depth: depth + 1
+                        )
+                    }
                 }
             }
         }
@@ -1017,8 +1084,12 @@ struct RecentDocumentRow: View {
                 Spacer()
 
                 Text(relativeTimeString(from: page.lastModified))
-                    .font(.system(size: 9.5))
+                    .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
             }
             .padding(.vertical, 3)
             .padding(.horizontal, 6)
@@ -1365,6 +1436,252 @@ struct TrashManagerSheet: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Are you sure you want to permanently delete all \(store.trashPages.count) notes from disk? This cannot be undone.")
+        }
+    }
+}
+
+// MARK: - Settings & Vault Preferences Sheet
+
+struct SettingsSheet: View {
+    @ObservedObject var store: WorkspaceStore
+    let onDismiss: () -> Void
+
+    @State private var selectedTab: SettingsTab = .vault
+
+    enum SettingsTab: String, CaseIterable, Identifiable {
+        case vault = "Vault & Storage"
+        case shortcuts = "Shortcuts"
+        case engine = "Engine & About"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .vault: return "folder.badge.gearshape"
+            case .shortcuts: return "command"
+            case .engine: return "sparkles"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.accentColor)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Settings & Preferences")
+                        .font(.headline.weight(.semibold))
+                    Text("Pustaka Local Workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            // Segmented Tab Picker
+            Picker("", selection: $selectedTab) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            // Tab Content
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch selectedTab {
+                    case .vault:
+                        vaultSettingsSection
+                    case .shortcuts:
+                        shortcutsSettingsSection
+                    case .engine:
+                        engineSettingsSection
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .frame(width: 520, height: 420)
+    }
+
+    private var vaultSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Vault Location Card
+            VStack(alignment: .leading, spacing: 8) {
+                Text("VAULT LOCATION")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("~/Documents/Pustaka")
+                            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+                        Text("Obsidian-compatible Markdown vault with YAML frontmatter")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("Reveal in Finder") {
+                        store.revealInFinder()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .padding(10)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Vault Statistics
+            VStack(alignment: .leading, spacing: 8) {
+                Text("WORKSPACE METRICS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+
+                HStack(spacing: 12) {
+                    metricCard(title: "Active Notes", value: "\(store.activePages.count)", icon: "doc.text")
+                    metricCard(title: "Folders", value: "\(store.categories.count)", icon: "folder")
+                    metricCard(title: "In Trash", value: "\(store.trashPages.count)", icon: "trash")
+                }
+            }
+
+            // Sync Information
+            VStack(alignment: .leading, spacing: 6) {
+                Text("STORAGE INTEGRITY")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Auto-save is active. Every keystroke is saved atomically to disk.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Deleted notes are preserved in ~/.trash/ folder.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func metricCard(title: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(.title3.weight(.bold))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var shortcutsSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("KEYBOARD SHORTCUTS")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            shortcutRow(key: "⌘N", description: "Create new document")
+            shortcutRow(key: "⌘K", description: "Focus search bar")
+            shortcutRow(key: "⇧⌘R", description: "Reveal vault in Finder")
+            shortcutRow(key: "⌘,", description: "Open Settings")
+            shortcutRow(key: "⌘B / ⌘I", description: "Format Bold / Italic")
+            shortcutRow(key: "⌘P", description: "Toggle Typst preview")
+            shortcutRow(key: "⌘D", description: "Duplicate selected block or note")
+            shortcutRow(key: "/subpage", description: "Insert inline subpage block")
+            shortcutRow(key: "/table", description: "Insert 2D grid table")
+        }
+    }
+
+    private func shortcutRow(key: String, description: String) -> some View {
+        HStack {
+            Text(description)
+                .font(.system(size: 12))
+            Spacer()
+            Text(key)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var engineSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TYPESETTING ENGINE")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Rust UniFFI + Typst Compiler")
+                    .font(.subheadline.bold())
+                Text("Sub-millisecond compilation running in-memory without background daemon processes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Status: \(store.engineInfo)")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.tint)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Pustaka for macOS")
+                    .font(.subheadline.bold())
+                Text("Version 1.0 (Build 2026.10)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Zero cloud lock-in. 100% private and offline.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 }

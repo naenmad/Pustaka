@@ -8,7 +8,7 @@ struct ContentView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(store: store)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
-                .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
+                .background(Color(nsColor: .windowBackgroundColor))
         } detail: {
             if let page = store.selectedPage {
                 DocumentCanvasView(store: store, page: page)
