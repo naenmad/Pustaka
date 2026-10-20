@@ -394,6 +394,46 @@ class WorkspaceStore: ObservableObject {
         var inCode = false
         var codeLang = ""
         var codeLines: [String] = []
+        var inTable = false
+        var tableLines: [String] = []
+
+        func flushTable() {
+            guard inTable, !tableLines.isEmpty else { return }
+            inTable = false
+            counter += 1
+            var parsedHeaders: [String] = []
+            var parsedRows: [[String]] = []
+
+            for (idx, tLine) in tableLines.enumerated() {
+                let cells = tLine.components(separatedBy: "|")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                var cleanCells = cells
+                if cleanCells.first == "" { cleanCells.removeFirst() }
+                if cleanCells.last == "" { cleanCells.removeLast() }
+
+                if idx == 0 {
+                    parsedHeaders = cleanCells.isEmpty ? ["Column 1", "Column 2"] : cleanCells
+                } else if idx == 1 && cleanCells.allSatisfy({ $0.contains("-") }) {
+                    continue
+                } else {
+                    parsedRows.append(cleanCells)
+                }
+            }
+
+            if parsedHeaders.isEmpty {
+                parsedHeaders = ["Column 1", "Column 2", "Column 3"]
+            }
+            if parsedRows.isEmpty {
+                parsedRows = [Array(repeating: "", count: parsedHeaders.count)]
+            }
+
+            items.append(UIBlockItem(
+                id: "blk_\(counter)",
+                kind: .grid(headers: parsedHeaders, rows: parsedRows),
+                text: tableLines.joined(separator: "\n")
+            ))
+            tableLines.removeAll()
+        }
 
         for line in content.components(separatedBy: .newlines) {
             let trimmedStart = line.trimmingCharacters(in: .whitespaces)
@@ -421,7 +461,18 @@ class WorkspaceStore: ObservableObject {
             }
 
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty { continue }
+            if trimmed.isEmpty {
+                if inTable { flushTable() }
+                continue
+            }
+
+            if trimmed.hasPrefix("|") && trimmed.contains("|") {
+                inTable = true
+                tableLines.append(trimmed)
+                continue
+            } else if inTable {
+                flushTable()
+            }
 
             counter += 1
             if trimmed.hasPrefix("... ") || trimmed.hasPrefix("### ") {
@@ -466,7 +517,8 @@ class WorkspaceStore: ObservableObject {
             } else if trimmed.hasPrefix("[grid]") && trimmed.hasSuffix("[/grid]") {
                 let inner = String(trimmed.dropFirst(6).dropLast(7))
                 let cols = inner.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .grid(columns: cols), text: inner))
+                let headers = cols.isEmpty ? ["Column 1", "Column 2", "Column 3"] : cols
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .grid(headers: headers, rows: [Array(repeating: "", count: headers.count)]), text: inner))
             } else if trimmed.hasPrefix(":info ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💡", theme: .blue), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":warn ") {
@@ -491,6 +543,10 @@ class WorkspaceStore: ObservableObject {
                 kind: .code(lang: codeLang.isEmpty ? "text" : codeLang),
                 text: codeLines.joined(separator: "\n")
             ))
+        }
+
+        if inTable {
+            flushTable()
         }
 
         if items.isEmpty {
@@ -567,8 +623,19 @@ class WorkspaceStore: ObservableObject {
                 lines.append("```\(lang)")
                 lines.append(block.text)
                 lines.append("```")
-            case .grid(let columns):
-                lines.append("[grid] \(columns.joined(separator: " | ")) [/grid]")
+            case .grid(let headers, let rows):
+                var tLines: [String] = []
+                let cleanHeaders = headers.isEmpty ? ["Column 1", "Column 2"] : headers
+                let hLine = "| " + cleanHeaders.joined(separator: " | ") + " |"
+                let sLine = "| " + cleanHeaders.map { _ in "---" }.joined(separator: " | ") + " |"
+                tLines.append(hLine)
+                tLines.append(sLine)
+                for r in rows {
+                    var padded = r
+                    while padded.count < cleanHeaders.count { padded.append("") }
+                    tLines.append("| " + padded.prefix(cleanHeaders.count).joined(separator: " | ") + " |")
+                }
+                lines.append(tLines.joined(separator: "\n"))
             }
         }
         return lines.joined(separator: "\n\n")

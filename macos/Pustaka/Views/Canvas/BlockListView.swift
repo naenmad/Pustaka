@@ -14,6 +14,11 @@ class FocusableBlockTextField: NSTextField {
         }
         return ok
     }
+
+    override func mouseDown(with event: NSEvent) {
+        onDidBecomeFirstResponder?()
+        super.mouseDown(with: event)
+    }
 }
 
 // MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete & Slash Command Support)
@@ -176,7 +181,7 @@ let allSlashCommands: [SlashCommandItem] = [
     SlashCommandItem(id: "bookmark", title: "Web Bookmark", desc: "Save a web link as a visual preview card.", icon: "link", keywords: ["bookmark", "link", "url", "web", "card", "http"], kind: .bookmark(url: "https://")),
     SlashCommandItem(id: "image", title: "Image", desc: "Insert an image with caption.", icon: "photo", keywords: ["image", "img", "photo", "picture", "figure"], kind: .image(url: "", caption: "")),
     SlashCommandItem(id: "math", title: "Math / Equation", desc: "TeX or Typst mathematical formula.", icon: "function", keywords: ["math", "equation", "formula", "latex", "tex"], kind: .math(expression: "")),
-    SlashCommandItem(id: "table", title: "Table / Grid", desc: "Simple table or multi-column grid.", icon: "tablecells", keywords: ["table", "grid", "column", "columns"], kind: .grid(columns: ["Column 1", "Column 2", "Column 3"]))
+    SlashCommandItem(id: "table", title: "Table / Grid", desc: "Interactive data table with columns and rows.", icon: "tablecells", keywords: ["table", "grid", "column", "columns", "data"], kind: .grid(headers: ["Column 1", "Column 2", "Column 3"], rows: [["", "", ""], ["", "", ""]]))
 ]
 
 // MARK: - Block List View
@@ -347,8 +352,54 @@ struct BlockListView: View {
                 selectAllBlocks()
             case .clearSelection:
                 selectedBlockIds.removeAll()
+            case .insertBlock(let kind):
+                insertBlockFromToolbar(kind: kind)
+            case .formatActiveBlock(let marker):
+                formatActiveBlock(marker: marker)
             }
             blockActionTrigger = nil
+        }
+    }
+
+    private func insertBlockFromToolbar(kind: UIBlockKind) {
+        let newId = "blk_\(UUID().uuidString.prefix(6))"
+        let newBlock = UIBlockItem(id: newId, kind: kind, text: "")
+        if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
+            blocks.insert(newBlock, at: idx + 1)
+        } else {
+            blocks.append(newBlock)
+        }
+        selectedBlockIds.removeAll()
+        syncBackToStore()
+        DispatchQueue.main.async {
+            self.focusedBlockId = newId
+        }
+    }
+
+    private func formatActiveBlock(marker: String) {
+        if !selectedBlockIds.isEmpty {
+            for i in 0..<blocks.count {
+                if selectedBlockIds.contains(blocks[i].id) {
+                    let old = blocks[i].text
+                    if old.hasPrefix(marker) && old.hasSuffix(marker) && old.count >= marker.count * 2 {
+                        blocks[i].text = String(old.dropFirst(marker.count).dropLast(marker.count))
+                    } else {
+                        blocks[i].text = "\(marker)\(old)\(marker)"
+                    }
+                }
+            }
+            syncBackToStore()
+            return
+        }
+
+        if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
+            let old = blocks[idx].text
+            if old.hasPrefix(marker) && old.hasSuffix(marker) && old.count >= marker.count * 2 {
+                blocks[idx].text = String(old.dropFirst(marker.count).dropLast(marker.count))
+            } else {
+                blocks[idx].text = "\(marker)\(old)\(marker)"
+            }
+            syncBackToStore()
         }
     }
 
@@ -1225,55 +1276,16 @@ struct BlockRowView: View {
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
             )
 
-        // 14. Grid / Table (Editable columns, Add Column, Delete)
-        case .grid(let columns):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(Array(columns.enumerated()), id: \.offset) { colIdx, colText in
-                        TextField("Column \(colIdx + 1)", text: Binding(
-                            get: { colText },
-                            set: { newColVal in
-                                var mutableCols = columns
-                                mutableCols[colIdx] = newColVal
-                                onTransformKind(.grid(columns: mutableCols))
-                            }
-                        ))
-                        .textFieldStyle(.plain)
-                        .font(.subheadline)
-                        .padding(8)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                        )
-                    }
-                }
-
-                HStack {
-                    Button(action: {
-                        var mutableCols = columns
-                        mutableCols.append("New Column")
-                        onTransformKind(.grid(columns: mutableCols))
-                    }) {
-                        Label("Add Column", systemImage: "plus")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .foregroundStyle(.red.opacity(0.8))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete Table")
-                    .accessibilityLabel("Delete table")
-                }
-            }
-            .padding(8)
+        // 14. Grid / Modern Interactive Table
+        case .grid(let headers, let rows):
+            ModernTableView(
+                headers: headers,
+                rows: rows,
+                onUpdateTable: { newHeaders, newRows in
+                    onTransformKind(.grid(headers: newHeaders, rows: newRows))
+                },
+                onDelete: onDelete
+            )
         }
     }
 
@@ -1400,7 +1412,12 @@ struct BlockRowView: View {
             Button("Web Bookmark") { onInsertBelow(.bookmark(url: "https://apple.com"), "Apple") }
             Button("Image") { onInsertBelow(.image(url: "", caption: ""), "") }
             Button("Math / Equation") { onInsertBelow(.math(expression: ""), "") }
-            Button("Table / Grid") { onInsertBelow(.grid(columns: ["Column 1", "Column 2", "Column 3"]), "") }
+            Button("Table / Grid") {
+                onInsertBelow(.grid(
+                    headers: ["Column 1", "Column 2", "Column 3"],
+                    rows: [["", "", ""], ["", "", ""]]
+                ), "")
+            }
         }
     }
 
@@ -1424,6 +1441,12 @@ struct BlockRowView: View {
             Button("Web Bookmark") { onTransformKind(.bookmark(url: "https://apple.com")) }
             Button("Image") { onTransformKind(.image(url: "", caption: "")) }
             Button("Math Formula") { onTransformKind(.math(expression: "")) }
+            Button("Table / Grid") {
+                onTransformKind(.grid(
+                    headers: ["Column 1", "Column 2", "Column 3"],
+                    rows: [["", "", ""], ["", "", ""]]
+                ))
+            }
         }
     }
 
@@ -1448,5 +1471,249 @@ struct BlockRowView: View {
         case 2: return 20
         default: return 16
         }
+    }
+}
+
+// MARK: - Modern 2D Interactive Table View (Spreadsheet style with editable cells, columns, rows)
+
+struct ModernTableView: View {
+    let headers: [String]
+    let rows: [[String]]
+    let onUpdateTable: ([String], [[String]]) -> Void
+    let onDelete: () -> Void
+
+    @State private var hoveredRowIdx: Int? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Table Control Header Bar
+            HStack(spacing: 8) {
+                Label("Table", systemImage: "tablecells")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Text("\(rows.count) rows × \(headers.count) columns")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(Capsule())
+
+                Spacer()
+
+                Button(action: addColumn) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Column")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .help("Add Column to Table")
+
+                Button(action: addRow) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Row")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .help("Add Row to Table")
+
+                Menu {
+                    Button("Add Column", action: addColumn)
+                    Button("Add Row", action: addRow)
+                    Divider()
+                    Button(role: .destructive, action: clearCells) {
+                        Label("Clear All Cells", systemImage: "eraser")
+                    }
+                    Button(role: .destructive, action: onDelete) {
+                        Label("Delete Table", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 4)
+
+            // Table Grid Container with Horizontal Scrolling if wide
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Header Row
+                    HStack(spacing: 0) {
+                        ForEach(Array(headers.enumerated()), id: \.offset) { colIdx, headerTitle in
+                            HStack(spacing: 4) {
+                                TextField("Column \(colIdx + 1)", text: Binding(
+                                    get: { headerTitle },
+                                    set: { newTitle in
+                                        var newH = headers
+                                        newH[colIdx] = newTitle
+                                        onUpdateTable(newH, rows)
+                                    }
+                                ))
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.primary)
+
+                                if headers.count > 1 {
+                                    Button(action: { deleteColumn(at: colIdx) }) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundStyle(.secondary.opacity(0.6))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete this column")
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .frame(minWidth: 120, alignment: .leading)
+                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+
+                            if colIdx < headers.count - 1 {
+                                Divider().frame(height: 28)
+                            }
+                        }
+                    }
+                    .background(Color.primary.opacity(0.04))
+
+                    Divider()
+
+                    // Data Rows
+                    ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, rowCells in
+                        HStack(spacing: 0) {
+                            ForEach(0..<headers.count, id: \.self) { colIdx in
+                                let cellVal = colIdx < rowCells.count ? rowCells[colIdx] : ""
+                                TextField("Empty", text: Binding(
+                                    get: { cellVal },
+                                    set: { newVal in
+                                        var newRows = rows
+                                        while newRows[rowIdx].count <= colIdx {
+                                            newRows[rowIdx].append("")
+                                        }
+                                        newRows[rowIdx][colIdx] = newVal
+                                        onUpdateTable(headers, newRows)
+                                    }
+                                ))
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .frame(minWidth: 120, alignment: .leading)
+
+                                if colIdx < headers.count - 1 {
+                                    Divider().frame(height: 26)
+                                }
+                            }
+
+                            // Subtle row delete button on hover
+                            if hoveredRowIdx == rowIdx {
+                                Button(action: { deleteRow(at: rowIdx) }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.red.opacity(0.75))
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 6)
+                                .help("Delete this row")
+                            } else {
+                                Color.clear.frame(width: 20)
+                            }
+                        }
+                        .background(rowIdx % 2 == 1 ? Color.primary.opacity(0.015) : Color.clear)
+                        .onHover { isHovered in
+                            if isHovered { hoveredRowIdx = rowIdx }
+                            else if hoveredRowIdx == rowIdx { hoveredRowIdx = nil }
+                        }
+
+                        if rowIdx < rows.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+            }
+
+            // Bottom Quick Add Row Action
+            Button(action: addRow) {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("New Row")
+                        .font(.system(size: 11))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func addColumn() {
+        var newH = headers
+        newH.append("Column \(newH.count + 1)")
+        var newR = rows
+        for i in 0..<newR.count {
+            newR[i].append("")
+        }
+        onUpdateTable(newH, newR)
+    }
+
+    private func deleteColumn(at colIdx: Int) {
+        guard headers.count > 1 else { return }
+        var newH = headers
+        newH.remove(at: colIdx)
+        var newR = rows
+        for i in 0..<newR.count {
+            if colIdx < newR[i].count {
+                newR[i].remove(at: colIdx)
+            }
+        }
+        onUpdateTable(newH, newR)
+    }
+
+    private func addRow() {
+        var newR = rows
+        newR.append(Array(repeating: "", count: headers.count))
+        onUpdateTable(headers, newR)
+    }
+
+    private func deleteRow(at rowIdx: Int) {
+        guard rows.count > 1 else {
+            onUpdateTable(headers, [Array(repeating: "", count: headers.count)])
+            return
+        }
+        var newR = rows
+        newR.remove(at: rowIdx)
+        onUpdateTable(headers, newR)
+    }
+
+    private func clearCells() {
+        let cleared = rows.map { _ in Array(repeating: "", count: headers.count) }
+        onUpdateTable(headers, cleared)
     }
 }

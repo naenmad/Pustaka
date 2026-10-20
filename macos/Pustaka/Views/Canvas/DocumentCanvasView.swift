@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Vibrant Preset Gradients (Zero Network Delay)
 
@@ -60,6 +61,11 @@ class FocusableTitleTextField: NSTextField {
             onDidBecomeFirstResponder?()
         }
         return ok
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onDidBecomeFirstResponder?()
+        super.mouseDown(with: event)
     }
 }
 
@@ -145,6 +151,7 @@ struct DocumentCanvasView: View {
     @State private var blockActionTrigger: BlockActionCommand? = nil
     @State private var isIconPickerOpen: Bool = false
     @State private var isCoverPickerOpen: Bool = false
+    @State private var isStatsPopoverOpen: Bool = false
     @State private var isCoverHovered: Bool = false
     @State private var isHeaderHovered: Bool = false
     @State private var customEmojiInput: String = ""
@@ -237,50 +244,175 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // 1. Quick Insert Menu
                 Menu {
+                    Section("Basic Blocks") {
+                        Button("Text Paragraph") { blockActionTrigger = .insertBlock(.paragraph) }
+                        Button("Heading 1") { blockActionTrigger = .insertBlock(.heading(level: 1)) }
+                        Button("Heading 2") { blockActionTrigger = .insertBlock(.heading(level: 2)) }
+                        Button("Heading 3") { blockActionTrigger = .insertBlock(.heading(level: 3)) }
+                    }
+                    Section("Lists") {
+                        Button("To-do List") { blockActionTrigger = .insertBlock(.todo(checked: false)) }
+                        Button("Bulleted List") { blockActionTrigger = .insertBlock(.bullet) }
+                        Button("Numbered List") { blockActionTrigger = .insertBlock(.numbered(index: 1)) }
+                        Button("Toggle List") { blockActionTrigger = .insertBlock(.toggle(isExpanded: false)) }
+                    }
+                    Section("Quotes & Callouts") {
+                        Button("Quote") { blockActionTrigger = .insertBlock(.quote) }
+                        Button("Info Callout (💡)") { blockActionTrigger = .insertBlock(.callout(icon: "💡", theme: .blue)) }
+                        Button("Warning Callout (⚠️)") { blockActionTrigger = .insertBlock(.callout(icon: "⚠️", theme: .red)) }
+                        Button("Tip Callout (✅)") { blockActionTrigger = .insertBlock(.callout(icon: "✅", theme: .green)) }
+                    }
+                    Section("Data & Media") {
+                        Button("Table / Grid") {
+                            blockActionTrigger = .insertBlock(.grid(
+                                headers: ["Column 1", "Column 2", "Column 3"],
+                                rows: [["", "", ""], ["", "", ""]]
+                            ))
+                        }
+                        Button("Code Block") { blockActionTrigger = .insertBlock(.code(lang: "rust")) }
+                        Button("Math Equation") { blockActionTrigger = .insertBlock(.math(expression: "")) }
+                        Button("Web Bookmark") { blockActionTrigger = .insertBlock(.bookmark(url: "https://apple.com")) }
+                        Button("Image") { blockActionTrigger = .insertBlock(.image(url: "", caption: "")) }
+                        Button("Divider") { blockActionTrigger = .insertBlock(.divider) }
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Insert")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .help("Insert a new block into the document")
+
+                // 2. Rich Text Quick Format Tools
+                ControlGroup {
+                    Button(action: { blockActionTrigger = .formatActiveBlock("**") }) {
+                        Image(systemName: "bold")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .help("Bold (wrap with **)")
+
+                    Button(action: { blockActionTrigger = .formatActiveBlock("*") }) {
+                        Image(systemName: "italic")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .help("Italic (wrap with *)")
+
+                    Button(action: { blockActionTrigger = .formatActiveBlock("~") }) {
+                        Image(systemName: "strikethrough")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .help("Strikethrough (wrap with ~)")
+
+                    Button(action: { blockActionTrigger = .formatActiveBlock("`") }) {
+                        Image(systemName: "curlybraces")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .help("Inline Code (wrap with `)")
+                }
+
+                // 3. Document Live Word & Reading Time Stats
+                Button(action: { isStatsPopoverOpen.toggle() }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chart.bar.doc.horizontal")
+                            .font(.system(size: 11))
+                        Text("\(wordCount)w")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(Capsule())
+                .help("Document Statistics")
+                .popover(isPresented: $isStatsPopoverOpen) {
+                    statsPopoverView
+                }
+
+                // 4. Live Typst Preview Toggle Button
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        store.isPreviewDrawerPresented.toggle()
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                        Text("Preview")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(store.isPreviewDrawerPresented ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .foregroundStyle(store.isPreviewDrawerPresented ? Color.accentColor : Color.secondary)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Typst Vector Preview (Cmd+P)")
+
+                // 5. Share & Export Menu
+                Menu {
+                    Button(action: { exportDocument(format: "md") }) {
+                        Label("Export as Markdown (.md)...", systemImage: "arrow.down.doc")
+                    }
+                    Button(action: { exportDocument(format: "typ") }) {
+                        Label("Export as Typst (.typ)...", systemImage: "arrow.down.doc.fill")
+                    }
+                    Divider()
                     Button(action: {
-                        store.duplicatePage(id: currentPage.id)
+                        NSPasteboard.general.clearContents()
+                        let md = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
+                        NSPasteboard.general.setString(md, forType: .string)
                     }) {
+                        Label("Copy Full Markdown", systemImage: "doc.on.doc")
+                    }
+                    if !store.currentSvg.isEmpty {
+                        Button(action: {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(store.currentSvg, forType: .string)
+                        }) {
+                            Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 12))
+                }
+                .help("Share & Export Document")
+
+                // 6. Page Options Menu (...)
+                Menu {
+                    Button(action: { isCoverPickerOpen = true }) {
+                        Label(currentPage.coverUrl.isEmpty ? "Add Cover Image" : "Change Cover Image", systemImage: "photo")
+                    }
+                    Button(action: { isIconPickerOpen = true }) {
+                        Label(currentPage.icon.isEmpty ? "Add Page Icon" : "Change Page Icon", systemImage: "face.smiling")
+                    }
+                    Divider()
+                    Button(action: { store.duplicatePage(id: currentPage.id) }) {
                         Label("Duplicate Page", systemImage: "plus.square.on.square")
                     }
-
-                    Button(action: {
-                        store.toggleFavorite(id: currentPage.id)
-                    }) {
+                    Button(action: { store.toggleFavorite(id: currentPage.id) }) {
                         Label(
                             currentPage.isFavorite ? "Remove from Favorites" : "Add to Favorites",
                             systemImage: currentPage.isFavorite ? "star.fill" : "star"
                         )
                     }
-
                     Button(action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(currentPage.title.isEmpty ? "Untitled" : currentPage.title, forType: .string)
                     }) {
-                        Label("Copy Page Title", systemImage: "doc.on.doc")
+                        Label("Copy Page Title", systemImage: "text.quote")
                     }
-
                     Divider()
-
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            store.isPreviewDrawerPresented.toggle()
-                        }
-                    }) {
-                        Label(
-                            store.isPreviewDrawerPresented ? "Hide Typst Preview" : "Show Typst Preview (Cmd+P)",
-                            systemImage: "sparkles"
-                        )
-                    }
-                    .keyboardShortcut("p", modifiers: .command)
-
-                    Divider()
-
-                    Button(role: .destructive, action: {
-                        store.deletePage(id: currentPage.id)
-                    }) {
-                        Label("Move to Trash (Delete)", systemImage: "trash")
+                    Button(role: .destructive, action: { store.deletePage(id: currentPage.id) }) {
+                        Label("Move to Trash", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -295,6 +427,92 @@ struct DocumentCanvasView: View {
         }
         .onChange(of: page.id) { _, _ in
             self.titleBuffer = currentPage.title
+        }
+    }
+
+    // MARK: - Document Statistics
+
+    private var wordCount: Int {
+        let text = currentPage.rawContent
+        let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        return words.count
+    }
+
+    private var characterCount: Int {
+        currentPage.rawContent.count
+    }
+
+    private var readingTimeMinutes: Int {
+        max(1, Int(ceil(Double(wordCount) / 200.0)))
+    }
+
+    private var statsPopoverView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Document Statistics")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.primary)
+
+            Divider()
+
+            HStack {
+                Text("Words")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(wordCount)")
+                    .fontWeight(.semibold)
+            }
+            .font(.caption)
+
+            HStack {
+                Text("Characters")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(characterCount)")
+                    .fontWeight(.semibold)
+            }
+            .font(.caption)
+
+            HStack {
+                Text("Reading Time")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("~\(readingTimeMinutes) min")
+                    .fontWeight(.semibold)
+            }
+            .font(.caption)
+
+            HStack {
+                Text("Blocks")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(store.parseToUIBlocks(content: currentPage.rawContent).count)")
+                    .fontWeight(.semibold)
+            }
+            .font(.caption)
+        }
+        .padding(14)
+        .frame(width: 200)
+    }
+
+    // MARK: - Export Action
+
+    private func exportDocument(format: String) {
+        let panel = NSSavePanel()
+        panel.title = "Export Document"
+        let safeTitle = currentPage.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Untitled" : currentPage.title
+        panel.nameFieldStringValue = "\(safeTitle).\(format)"
+        panel.allowedContentTypes = [UTType(filenameExtension: format) ?? .plainText]
+        panel.canCreateDirectories = true
+
+        let content: String
+        if format == "typ" {
+            content = "= \(currentPage.title)\n\n\(currentPage.rawContent)"
+        } else {
+            content = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            try? content.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 

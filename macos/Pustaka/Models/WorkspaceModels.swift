@@ -155,7 +155,7 @@ enum UIBlockKind: Equatable {
     case bookmark(url: String)
     case image(url: String, caption: String)
     case math(expression: String)
-    case grid(columns: [String])
+    case grid(headers: [String], rows: [[String]])
 
     var accessibilityName: String {
         switch self {
@@ -172,7 +172,7 @@ enum UIBlockKind: Equatable {
         case .bookmark: return "Web bookmark"
         case .image: return "Image block"
         case .math: return "Math equation"
-        case .grid: return "Table grid"
+        case .grid: return "Data table"
         }
     }
 }
@@ -183,6 +183,8 @@ enum BlockActionCommand: Equatable {
     case transformSelected(UIBlockKind)
     case selectAll
     case clearSelection
+    case insertBlock(UIBlockKind)
+    case formatActiveBlock(String)
 }
 
 struct UIBlockItem: Identifiable, Equatable {
