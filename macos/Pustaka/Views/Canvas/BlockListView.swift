@@ -21,121 +21,146 @@ class FocusableBlockTextField: NSTextField {
     }
 }
 
-// MARK: - Live Inline Markdown Styler Engine
+// MARK: - Live Inline Markdown Styler Engine (True WYSIWYG - Zero Delimiters on Screen)
 
 enum MarkdownStyler {
-    static func style(
-        text: String,
+    /// Converts a Markdown string into an NSAttributedString by stripping out delimiters (***...***, **...**, *...*, etc.)
+    /// and applying real font traits (Bold, Italic, Bold+Italic) and styles to the visible text, so no formatting symbols appear on screen.
+    static func markdownToAttributedString(
+        _ md: String,
         baseFont: NSFont,
         baseColor: NSColor = .labelColor
     ) -> NSAttributedString {
-        guard !text.isEmpty else {
+        guard !md.isEmpty else {
             return NSAttributedString(string: "", attributes: [.font: baseFont, .foregroundColor: baseColor])
         }
 
-        let attributed = NSMutableAttributedString(
-            string: text,
-            attributes: [
+        let result = NSMutableAttributedString()
+        // Priority order: Bold+Italic (*** or **_ or _**), then Bold (**), then Italic (* or _), Strike, Code, Highlight
+        let pattern = #"(\*\*\*([^\*]+)\*\*\*)|(\*\*_([^\*]+)_\*\*)|(_\*\*([^_]+)\*\*_)|(\*\*([^\*]+)\*\*)|((?<!\*)\*([^\*]+)\*(?!\*))|((?<!\w)_([^_]+)_(?!\w))|(~~([^~]+)~~)|(`([^`]+)`)|(==([^=]+)==)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return NSAttributedString(string: md, attributes: [.font: baseFont, .foregroundColor: baseColor])
+        }
+
+        var lastIndex = 0
+        let nsMd = md as NSString
+        let matches = regex.matches(in: md, range: NSRange(location: 0, length: nsMd.length))
+
+        for match in matches {
+            if match.range.location > lastIndex {
+                let plainRange = NSRange(location: lastIndex, length: match.range.location - lastIndex)
+                let plainText = nsMd.substring(with: plainRange)
+                result.append(NSAttributedString(string: plainText, attributes: [
+                    .font: baseFont,
+                    .foregroundColor: baseColor
+                ]))
+            }
+
+            // Group 2 (***), Group 4 (**_), Group 6 (_**): BOLD + ITALIC COMBINED
+            if let r = Range(match.range(at: 2), in: md) ?? Range(match.range(at: 4), in: md) ?? Range(match.range(at: 6), in: md) {
+                let text = String(md[r])
+                var biFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+                biFont = NSFontManager.shared.convert(biFont, toHaveTrait: .italicFontMask)
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: biFont,
+                    .foregroundColor: baseColor
+                ]))
+            } else if let r = Range(match.range(at: 8), in: md) {
+                // Group 8: Bold: **text** -> text rendered in bold font
+                let text = String(md[r])
+                let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: boldFont,
+                    .foregroundColor: baseColor
+                ]))
+            } else if let r = Range(match.range(at: 10), in: md) ?? Range(match.range(at: 12), in: md) {
+                // Group 10 (*), Group 12 (_): Italic -> text rendered in italic font
+                let text = String(md[r])
+                let italicFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: italicFont,
+                    .foregroundColor: baseColor
+                ]))
+            } else if let r = Range(match.range(at: 14), in: md) {
+                // Group 14: Strikethrough: ~~text~~ -> text with strikethrough line
+                let text = String(md[r])
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: baseFont,
+                    .foregroundColor: baseColor,
+                    .strikethroughStyle: NSUnderlineStyle.single.rawValue
+                ]))
+            } else if let r = Range(match.range(at: 16), in: md) {
+                // Group 16: Inline Code: `text` -> monospaced text with rounded pill background
+                let text = String(md[r])
+                let codeFont = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: codeFont,
+                    .foregroundColor: NSColor.systemRed,
+                    .backgroundColor: NSColor.quaternaryLabelColor
+                ]))
+            } else if let r = Range(match.range(at: 18), in: md) {
+                // Group 18: Highlight: ==text== -> text with yellow background highlight
+                let text = String(md[r])
+                result.append(NSAttributedString(string: text, attributes: [
+                    .font: baseFont,
+                    .foregroundColor: baseColor,
+                    .backgroundColor: NSColor.systemYellow.withAlphaComponent(0.28)
+                ]))
+            }
+
+            lastIndex = match.range.location + match.range.length
+        }
+
+        if lastIndex < nsMd.length {
+            let plainRange = NSRange(location: lastIndex, length: nsMd.length - lastIndex)
+            let plainText = nsMd.substring(with: plainRange)
+            result.append(NSAttributedString(string: plainText, attributes: [
                 .font: baseFont,
                 .foregroundColor: baseColor
-            ]
-        )
-
-        let fullRange = NSRange(location: 0, length: (text as NSString).length)
-        let dimColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.4)
-        let delimiterFont = NSFont.systemFont(ofSize: max(9, baseFont.pointSize * 0.82))
-
-        // 1. Bold: **text**
-        if let boldRegex = try? NSRegularExpression(pattern: #"\*\*([^\*]+)\*\*"#) {
-            boldRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
-                guard let m = match, m.numberOfRanges >= 2 else { return }
-                let innerRange = m.range(at: 1)
-                let openDelimRange = NSRange(location: m.range.location, length: 2)
-                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
-
-                let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
-                attributed.addAttribute(.font, value: boldFont, range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
-            }
+            ]))
         }
 
-        // 2. Italic: *text* (excluding **)
-        if let italicRegex = try? NSRegularExpression(pattern: #"(?<!\*)\*([^\*]+)\*(?!\*)"#) {
-            italicRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
-                guard let m = match, m.numberOfRanges >= 2 else { return }
-                let innerRange = m.range(at: 1)
-                let openDelimRange = NSRange(location: m.range.location, length: 1)
-                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 1, length: 1)
+        return result
+    }
 
-                let italicFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
-                attributed.addAttribute(.font, value: italicFont, range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+    /// Converts an NSAttributedString back into standard Markdown for disk persistence
+    static func attributedStringToMarkdown(_ attr: NSAttributedString) -> String {
+        var md = ""
+        let string = attr.string
+        guard !string.isEmpty else { return "" }
+
+        attr.enumerateAttributes(in: NSRange(location: 0, length: (string as NSString).length), options: []) { attrs, range, _ in
+            let substring = (string as NSString).substring(with: range)
+            var formatted = substring
+
+            let font = attrs[.font] as? NSFont
+            let traits = font.map { NSFontManager.shared.traits(of: $0) } ?? []
+            let isBold = traits.contains(.boldFontMask)
+            let isItalic = traits.contains(.italicFontMask)
+            let isStrike = (attrs[.strikethroughStyle] as? Int) != nil && (attrs[.strikethroughStyle] as? Int) != 0
+            let isCode = font?.isFixedPitch ?? false || (attrs[.backgroundColor] as? NSColor) == NSColor.quaternaryLabelColor
+            let isHighlight = (attrs[.backgroundColor] as? NSColor)?.alphaComponent ?? 0.0 > 0.25 && !isCode
+
+            if isCode {
+                formatted = "`" + formatted + "`"
+            } else {
+                if isBold && isItalic {
+                    formatted = "***" + formatted + "***"
+                } else if isBold {
+                    formatted = "**" + formatted + "**"
+                } else if isItalic {
+                    formatted = "*" + formatted + "*"
+                }
+                if isStrike { formatted = "~~" + formatted + "~~" }
+                if isHighlight { formatted = "==" + formatted + "==" }
             }
+            md += formatted
         }
-
-        // 3. Strikethrough: ~~text~~
-        if let strikeRegex = try? NSRegularExpression(pattern: #"~~([^~]+)~~"#) {
-            strikeRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
-                guard let m = match, m.numberOfRanges >= 2 else { return }
-                let innerRange = m.range(at: 1)
-                let openDelimRange = NSRange(location: m.range.location, length: 2)
-                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
-
-                attributed.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: innerRange)
-                attributed.addAttribute(.strikethroughColor, value: baseColor, range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
-            }
-        }
-
-        // 4. Inline Code: `text`
-        if let codeRegex = try? NSRegularExpression(pattern: #"`([^`]+)`"#) {
-            codeRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
-                guard let m = match, m.numberOfRanges >= 2 else { return }
-                let innerRange = m.range(at: 1)
-                let openDelimRange = NSRange(location: m.range.location, length: 1)
-                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 1, length: 1)
-
-                let codeFont = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
-                attributed.addAttribute(.font, value: codeFont, range: innerRange)
-                attributed.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: NSColor.systemRed, range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
-            }
-        }
-
-        // 5. Highlight: ==text==
-        if let hlRegex = try? NSRegularExpression(pattern: #"==([^=]+)=="#) {
-            hlRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
-                guard let m = match, m.numberOfRanges >= 2 else { return }
-                let innerRange = m.range(at: 1)
-                let openDelimRange = NSRange(location: m.range.location, length: 2)
-                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
-
-                attributed.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.28), range: innerRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
-                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
-                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
-            }
-        }
-
-        return attributed
+        return md
     }
 }
 
-// MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete, Slash Commands & Live Markdown Styling)
+// MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete, Slash Commands & Clean WYSIWYG)
 
 struct BlockEditorField: NSViewRepresentable {
     @Binding var text: String
@@ -164,6 +189,7 @@ struct BlockEditorField: NSViewRepresentable {
         tf.cell?.isScrollable = false
         tf.maximumNumberOfLines = 0
         tf.lineBreakMode = .byWordWrapping
+        tf.allowsEditingTextAttributes = true
         tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tf.setAccessibilityLabel(placeholder)
 
@@ -174,15 +200,12 @@ struct BlockEditorField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
-        if nsView.currentEditor() == nil {
-            let styled = MarkdownStyler.style(text: text, baseFont: font, baseColor: textColor)
-            if nsView.attributedStringValue != styled {
-                nsView.attributedStringValue = styled
-            }
-        } else {
-            if nsView.stringValue != text {
-                nsView.stringValue = text
-            }
+        let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
+        let currentAttr = nsView.attributedStringValue
+
+        // Only update if the text or attributes actually differ, to prevent resetting cursor
+        if currentAttr.string != styled.string || currentAttr != styled {
+            nsView.attributedStringValue = styled
         }
         nsView.font = font
         nsView.textColor = textColor
@@ -230,17 +253,26 @@ struct BlockEditorField: NSViewRepresentable {
             if let tv = tf.currentEditor() as? NSTextView {
                 Coordinator.activeTextView = tv
             }
-            parent.text = tf.stringValue
-            parent.onTextChanged?(tf.stringValue)
+
+            // Auto-convert typed markdown delimiters (e.g. typing **bold**) into real formatting
+            let rawStr = tf.stringValue
+            if rawStr.contains("**") || rawStr.contains("~~") || rawStr.contains("==") {
+                let styled = MarkdownStyler.markdownToAttributedString(rawStr, baseFont: parent.font, baseColor: parent.textColor)
+                if styled.string != rawStr {
+                    tf.attributedStringValue = styled
+                }
+            }
+
+            let md = MarkdownStyler.attributedStringToMarkdown(tf.attributedStringValue)
+            parent.text = md
+            parent.onTextChanged?(md)
         }
 
         func controlTextDidEndEditing(_ obj: Notification) {
             if let tf = obj.object as? NSTextField {
-                tf.attributedStringValue = MarkdownStyler.style(
-                    text: tf.stringValue,
-                    baseFont: parent.font,
-                    baseColor: parent.textColor
-                )
+                let md = MarkdownStyler.attributedStringToMarkdown(tf.attributedStringValue)
+                parent.text = md
+                parent.onTextChanged?(md)
             }
         }
 
@@ -600,25 +632,92 @@ struct BlockListView: View {
     }
 
     private func formatActiveBlock(marker: String) {
-        // 1. If text is selected in the currently focused or active NSTextView, format that substring!
+        // 1. If text is selected in the currently focused or active NSTextView, toggle formatting trait directly without inserting raw asterisks/markers!
         let activeTV = (NSApp.keyWindow?.firstResponder as? NSTextView) ?? BlockEditorField.Coordinator.activeTextView
-        if let textView = activeTV {
+        if let textView = activeTV, let storage = textView.textStorage {
             let range = textView.selectedRange()
             if range.length > 0 {
-                let str = (textView.string as NSString).substring(with: range)
-                let replacement: String
-                if str.hasPrefix(marker) && str.hasSuffix(marker) && str.count >= marker.count * 2 {
-                    replacement = String(str.dropFirst(marker.count).dropLast(marker.count))
-                } else {
-                    replacement = "\(marker)\(str)\(marker)"
+                storage.beginEditing()
+                switch marker {
+                case "**":
+                    let currentFont = (storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: 15)
+                    let isBold = NSFontManager.shared.traits(of: currentFont).contains(.boldFontMask)
+                    let newFont = isBold
+                        ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .boldFontMask)
+                        : NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
+                    storage.addAttribute(.font, value: newFont, range: range)
+
+                case "*":
+                    let currentFont = (storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: 15)
+                    let isItalic = NSFontManager.shared.traits(of: currentFont).contains(.italicFontMask)
+                    let newFont = isItalic
+                        ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .italicFontMask)
+                        : NSFontManager.shared.convert(currentFont, toHaveTrait: .italicFontMask)
+                    storage.addAttribute(.font, value: newFont, range: range)
+
+                case "~~":
+                    let currentStrike = (storage.attribute(.strikethroughStyle, at: range.location, effectiveRange: nil) as? Int) ?? 0
+                    if currentStrike != 0 {
+                        storage.removeAttribute(.strikethroughStyle, range: range)
+                    } else {
+                        storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                    }
+
+                case "`":
+                    let currentBg = storage.attribute(.backgroundColor, at: range.location, effectiveRange: nil) as? NSColor
+                    if currentBg == NSColor.quaternaryLabelColor {
+                        let baseFont = textView.font ?? NSFont.systemFont(ofSize: 15)
+                        storage.addAttribute(.font, value: baseFont, range: range)
+                        storage.removeAttribute(.backgroundColor, range: range)
+                        storage.removeAttribute(.foregroundColor, range: range)
+                    } else {
+                        let codeFont = NSFont.monospacedSystemFont(ofSize: (textView.font?.pointSize ?? 15) * 0.9, weight: .regular)
+                        storage.addAttribute(.font, value: codeFont, range: range)
+                        storage.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: range)
+                        storage.addAttribute(.foregroundColor, value: NSColor.systemRed, range: range)
+                    }
+
+                default:
+                    break
                 }
-                textView.insertText(replacement, replacementRange: range)
+                storage.endEditing()
+                textView.didChangeText()
                 return
             } else if textView.window?.firstResponder == textView {
-                // No selection: insert marker pair and put cursor in the middle
-                textView.insertText("\(marker)\(marker)", replacementRange: range)
-                let newLocation = range.location + marker.count
-                textView.setSelectedRange(NSRange(location: newLocation, length: 0))
+                var attrs = textView.typingAttributes
+                let currentFont = (attrs[.font] as? NSFont) ?? textView.font ?? NSFont.systemFont(ofSize: 15)
+                switch marker {
+                case "**":
+                    let isBold = NSFontManager.shared.traits(of: currentFont).contains(.boldFontMask)
+                    attrs[.font] = isBold
+                        ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .boldFontMask)
+                        : NSFontManager.shared.convert(currentFont, toHaveTrait: .boldFontMask)
+                case "*":
+                    let isItalic = NSFontManager.shared.traits(of: currentFont).contains(.italicFontMask)
+                    attrs[.font] = isItalic
+                        ? NSFontManager.shared.convert(currentFont, toNotHaveTrait: .italicFontMask)
+                        : NSFontManager.shared.convert(currentFont, toHaveTrait: .italicFontMask)
+                case "~~":
+                    let current = (attrs[.strikethroughStyle] as? Int) ?? 0
+                    if current != 0 {
+                        attrs.removeValue(forKey: .strikethroughStyle)
+                    } else {
+                        attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+                    }
+                case "`":
+                    if attrs[.backgroundColor] != nil {
+                        attrs.removeValue(forKey: .backgroundColor)
+                        attrs.removeValue(forKey: .foregroundColor)
+                        attrs[.font] = textView.font ?? NSFont.systemFont(ofSize: 15)
+                    } else {
+                        attrs[.font] = NSFont.monospacedSystemFont(ofSize: (textView.font?.pointSize ?? 15) * 0.9, weight: .regular)
+                        attrs[.backgroundColor] = NSColor.quaternaryLabelColor
+                        attrs[.foregroundColor] = NSColor.systemRed
+                    }
+                default:
+                    break
+                }
+                textView.typingAttributes = attrs
                 return
             }
         }
@@ -627,12 +726,7 @@ struct BlockListView: View {
         if !selectedBlockIds.isEmpty {
             for i in 0..<blocks.count {
                 if selectedBlockIds.contains(blocks[i].id) {
-                    let old = blocks[i].text
-                    if old.hasPrefix(marker) && old.hasSuffix(marker) && old.count >= marker.count * 2 {
-                        blocks[i].text = String(old.dropFirst(marker.count).dropLast(marker.count))
-                    } else {
-                        blocks[i].text = "\(marker)\(old)\(marker)"
-                    }
+                    blocks[i].text = toggleMarkdownFormatting(in: blocks[i].text, marker: marker)
                 }
             }
             syncBackToStore()
@@ -641,14 +735,56 @@ struct BlockListView: View {
 
         // 3. Fallback: Entire active block
         if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
-            let old = blocks[idx].text
-            if old.hasPrefix(marker) && old.hasSuffix(marker) && old.count >= marker.count * 2 {
-                blocks[idx].text = String(old.dropFirst(marker.count).dropLast(marker.count))
-            } else {
-                blocks[idx].text = "\(marker)\(old)\(marker)"
-            }
+            blocks[idx].text = toggleMarkdownFormatting(in: blocks[idx].text, marker: marker)
             syncBackToStore()
         }
+    }
+
+    private func toggleMarkdownFormatting(in text: String, marker: String) -> String {
+        let baseFont = NSFont.systemFont(ofSize: 15)
+        let attr = MarkdownStyler.markdownToAttributedString(text, baseFont: baseFont)
+        let mutable = NSMutableAttributedString(attributedString: attr)
+        let full = NSRange(location: 0, length: mutable.length)
+        guard full.length > 0 else { return text }
+
+        switch marker {
+        case "**":
+            let font = (mutable.attribute(.font, at: 0, effectiveRange: nil) as? NSFont) ?? baseFont
+            let isBold = NSFontManager.shared.traits(of: font).contains(.boldFontMask)
+            let newFont = isBold
+                ? NSFontManager.shared.convert(font, toNotHaveTrait: .boldFontMask)
+                : NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+            mutable.addAttribute(.font, value: newFont, range: full)
+        case "*":
+            let font = (mutable.attribute(.font, at: 0, effectiveRange: nil) as? NSFont) ?? baseFont
+            let isItalic = NSFontManager.shared.traits(of: font).contains(.italicFontMask)
+            let newFont = isItalic
+                ? NSFontManager.shared.convert(font, toNotHaveTrait: .italicFontMask)
+                : NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+            mutable.addAttribute(.font, value: newFont, range: full)
+        case "~~":
+            let currentStrike = (mutable.attribute(.strikethroughStyle, at: 0, effectiveRange: nil) as? Int) ?? 0
+            if currentStrike != 0 {
+                mutable.removeAttribute(.strikethroughStyle, range: full)
+            } else {
+                mutable.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: full)
+            }
+        case "`":
+            let currentBg = mutable.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor
+            if currentBg == NSColor.quaternaryLabelColor {
+                mutable.addAttribute(.font, value: baseFont, range: full)
+                mutable.removeAttribute(.backgroundColor, range: full)
+                mutable.removeAttribute(.foregroundColor, range: full)
+            } else {
+                let codeFont = NSFont.monospacedSystemFont(ofSize: 15 * 0.9, weight: .regular)
+                mutable.addAttribute(.font, value: codeFont, range: full)
+                mutable.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: full)
+                mutable.addAttribute(.foregroundColor, value: NSColor.systemRed, range: full)
+            }
+        default:
+            break
+        }
+        return MarkdownStyler.attributedStringToMarkdown(mutable)
     }
 
     // MARK: - Multi-Selection Operations
