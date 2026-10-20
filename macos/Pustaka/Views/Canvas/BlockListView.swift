@@ -204,8 +204,15 @@ final class BlockEditorTextView: NSTextView {
     override var acceptsFirstResponder: Bool { true }
 
     override func becomeFirstResponder() -> Bool {
+        let textLenBefore = (string as NSString).length
         let ok = super.becomeFirstResponder()
         if ok {
+            if textLenBefore > 0 {
+                let sel = selectedRange()
+                if sel.location == 0 && sel.length == 0 {
+                    setSelectedRange(NSRange(location: textLenBefore, length: 0))
+                }
+            }
             onFocus?()
             updateFormattingState()
             recalculateHeight()
@@ -424,6 +431,24 @@ struct BlockEditorField: NSViewRepresentable {
         tv.textStorage?.setAttributedString(styled)
         tv.recalculateHeight()
 
+        if isFocused {
+            context.coordinator.didFocusOnce = true
+            let focusBlock = {
+                if let window = tv.window, window.firstResponder != tv {
+                    window.makeFirstResponder(tv)
+                }
+                let len = (tv.string as NSString).length
+                tv.setSelectedRange(NSRange(location: len, length: 0))
+            }
+            if tv.window != nil {
+                focusBlock()
+            } else {
+                DispatchQueue.main.async {
+                    focusBlock()
+                }
+            }
+        }
+
         return tv
     }
 
@@ -457,9 +482,18 @@ struct BlockEditorField: NSViewRepresentable {
         if isFocused {
             if !context.coordinator.didFocusOnce {
                 context.coordinator.didFocusOnce = true
-                DispatchQueue.main.async {
+                let focusBlock = {
                     if let window = nsView.window, window.firstResponder != nsView {
                         window.makeFirstResponder(nsView)
+                    }
+                    let len = (nsView.string as NSString).length
+                    nsView.setSelectedRange(NSRange(location: len, length: 0))
+                }
+                if nsView.window != nil {
+                    focusBlock()
+                } else {
+                    DispatchQueue.main.async {
+                        focusBlock()
                     }
                 }
             }
@@ -563,12 +597,12 @@ struct ColabInsertLineView: View {
             // Google Colab Style Insert Buttons
             if isHovered {
                 HStack(spacing: 6) {
-                    // Quick "+ Text" pill
+                    // Quick "+ Block" pill
                     Button(action: onInsertText) {
                         HStack(spacing: 3) {
                             Image(systemName: "plus")
                                 .font(.system(size: 9, weight: .bold))
-                            Text("Text")
+                            Text("Block")
                                 .font(.system(size: 11, weight: .semibold))
                         }
                         .foregroundStyle(Color.accentColor)
@@ -734,26 +768,6 @@ struct BlockListView: View {
                 blockItemView(index: index, block: block)
             }
 
-            // Permanent Bottom "Add block" row at the end of the document
-            Button(action: {
-                insertBlock(at: blocks.count, kind: .paragraph)
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("Add block")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.secondary.opacity(0.18), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
-            .padding(.leading, 18)
 
             // Clickable bottom buffer to start writing at end or clear selection
             Color.clear
@@ -918,9 +932,7 @@ struct BlockListView: View {
                     )
                     blocks.insert(dup, at: index + 1)
                     syncBackToStore()
-                    DispatchQueue.main.async {
-                        self.focusedBlockId = newId
-                    }
+                    self.focusedBlockId = newId
                 },
                 onDelete: {
                     deleteBlockAt(index: index)
@@ -979,9 +991,7 @@ struct BlockListView: View {
         blocks.insert(newBlock, at: safeIndex)
         selectedBlockIds.removeAll()
         syncBackToStore()
-        DispatchQueue.main.async {
-            self.focusedBlockId = newId
-        }
+        self.focusedBlockId = newId
     }
 
     private func insertBlockFromToolbar(kind: UIBlockKind) {
@@ -994,9 +1004,7 @@ struct BlockListView: View {
         }
         selectedBlockIds.removeAll()
         syncBackToStore()
-        DispatchQueue.main.async {
-            self.focusedBlockId = newId
-        }
+        self.focusedBlockId = newId
     }
 
     private func formatActiveBlock(marker: String) {
@@ -1247,9 +1255,7 @@ struct BlockListView: View {
             let dup = UIBlockItem(id: dupId, kind: blocks[idx].kind, text: blocks[idx].text)
             blocks.insert(dup, at: idx + 1)
             syncBackToStore()
-            DispatchQueue.main.async {
-                self.focusedBlockId = dupId
-            }
+            self.focusedBlockId = dupId
         }
     }
 
@@ -1276,9 +1282,7 @@ struct BlockListView: View {
             blocks.remove(at: index)
             syncBackToStore()
             if let prevId = prevId {
-                DispatchQueue.main.async {
-                    self.focusedBlockId = prevId
-                }
+                self.focusedBlockId = prevId
             }
         } else {
             blocks[0] = UIBlockItem(id: "blk_1", kind: .paragraph, text: "")
@@ -2108,7 +2112,6 @@ struct BlockRowView: View {
         } else {
             isSlashCommandOpen = false
         }
-        onUpdateText(text)
     }
 
     private func handleSlashCommit() -> Bool {
