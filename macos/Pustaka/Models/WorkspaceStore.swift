@@ -6,122 +6,51 @@ class WorkspaceStore: ObservableObject {
     @Published var categories: [SidebarCategory] = []
     @Published var pages: [DocumentPage] = []
     @Published var selectedPageId: String? = nil
-    @Published var currentViewMode: CanvasViewMode = .document
     @Published var isPreviewDrawerPresented: Bool = false
-    @Published var engineInfo: String = "Connecting..."
+    @Published var engineInfo: String = "Ready"
     @Published var currentRon: String = ""
     @Published var currentSvg: String = ""
 
     init() {
-        // Simple, clean local categories
+        // Minimal, personal categories / folders
         self.categories = [
             SidebarCategory(id: "cat_fav", name: "Favorites", icon: "⭐️", isExpanded: true, showPageCount: true, orderIndex: 0),
             SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 1)
         ]
 
-        // All pages start with a clean, uniform document icon ("doc.text")
         self.pages = [
             DocumentPage(
-                id: "doc_architecture",
-                title: "Engineering Architecture & Typst Pipeline",
-                icon: "doc.text",
+                id: "doc_welcome",
+                title: "Welcome to Pustaka",
+                icon: "👋",
+                coverUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80",
                 categoryId: "cat_fav",
                 rawContent: """
-                . Engineering Architecture & Typst Pipeline
-                .. High-Speed Vector Typesetting for Local Workspaces
-                :info All documents are stored as typed RON-RS block trees and compiled in-memory via Typst.
-                :warn Zero cloud transmission. Complete offline data privacy.
+                . Welcome to Pustaka
+                A minimal, ultra-fast local workspace for your thoughts and documents.
 
-                ### Core Pipeline
-                User Input (PFS / MD) -> Normalizer -> RON Block Tree -> Typst Compiler -> SVG -> SwiftUI
+                :info Everything here is saved locally. Zero cloud lock-in. Powered by Typst for vector typesetting.
 
-                [grid] Step 1: Normalization | Step 2: In-Memory Typst | Step 3: Native Vector Render [/grid]
-
-                ```rust
-                pub fn compile_typst_to_svg(typst_code: &str) -> Result<String, String> {
-                    let world = InMemoryWorld::new(typst_code);
-                    let doc = typst::compile::<PagedDocument>(&world)?;
-                    Ok(typst_svg::svg(&doc.pages()[0], &SvgOptions::default()))
-                }
-                ```
-
-                , Ultra-low latency < 10ms for typical pages.
-                , Cross-platform UniFFI Swift C-ABI bridge.
+                Hover on the left of any block to add new blocks or drag to reorder.
                 """,
                 isFavorite: true,
                 lastModified: Date(),
-                boardTasks: [
-                    TaskCard(id: "t1", title: "Implement in-memory Typst SVG compiler", status: .done, tag: "Core", assignee: "Rust Team", priority: .high),
-                    TaskCard(id: "t2", title: "Build UniFFI C-ABI bridge for Swift 6", status: .done, tag: "FFI", assignee: "Systems Eng", priority: .high),
-                    TaskCard(id: "t3", title: "Design clean minimalist macOS Sidebar", status: .inProgress, tag: "UI/UX", assignee: "SwiftUI Dev", priority: .high),
-                    TaskCard(id: "t4", title: "Add Drag-and-Drop to Kanban View", status: .inReview, tag: "UI/UX", assignee: "Frontend", priority: .medium),
-                    TaskCard(id: "t5", title: "Implement Multi-tab Document Workspace", status: .todo, tag: "Feature", assignee: "Design Team", priority: .low),
-                ]
+                boardTasks: []
             ),
             DocumentPage(
-                id: "doc_sprint",
-                title: "Sprint 24: Desktop MVP & ACP Server",
-                icon: "doc.text",
-                categoryId: "cat_fav",
+                id: "doc_architecture",
+                title: "Architecture & Pipeline",
+                icon: "⚡️",
+                coverUrl: "",
+                categoryId: "cat_notes",
                 rawContent: """
-                . Sprint 24: Desktop MVP & ACP Server
-                .. Deliverables & Weekly Goals
-                :tip ACP WebSocket server is active on ws://127.0.0.1:8080.
-                :info AI agents can mutate blocks in real-time while user edits.
+                . Architecture & Pipeline
+                User Input -> Normalizer -> RON Block Tree -> Typst Compiler -> Vector SVG
 
-                ### Objectives
-                - Clean minimalist macOS NavigationSplitView sidebar
-                - In-place WYSIWYG block editing
-                - Interactive Kanban view with task status management
-
-                , ACP protocol handler tested with 100% test pass rate.
+                :tip Sub-millisecond rendering running completely in-memory via Rust and Typst.
                 """,
-                isFavorite: true,
+                isFavorite: false,
                 lastModified: Date().addingTimeInterval(-3600),
-                boardTasks: [
-                    TaskCard(id: "t6", title: "Configure Cargo Workspace & Crates", status: .done, tag: "Infra", assignee: "Rust Eng", priority: .high),
-                    TaskCard(id: "t7", title: "JSON-RPC 2.0 ACP Server", status: .done, tag: "ACP", assignee: "Tokio Team", priority: .high),
-                    TaskCard(id: "t8", title: "Release Build Optimization", status: .inProgress, tag: "Deploy", assignee: "macOS Eng", priority: .medium),
-                    TaskCard(id: "t9", title: "Keyboard Shortcut Navigation (Cmd+P)", status: .todo, tag: "UI", assignee: "SwiftUI Dev", priority: .low),
-                ]
-            ),
-            DocumentPage(
-                id: "doc_product",
-                title: "Product Requirements & Vision",
-                icon: "doc.text",
-                categoryId: "cat_notes",
-                rawContent: """
-                . Product Requirements & Vision
-                .. Why Local-First Matters
-                :info Traditional SaaS workspaces suffer from 200ms+ network roundtrips.
-                :callout Pustaka achieves 60+ FPS locally with native Apple Silicon speed.
-
-                ### Key Advantages
-                1. Pure native macOS SwiftUI rendering (no Electron bloat)
-                2. Vector-sharp Typst printing & PDF export
-                3. First-class AI Agent Communication Protocol (ACP)
-                """,
-                isFavorite: false,
-                lastModified: Date().addingTimeInterval(-86400),
-                boardTasks: [
-                    TaskCard(id: "t10", title: "Benchmark launch time against Notion Mac", status: .todo, tag: "QA", assignee: "Perf Team", priority: .medium),
-                    TaskCard(id: "t11", title: "Write Whitepaper on ACP JSON-RPC", status: .todo, tag: "Docs", assignee: "Product", priority: .low),
-                ]
-            ),
-            DocumentPage(
-                id: "doc_personal",
-                title: "Daily Notes & Scratchpad",
-                icon: "doc.text",
-                categoryId: "cat_notes",
-                rawContent: """
-                . Daily Notes & Scratchpad
-                .. Quick ideas and reminders
-                :tip Press Cmd+N to create a fresh page anytime.
-
-                Remember to test ACP WebSocket ping/pong and verify Typst font rendering.
-                """,
-                isFavorite: false,
-                lastModified: Date().addingTimeInterval(-7200),
                 boardTasks: []
             )
         ]
@@ -240,19 +169,44 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
+    /// Creates a fresh, clean page with NO pre-filled boilerplate text
     func addNewPage(in categoryId: String = "cat_notes") {
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
         let newPage = DocumentPage(
             id: newId,
-            title: "Untitled",
-            icon: "doc.text",
+            title: "",
+            icon: "",
+            coverUrl: "",
             categoryId: categoryId,
-            rawContent: ". Untitled\n.. Start typing here\nType your notes freely.",
+            rawContent: "",
             isFavorite: categoryId == "cat_fav",
             lastModified: Date(),
             boardTasks: []
         )
         pages.append(newPage)
+        self.selectedPageId = newId
+        recompileCurrentPage()
+    }
+
+    func duplicatePage(id: String) {
+        guard let page = pages.first(where: { $0.id == id }) else { return }
+        let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
+        let copy = DocumentPage(
+            id: newId,
+            title: page.title.isEmpty ? "Copy of Untitled" : "\(page.title) (Copy)",
+            icon: page.icon,
+            coverUrl: page.coverUrl,
+            categoryId: page.categoryId,
+            rawContent: page.rawContent,
+            isFavorite: page.isFavorite,
+            lastModified: Date(),
+            boardTasks: page.boardTasks
+        )
+        if let idx = pages.firstIndex(where: { $0.id == id }) {
+            pages.insert(copy, at: idx + 1)
+        } else {
+            pages.append(copy)
+        }
         self.selectedPageId = newId
         recompileCurrentPage()
     }
@@ -265,11 +219,69 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
-    func updatePageTitle(_ newTitle: String) {
-        guard let id = selectedPageId,
-              let idx = pages.firstIndex(where: { $0.id == id }) else { return }
+    func updatePageCover(pageId: String, newCoverUrl: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        objectWillChange.send()
+        pages[idx].coverUrl = newCoverUrl
+        pages[idx].lastModified = Date()
+    }
+
+    func updatePageCover(_ newCoverUrl: String) {
+        if let id = selectedPageId {
+            updatePageCover(pageId: id, newCoverUrl: newCoverUrl)
+        }
+    }
+
+    // MARK: - Task / Kanban Board Actions
+
+    func addTask(to pageId: String, title: String, status: TaskStatus) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        let newTask = TaskCard(
+            id: "tsk_\(UUID().uuidString.prefix(6))",
+            title: title,
+            status: status,
+            tag: "Feature",
+            assignee: "Local",
+            priority: .medium
+        )
+        pages[idx].boardTasks.append(newTask)
+    }
+
+    func updateTaskStatus(pageId: String, taskId: String, newStatus: TaskStatus) {
+        guard let pageIdx = pages.firstIndex(where: { $0.id == pageId }),
+              let taskIdx = pages[pageIdx].boardTasks.firstIndex(where: { $0.id == taskId }) else { return }
+        pages[pageIdx].boardTasks[taskIdx].status = newStatus
+    }
+
+    func deleteTask(pageId: String, taskId: String) {
+        guard let pageIdx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        pages[pageIdx].boardTasks.removeAll { $0.id == taskId }
+    }
+
+    func updatePageTitle(pageId: String, newTitle: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        objectWillChange.send()
         pages[idx].title = newTitle
         pages[idx].lastModified = Date()
+    }
+
+    func updatePageTitle(_ newTitle: String) {
+        if let id = selectedPageId {
+            updatePageTitle(pageId: id, newTitle: newTitle)
+        }
+    }
+
+    func updatePageIcon(pageId: String, newIcon: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        objectWillChange.send()
+        pages[idx].icon = newIcon
+        pages[idx].lastModified = Date()
+    }
+
+    func updatePageIcon(_ newIcon: String) {
+        if let id = selectedPageId {
+            updatePageIcon(pageId: id, newIcon: newIcon)
+        }
     }
 
     func updatePageContent(_ newContent: String) {
@@ -282,39 +294,21 @@ class WorkspaceStore: ObservableObject {
 
     func recompileCurrentPage() {
         guard let page = selectedPage else { return }
-        let ron = parsePfsToRon(input: page.rawContent)
+        let contentToCompile = page.rawContent.isEmpty ? (page.title.isEmpty ? "" : ". \(page.title)") : page.rawContent
+        let ron = parsePfsToRon(input: contentToCompile)
         self.currentRon = ron
         let svg = renderRonToSvg(ronStr: ron)
         self.currentSvg = svg
     }
 
-    // Task Board mutation methods
-    func addTask(to pageId: String, title: String, status: TaskStatus) {
-        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
-        let newTask = TaskCard(
-            id: "t_\(UUID().uuidString.prefix(6))",
-            title: title,
-            status: status,
-            tag: "Task",
-            assignee: "You",
-            priority: .medium
-        )
-        pages[idx].boardTasks.append(newTask)
-    }
+    // MARK: - Clean Block Parser
 
-    func updateTaskStatus(pageId: String, taskId: String, newStatus: TaskStatus) {
-        guard let pIdx = pages.firstIndex(where: { $0.id == pageId }),
-              let tIdx = pages[pIdx].boardTasks.firstIndex(where: { $0.id == taskId }) else { return }
-        pages[pIdx].boardTasks[tIdx].status = newStatus
-    }
-
-    func deleteTask(pageId: String, taskId: String) {
-        guard let pIdx = pages.firstIndex(where: { $0.id == pageId }) else { return }
-        pages[pIdx].boardTasks.removeAll { $0.id == taskId }
-    }
-
-    // Helper: Convert raw PFS text to UIBlockItem list for WYSIWYG in-place editing
     func parseToUIBlocks(content: String) -> [UIBlockItem] {
+        let trimmedTotal = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTotal.isEmpty {
+            return [UIBlockItem(id: "blk_1", kind: .paragraph, text: "")]
+        }
+
         var items: [UIBlockItem] = []
         var counter = 0
         var inCode = false
@@ -371,10 +365,6 @@ class WorkspaceStore: ObservableObject {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .todo(checked: false), text: String(trimmed.dropFirst(2))))
             } else if trimmed.hasPrefix("> ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💬", theme: .standard), text: String(trimmed.dropFirst(2))))
-            } else if trimmed.hasPrefix("[grid]") && trimmed.hasSuffix("[/grid]") {
-                let inner = String(trimmed.dropFirst(6).dropLast(7))
-                let cols = inner.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .grid(columns: cols), text: inner))
             } else {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .paragraph, text: trimmed))
             }
@@ -389,28 +379,34 @@ class WorkspaceStore: ObservableObject {
             ))
         }
 
+        if items.isEmpty {
+            items.append(UIBlockItem(id: "blk_1", kind: .paragraph, text: ""))
+        }
+
         return items
     }
 
-    // Helper: Convert UIBlockItem list back to PFS string
     func uiBlocksToPfs(blocks: [UIBlockItem]) -> String {
         var lines: [String] = []
         for block in blocks {
+            let text = block.text.trimmingCharacters(in: .whitespaces)
+            if text.isEmpty { continue }
+
             switch block.kind {
             case .heading(let level):
                 let prefix = String(repeating: ".", count: level)
-                lines.append("\(prefix) \(block.text)")
+                lines.append("\(prefix) \(text)")
             case .paragraph:
-                lines.append(block.text)
+                lines.append(text)
             case .callout(_, let theme):
                 switch theme {
-                case .blue: lines.append(":info \(block.text)")
-                case .red: lines.append(":warn \(block.text)")
-                case .green: lines.append(":tip \(block.text)")
-                case .standard: lines.append(":callout \(block.text)")
+                case .blue: lines.append(":info \(text)")
+                case .red: lines.append(":warn \(text)")
+                case .green: lines.append(":tip \(text)")
+                case .standard: lines.append(":callout \(text)")
                 }
             case .todo:
-                lines.append(", \(block.text)")
+                lines.append(", \(text)")
             case .code(let lang):
                 lines.append("```\(lang)")
                 lines.append(block.text)

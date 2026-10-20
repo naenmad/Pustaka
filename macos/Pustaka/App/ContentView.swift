@@ -12,6 +12,7 @@ struct ContentView: View {
         } detail: {
             if let page = store.selectedPage {
                 DocumentCanvasView(store: store, page: page)
+                    .id(page.id)
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "doc.text")
@@ -41,19 +42,7 @@ struct ContentView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
             }
         }
-        .navigationTitle(store.selectedPage?.title ?? "Pustaka")
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button(action: {
-                    withAnimation {
-                        columnVisibility = (columnVisibility == .all) ? .detailOnly : .all
-                    }
-                }) {
-                    Image(systemName: "sidebar.left")
-                }
-                .help("Toggle Sidebar")
-            }
-        }
+        .navigationTitle(store.selectedPage?.title.isEmpty == false ? store.selectedPage!.title : "Pustaka")
     }
 }
 

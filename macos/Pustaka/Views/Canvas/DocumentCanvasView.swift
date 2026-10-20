@@ -1,4 +1,55 @@
 import SwiftUI
+import AppKit
+
+// MARK: - Vibrant Preset Gradients (Zero Network Delay)
+
+enum PresetGradientCover: String, CaseIterable, Identifiable {
+    case sunset = "gradient:sunset"
+    case ocean = "gradient:ocean"
+    case aurora = "gradient:aurora"
+    case midnight = "gradient:midnight"
+    case blush = "gradient:blush"
+    case emerald = "gradient:emerald"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .sunset: return "Sunset"
+        case .ocean: return "Ocean"
+        case .aurora: return "Aurora"
+        case .midnight: return "Midnight"
+        case .blush: return "Blush"
+        case .emerald: return "Emerald"
+        }
+    }
+
+    var colors: [Color] {
+        switch self {
+        case .sunset:
+            return [Color(red: 0.96, green: 0.45, blue: 0.28), Color(red: 0.68, green: 0.22, blue: 0.78)]
+        case .ocean:
+            return [Color(red: 0.12, green: 0.42, blue: 0.88), Color(red: 0.22, green: 0.82, blue: 0.78)]
+        case .aurora:
+            return [Color(red: 0.08, green: 0.72, blue: 0.52), Color(red: 0.32, green: 0.22, blue: 0.78)]
+        case .midnight:
+            return [Color(red: 0.12, green: 0.12, blue: 0.28), Color(red: 0.38, green: 0.18, blue: 0.52)]
+        case .blush:
+            return [Color(red: 0.96, green: 0.38, blue: 0.48), Color(red: 0.96, green: 0.72, blue: 0.38)]
+        case .emerald:
+            return [Color(red: 0.05, green: 0.55, blue: 0.42), Color(red: 0.15, green: 0.78, blue: 0.55)]
+        }
+    }
+
+    static func colors(for raw: String) -> [Color] {
+        if let match = PresetGradientCover.allCases.first(where: { $0.rawValue == raw }) {
+            return match.colors
+        }
+        return [Color.accentColor.opacity(0.8), Color.purple.opacity(0.8)]
+    }
+}
+
+// MARK: - Document Canvas View
 
 struct DocumentCanvasView: View {
     @ObservedObject var store: WorkspaceStore
@@ -6,263 +57,577 @@ struct DocumentCanvasView: View {
 
     @State private var titleBuffer: String = ""
     @State private var isIconPickerOpen: Bool = false
+    @State private var isCoverPickerOpen: Bool = false
+    @State private var isCoverHovered: Bool = false
+    @State private var isHeaderHovered: Bool = false
+    @State private var customEmojiInput: String = ""
+    @State private var customCoverUrlInput: String = ""
+
+    // Dynamic accessor ensures immediate reactivity upon store updates
+    var currentPage: DocumentPage {
+        store.pages.first(where: { $0.id == page.id }) ?? page
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top Navigation & View Switcher Bar
-            topNavigationBar
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(nsColor: .windowBackgroundColor))
+        ZStack(alignment: .trailing) {
+            documentCanvasBody
 
-            Divider()
-
-            // Main Canvas Area
-            ZStack(alignment: .trailing) {
-                switch store.currentViewMode {
-                case .document:
-                    documentCanvasBody
-                case .board:
-                    KanbanBoardView(store: store, page: page)
-                case .preview:
-                    TypstPreviewView(svgString: store.currentSvg)
-                case .source:
-                    rawSourceEditorView
+            // Slide-over Drawer for Typst Live Preview (Toggled with Cmd+P or ... menu)
+            if store.isPreviewDrawerPresented {
+                HStack(spacing: 0) {
+                    Divider()
+                    TypstPreviewView(
+                        svgString: store.currentSvg,
+                        onClose: { store.isPreviewDrawerPresented = false }
+                    )
+                    .frame(width: 440)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .shadow(color: Color.black.opacity(0.12), radius: 8, x: -4)
                 }
-
-                // Slide-over Drawer for Typst Live Preview
-                if store.isPreviewDrawerPresented && store.currentViewMode != .preview {
-                    HStack(spacing: 0) {
-                        Divider()
-                        TypstPreviewView(
-                            svgString: store.currentSvg,
-                            onClose: { store.isPreviewDrawerPresented = false }
-                        )
-                        .frame(width: 440)
-                        .background(Color(nsColor: .windowBackgroundColor))
-                        .shadow(color: Color.black.opacity(0.12), radius: 8, x: -4)
+                .transition(.move(edge: .trailing))
+            }
+        }
+        .navigationTitle(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 6) {
+                    if !currentPage.icon.isEmpty {
+                        Text(currentPage.icon)
+                            .font(.system(size: 14))
+                    } else {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     }
-                    .transition(.move(edge: .trailing))
+
+                    Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(currentPage.title.isEmpty ? .secondary : .primary)
                 }
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button(action: {
+                        store.duplicatePage(id: currentPage.id)
+                    }) {
+                        Label("Duplicate Page", systemImage: "plus.square.on.square")
+                    }
+
+                    Button(action: {
+                        store.toggleFavorite(id: currentPage.id)
+                    }) {
+                        Label(
+                            currentPage.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                            systemImage: currentPage.isFavorite ? "star.fill" : "star"
+                        )
+                    }
+
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(currentPage.title.isEmpty ? "Untitled" : currentPage.title, forType: .string)
+                    }) {
+                        Label("Copy Page Title", systemImage: "doc.on.doc")
+                    }
+
+                    Divider()
+
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            store.isPreviewDrawerPresented.toggle()
+                        }
+                    }) {
+                        Label(
+                            store.isPreviewDrawerPresented ? "Hide Typst Preview" : "Show Typst Preview (Cmd+P)",
+                            systemImage: "sparkles"
+                        )
+                    }
+                    .keyboardShortcut("p", modifiers: .command)
+
+                    Divider()
+
+                    Button(role: .destructive, action: {
+                        store.deletePage(id: currentPage.id)
+                    }) {
+                        Label("Move to Trash (Delete)", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .help("Page Options")
             }
         }
         .onAppear {
-            self.titleBuffer = page.title
+            self.titleBuffer = currentPage.title
         }
         .onChange(of: page.id) { _, _ in
-            self.titleBuffer = page.title
+            self.titleBuffer = currentPage.title
         }
     }
 
-    // MARK: - Top Navigation Bar
-
-    private var topNavigationBar: some View {
-        HStack(spacing: 14) {
-            // Breadcrumb / Title
-            HStack(spacing: 6) {
-                Image(systemName: page.icon)
-                    .foregroundStyle(.tint)
-                    .font(.caption)
-
-                Text(page.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: 220, alignment: .leading)
-
-            Spacer()
-
-            // View Switcher Tabs (Document / Board / Typst / Source)
-            Picker("View", selection: $store.currentViewMode) {
-                ForEach(CanvasViewMode.allCases) { mode in
-                    Label(mode.rawValue, systemImage: mode.icon)
-                        .tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 380)
-
-            Spacer()
-
-            // Actions: Star, Preview Toggle, Info
-            HStack(spacing: 8) {
-                Button(action: {
-                    store.toggleFavorite(id: page.id)
-                }) {
-                    Image(systemName: page.isFavorite ? "star.fill" : "star")
-                        .font(.subheadline)
-                        .foregroundStyle(page.isFavorite ? .yellow : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Favorite")
-
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        store.isPreviewDrawerPresented.toggle()
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                        Text("Preview")
-                            .font(.caption.weight(.medium))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(store.isPreviewDrawerPresented ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
-                    .foregroundStyle(store.isPreviewDrawerPresented ? Color.accentColor : Color.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Live Typst Vector Drawer (Cmd+P)")
-                .keyboardShortcut("p", modifiers: .command)
-            }
-        }
-    }
-
-    // MARK: - Document Canvas Body (WYSIWYG Centered Layout)
+    // MARK: - Document Body
 
     private var documentCanvasBody: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 20) {
-                // Page Icon & Header
-                pageHeaderView
+            VStack(spacing: 0) {
+                // Cover Image Banner
+                if !currentPage.coverUrl.isEmpty {
+                    pageCoverBannerView
+                }
 
-                Divider()
+                // Centered Notion Page Area
+                VStack(alignment: .leading, spacing: 14) {
+                    notionPageHeaderView
 
-                // Interactive In-Place Block Editor
-                BlockListView(store: store, page: page)
+                    BlockListView(store: store, page: currentPage)
 
-                Spacer(minLength: 80)
+                    Spacer(minLength: 160)
+                }
+                .frame(maxWidth: 740)
+                .padding(.horizontal, 36)
+                .padding(.top, currentPage.coverUrl.isEmpty ? 28 : 16)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: 720)
-            .padding(.horizontal, 32)
-            .padding(.top, 36)
-            .frame(maxWidth: .infinity)
         }
     }
 
-    private var pageHeaderView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Large Document Icon
-            Button(action: { isIconPickerOpen.toggle() }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.accentColor.opacity(0.12))
-                        .frame(width: 52, height: 52)
+    // MARK: - Cover Banner View
 
-                    Image(systemName: page.icon)
-                        .font(.system(size: 26))
-                        .foregroundStyle(.tint)
+    private var pageCoverBannerView: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if currentPage.coverUrl.hasPrefix("gradient:") {
+                    LinearGradient(
+                        colors: PresetGradientCover.colors(for: currentPage.coverUrl),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                } else {
+                    AsyncImage(url: URL(string: currentPage.coverUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            LinearGradient(
+                                colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            LinearGradient(
+                                colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        @unknown default:
+                            Color.secondary.opacity(0.2)
+                        }
+                    }
                 }
             }
-            .buttonStyle(.plain)
-            .popover(isPresented: $isIconPickerOpen) {
-                iconPickerSheet
-            }
+            .frame(height: 180)
+            .frame(maxWidth: .infinity)
+            .clipped()
 
-            // Editable Large Title
-            TextField("Page Title", text: $titleBuffer)
-                .textFieldStyle(.plain)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(.primary)
-                .onChange(of: titleBuffer) { _, newVal in
-                    store.updatePageTitle(newVal)
+            // Cover Action Buttons: Change cover / Remove
+            HStack(spacing: 8) {
+                Button(action: {
+                    isCoverPickerOpen = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "photo")
+                            .font(.caption)
+                        Text("Change cover")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
 
-            // Meta Info: Timestamp, ACP WebSocket Status
-            HStack(spacing: 12) {
-                Label("Edited just now", systemImage: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button(action: {
+                    store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                        Text("Remove")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+        }
+        .contentShape(Rectangle())
+        .onHover { isCoverHovered = $0 }
+    }
 
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 6, height: 6)
-                    Text("ACP ws://127.0.0.1:8080")
-                        .font(.caption2.monospaced())
+    // MARK: - Notion Page Header
+
+    private var notionPageHeaderView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Action bar: [Add icon] [Add cover] when missing
+            HStack(spacing: 10) {
+                if currentPage.icon.isEmpty {
+                    Button(action: {
+                        isIconPickerOpen = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "face.smiling")
+                                .font(.caption)
+                            Text("Add icon")
+                                .font(.caption.weight(.medium))
+                        }
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(Capsule())
+
+                if currentPage.coverUrl.isEmpty {
+                    Button(action: {
+                        isCoverPickerOpen = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .font(.caption)
+                            Text("Add cover")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Spacer()
             }
+            .frame(height: 24)
+
+            // Current Page Icon (If present, click to change or remove)
+            if !currentPage.icon.isEmpty {
+                Button(action: {
+                    isIconPickerOpen = true
+                }) {
+                    Text(currentPage.icon)
+                        .font(.system(size: 44))
+                        .padding(4)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Click to change or remove icon")
+            }
+
+            // Page Title
+            TextField("Untitled", text: $titleBuffer, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .padding(.top, 2)
+                .onChange(of: titleBuffer) { _, newVal in
+                    store.updatePageTitle(pageId: currentPage.id, newTitle: newVal)
+                }
+        }
+        .contentShape(Rectangle())
+        .onHover { isHeaderHovered = $0 }
+        // Single, reliably anchored Popovers
+        .popover(isPresented: $isIconPickerOpen) {
+            iconPickerPopover
+        }
+        .popover(isPresented: $isCoverPickerOpen) {
+            coverPickerPopover
         }
     }
 
-    private var iconPickerSheet: some View {
-        let icons = [
-            "doc.text.fill", "bolt.fill", "cpu.fill", "sparkles", "books.vertical.fill",
-            "folder.fill", "note.text", "checklist", "star.fill", "lightbulb.fill",
-            "hammer.fill", "flag.fill", "gearshape.fill", "terminal.fill"
+    // MARK: - Icon Picker Popover
+
+    private var iconPickerPopover: some View {
+        let curatedEmojis = [
+            "📄", "📝", "💡", "🚀", "🎯", "⚡️", "💻", "🔥",
+            "✨", "📌", "🎨", "🧩", "📚", "☕️", "🛠️", "📦",
+            "⭐️", "🤖", "🌿", "🌊", "🏔️", "🔍", "📊", "🧠",
+            "❤️", "☀️", "🌙", "🎵", "🏆", "🔒", "💬", "✅"
         ]
 
-        return LazyVGrid(columns: Array(repeating: GridItem(.fixed(36)), count: 5), spacing: 8) {
-            ForEach(icons, id: \.self) { icon in
-                Button(action: {
-                    if let idx = store.pages.firstIndex(where: { $0.id == page.id }) {
-                        store.pages[idx].icon = icon
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Select Icon")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if !currentPage.icon.isEmpty {
+                    Button(action: {
+                        store.updatePageIcon(pageId: currentPage.id, newIcon: "")
+                        isIconPickerOpen = false
+                    }) {
+                        Text("Remove")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
-                    isIconPickerOpen = false
-                }) {
-                    Image(systemName: icon)
-                        .font(.system(size: 18))
-                        .frame(width: 32, height: 32)
-                        .background(Color.secondary.opacity(0.1))
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Quick Curated Emoji Grid
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 6), count: 8), spacing: 6) {
+                ForEach(curatedEmojis, id: \.self) { emoji in
+                    Button(action: {
+                        store.updatePageIcon(pageId: currentPage.id, newIcon: emoji)
+                        isIconPickerOpen = false
+                    }) {
+                        Text(emoji)
+                            .font(.system(size: 20))
+                            .frame(width: 32, height: 32)
+                            .background(currentPage.icon == emoji ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Divider()
+
+            // Input / Random / Native Mac Palette
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    TextField("Paste or type emoji...", text: $customEmojiInput)
+                        .textFieldStyle(.plain)
+                        .font(.subheadline)
+                        .padding(6)
+                        .background(Color(nsColor: .controlBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                        .onSubmit {
+                            let trimmed = customEmojiInput.trimmingCharacters(in: .whitespaces)
+                            if !trimmed.isEmpty {
+                                store.updatePageIcon(pageId: currentPage.id, newIcon: trimmed)
+                                customEmojiInput = ""
+                                isIconPickerOpen = false
+                            }
+                        }
+
+                    Button("Set") {
+                        let trimmed = customEmojiInput.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            store.updatePageIcon(pageId: currentPage.id, newIcon: trimmed)
+                            customEmojiInput = ""
+                            isIconPickerOpen = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button("Random") {
+                        if let random = curatedEmojis.randomElement() {
+                            store.updatePageIcon(pageId: currentPage.id, newIcon: random)
+                            isIconPickerOpen = false
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                // Native macOS Emoji & Symbols Palette
+                Button(action: {
+                    isIconPickerOpen = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        NSApplication.shared.orderFrontCharacterPalette(nil)
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "macwindow")
+                            .font(.caption)
+                        Text("Open Full macOS Emoji & Symbols (Ctrl+Cmd+Space)...")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(14)
+        .frame(width: 320)
     }
 
-    // MARK: - Raw Source Editor View
+    // MARK: - Cover Picker Popover
 
-    private var rawSourceEditorView: some View {
-        HSplitView {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Pustaka Fast Syntax / Markdown Source")
+    private var coverPickerPopover: some View {
+        let unsplashPhotos = [
+            ("Forest", "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1400&q=80"),
+            ("Night Stars", "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80"),
+            ("Ocean Waves", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1400&q=80"),
+            ("Minimal Waves", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80"),
+            ("Architecture", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1400&q=80"),
+            ("Workspace", "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1400&q=80")
+        ]
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Select Page Cover")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
 
-                TextEditor(text: Binding(
-                    get: { page.rawContent },
-                    set: { store.updatePageContent($0) }
-                ))
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .scrollContentBackground(.hidden)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(12)
-            }
-            .frame(minWidth: 320)
+                Spacer()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Generated RON-RS Block Tree")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-
-                ScrollView {
-                    Text(store.currentRon)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if !currentPage.coverUrl.isEmpty {
+                    Button(action: {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
+                        isCoverPickerOpen = false
+                    }) {
+                        Text("Remove Cover")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(12)
             }
-            .frame(minWidth: 320)
+
+            // Section 1: Vibrant Instant Gradients (Offline & 100% Reliable)
+            Text("Vibrant Gradients")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                ForEach(PresetGradientCover.allCases) { preset in
+                    Button(action: {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: preset.rawValue)
+                        isCoverPickerOpen = false
+                    }) {
+                        ZStack(alignment: .bottomLeading) {
+                            LinearGradient(
+                                colors: preset.colors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .frame(height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                            Text(preset.title)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(5)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Section 2: Online Unsplash Curated Photos
+            Text("Unsplash Photography")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                ForEach(unsplashPhotos, id: \.1) { name, url in
+                    Button(action: {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: url)
+                        isCoverPickerOpen = false
+                    }) {
+                        ZStack(alignment: .bottomLeading) {
+                            AsyncImage(url: URL(string: url)) { phase in
+                                if let img = phase.image {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Color.secondary.opacity(0.15)
+                                }
+                            }
+                            .frame(height: 50)
+                            .frame(maxWidth: .infinity)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                            Text(name)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .shadow(radius: 2)
+                                .padding(5)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Divider()
+
+            // Custom URL & Random Option
+            HStack(spacing: 6) {
+                TextField("Paste image URL...", text: $customCoverUrlInput)
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+                    .padding(6)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+                    .onSubmit {
+                        let trimmed = customCoverUrlInput.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            store.updatePageCover(pageId: currentPage.id, newCoverUrl: trimmed)
+                            customCoverUrlInput = ""
+                            isCoverPickerOpen = false
+                        }
+                    }
+
+                Button("Set") {
+                    let trimmed = customCoverUrlInput.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: trimmed)
+                        customCoverUrlInput = ""
+                        isCoverPickerOpen = false
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+
+                Button("Random") {
+                    let allOptions = PresetGradientCover.allCases.map(\.rawValue) + unsplashPhotos.map(\.1)
+                    if let rand = allOptions.randomElement() {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: rand)
+                        isCoverPickerOpen = false
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
+        .padding(14)
+        .frame(width: 340)
     }
 }

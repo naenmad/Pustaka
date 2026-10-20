@@ -235,20 +235,7 @@ struct CategorySectionView: View {
 
     private var categoryHeader: some View {
         HStack(spacing: 6) {
-            // Chevron to expand/collapse (kecil / besarkan)
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    store.toggleCategoryExpanded(id: category.id)
-                }
-            }) {
-                Image(systemName: category.isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary.opacity(0.8))
-                    .frame(width: 14, height: 14)
-            }
-            .buttonStyle(.plain)
-
-            // Category Icon (Emoji) & Name
+            // Category Icon (Emoji), Name, and Chevron Button to the right of the text
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     store.toggleCategoryExpanded(id: category.id)
@@ -262,6 +249,12 @@ struct CategorySectionView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+
+                    // Chevron arrow right next to the category title
+                    Image(systemName: category.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary.opacity(0.8))
+                        .frame(width: 12, height: 12)
                 }
             }
             .buttonStyle(.plain)
@@ -354,15 +347,21 @@ struct SidebarDocumentItemRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 8) {
-                // Simple, consistent document icon
-                Image(systemName: "doc.text")
-                    .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                    .frame(width: 14)
+                // Document icon: Custom user-selected emoji if set, else clean doc.text
+                if !page.icon.isEmpty {
+                    Text(page.icon)
+                        .font(.system(size: 13))
+                        .frame(width: 14)
+                } else {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
+                        .frame(width: 14)
+                }
 
-                Text(page.title)
+                Text(page.title.isEmpty ? "Untitled" : page.title)
                     .font(.subheadline)
-                    .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.85))
+                    .foregroundStyle(page.title.isEmpty ? .secondary.opacity(0.6) : (isSelected ? Color.primary : Color.primary.opacity(0.85)))
                     .lineLimit(1)
 
                 Spacer()

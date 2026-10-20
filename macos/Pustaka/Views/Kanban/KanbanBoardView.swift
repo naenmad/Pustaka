@@ -157,7 +157,7 @@ struct KanbanCardView: View {
                 Spacer()
 
                 Menu {
-                    ForEach(TaskStatus.allCases) { targetStatus in
+                    ForEach(TaskStatus.allCases, id: \.self) { targetStatus in
                         if targetStatus != task.status {
                             Button("Move to \(targetStatus.rawValue)") {
                                 store.updateTaskStatus(pageId: pageId, taskId: task.id, newStatus: targetStatus)

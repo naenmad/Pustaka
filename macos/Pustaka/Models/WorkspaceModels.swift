@@ -25,7 +25,8 @@ struct SidebarCategory: Identifiable, Hashable {
 struct DocumentPage: Identifiable, Hashable {
     let id: String
     var title: String
-    var icon: String // Default to "doc.text", user can customize
+    var icon: String // Emoji or symbol
+    var coverUrl: String // Curated free Unsplash cover image URL
     var categoryId: String // References SidebarCategory.id
     var rawContent: String
     var isFavorite: Bool
@@ -43,7 +44,7 @@ struct DocumentPage: Identifiable, Hashable {
 
 // MARK: - Kanban Board Models
 
-enum TaskStatus: String, CaseIterable, Identifiable {
+enum TaskStatus: String, CaseIterable, Identifiable, Equatable, Hashable {
     case todo = "To Do"
     case inProgress = "In Progress"
     case inReview = "In Review"
