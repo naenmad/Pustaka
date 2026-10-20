@@ -60,7 +60,10 @@ struct BlockEditorField: NSViewRepresentable {
         }
         nsView.font = font
         nsView.textColor = textColor
-        nsView.placeholderString = placeholder
+        if nsView.placeholderString != placeholder {
+            nsView.placeholderString = placeholder
+            nsView.needsDisplay = true
+        }
 
         if isFocused {
             if !context.coordinator.didFocusOnce {
@@ -662,7 +665,7 @@ struct BlockRowView: View {
         case .heading(let level):
             BlockEditorField(
                 text: $textBuffer,
-                placeholder: "Heading \(level)...",
+                placeholder: isFocused ? "Heading \(level)..." : "",
                 font: NSFont.systemFont(ofSize: headingFontSize(level), weight: .bold),
                 textColor: .labelColor,
                 isFocused: isFocused,
@@ -681,7 +684,7 @@ struct BlockRowView: View {
         case .paragraph:
             BlockEditorField(
                 text: $textBuffer,
-                placeholder: "Type '/' for commands, or start writing...",
+                placeholder: isFocused ? "Type '/' for commands, or start writing..." : "",
                 font: NSFont.systemFont(ofSize: 15),
                 textColor: .labelColor,
                 isFocused: isFocused,
@@ -706,7 +709,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "List item...",
+                    placeholder: isFocused ? "List item..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -732,7 +735,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "List item...",
+                    placeholder: isFocused ? "List item..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -763,7 +766,7 @@ struct BlockRowView: View {
 
                     BlockEditorField(
                         text: $textBuffer,
-                        placeholder: "Toggle list heading...",
+                        placeholder: isFocused ? "Toggle list heading..." : "",
                         font: NSFont.systemFont(ofSize: 15, weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
@@ -798,7 +801,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "Quote...",
+                    placeholder: isFocused ? "Quote..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .secondaryLabelColor,
                     isFocused: isFocused,
@@ -848,7 +851,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "To-do...",
+                    placeholder: isFocused ? "To-do..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: checked ? .secondaryLabelColor : .labelColor,
                     isFocused: isFocused,
@@ -888,7 +891,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "Callout note...",
+                    placeholder: isFocused ? "Callout note..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -934,7 +937,7 @@ struct BlockRowView: View {
                     // Editable Title
                     BlockEditorField(
                         text: $textBuffer,
-                        placeholder: "Bookmark Title...",
+                        placeholder: isFocused ? "Bookmark Title..." : "",
                         font: NSFont.systemFont(ofSize: 14, weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
@@ -1076,7 +1079,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "Add a caption (optional)...",
+                    placeholder: isFocused ? "Add a caption (optional)..." : "",
                     font: NSFont.systemFont(ofSize: 13),
                     textColor: .secondaryLabelColor,
                     isFocused: isFocused,
@@ -1124,7 +1127,7 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: "e.g. E = mc^2 or \\int_0^\\infty e^{-x} dx",
+                    placeholder: isFocused ? "e.g. E = mc^2 or \\int_0^\\infty e^{-x} dx" : "",
                     font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
                     textColor: .labelColor,
                     isFocused: isFocused,
