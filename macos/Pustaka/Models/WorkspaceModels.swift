@@ -156,6 +156,33 @@ enum UIBlockKind: Equatable {
     case image(url: String, caption: String)
     case math(expression: String)
     case grid(columns: [String])
+
+    var accessibilityName: String {
+        switch self {
+        case .paragraph: return "Paragraph"
+        case .heading(let level): return "Heading \(level)"
+        case .bullet: return "Bullet item"
+        case .numbered(let idx): return "Numbered item \(idx)"
+        case .toggle: return "Toggle list"
+        case .quote: return "Quote"
+        case .divider: return "Divider"
+        case .todo(let checked): return checked ? "Completed task" : "Incomplete task"
+        case .callout: return "Callout note"
+        case .code(let lang): return "\(lang) code snippet"
+        case .bookmark: return "Web bookmark"
+        case .image: return "Image block"
+        case .math: return "Math equation"
+        case .grid: return "Table grid"
+        }
+    }
+}
+
+enum BlockActionCommand: Equatable {
+    case deleteSelected
+    case duplicateSelected
+    case transformSelected(UIBlockKind)
+    case selectAll
+    case clearSelection
 }
 
 struct UIBlockItem: Identifiable, Equatable {

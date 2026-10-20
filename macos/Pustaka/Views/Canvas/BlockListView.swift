@@ -2,6 +2,20 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Focusable Block Text Field
+
+class FocusableBlockTextField: NSTextField {
+    var onDidBecomeFirstResponder: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok {
+            onDidBecomeFirstResponder?()
+        }
+        return ok
+    }
+}
+
 // MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete & Slash Command Support)
 
 struct BlockEditorField: NSViewRepresentable {
@@ -15,9 +29,11 @@ struct BlockEditorField: NSViewRepresentable {
     var onSlashCommit: (() -> Bool)? = nil
     var onEscape: (() -> Bool)? = nil
     var onTextChanged: ((String) -> Void)? = nil
+    var onFocus: (() -> Void)? = nil
+    var onSelectAllBlocks: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> NSTextField {
-        let tf = NSTextField()
+        let tf = FocusableBlockTextField()
         tf.isBordered = false
         tf.drawsBackground = false
         tf.focusRingType = .none
@@ -30,6 +46,11 @@ struct BlockEditorField: NSViewRepresentable {
         tf.maximumNumberOfLines = 0
         tf.lineBreakMode = .byWordWrapping
         tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        tf.setAccessibilityLabel(placeholder)
+
+        tf.onDidBecomeFirstResponder = {
+            context.coordinator.parent.onFocus?()
+        }
         return tf
     }
 
@@ -42,11 +63,16 @@ struct BlockEditorField: NSViewRepresentable {
         nsView.placeholderString = placeholder
 
         if isFocused {
-            DispatchQueue.main.async {
-                if let window = nsView.window, window.firstResponder != nsView.currentEditor() {
-                    window.makeFirstResponder(nsView)
+            if !context.coordinator.didFocusOnce {
+                context.coordinator.didFocusOnce = true
+                DispatchQueue.main.async {
+                    if let window = nsView.window, window.firstResponder != nsView.currentEditor() {
+                        window.makeFirstResponder(nsView)
+                    }
                 }
             }
+        } else {
+            context.coordinator.didFocusOnce = false
         }
     }
 
@@ -56,9 +82,14 @@ struct BlockEditorField: NSViewRepresentable {
 
     class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: BlockEditorField
+        var didFocusOnce: Bool = false
 
         init(_ parent: BlockEditorField) {
             self.parent = parent
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            parent.onFocus?()
         }
 
         func controlTextDidChange(_ obj: Notification) {
@@ -68,6 +99,16 @@ struct BlockEditorField: NSViewRepresentable {
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            // Cmd+A inside text: if all text is already selected, select all blocks in canvas
+            if commandSelector == #selector(NSResponder.selectAll(_:)) {
+                let selLen = textView.selectedRange().length
+                let totalLen = textView.string.count
+                if selLen == totalLen && totalLen > 0 {
+                    parent.onSelectAllBlocks?()
+                    return true
+                }
+            }
+
             // 1. Enter Key pressed
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 if let slashHandler = parent.onSlashCommit, slashHandler() {
@@ -141,10 +182,13 @@ struct BlockListView: View {
     @ObservedObject var store: WorkspaceStore
     let page: DocumentPage
     @Binding var focusedBlockId: String?
+    @Binding var selectedBlockIds: Set<String>
+    @Binding var blockActionTrigger: BlockActionCommand?
 
     @State private var blocks: [UIBlockItem] = []
     @State private var hoveredBlockId: String? = nil
     @State private var draggedBlock: UIBlockItem? = nil
+    @State private var lastClickedBlockId: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -152,11 +196,21 @@ struct BlockListView: View {
                 BlockRowView(
                     block: block,
                     isHovered: hoveredBlockId == block.id,
+                    isSelected: selectedBlockIds.contains(block.id),
                     isFirstBlock: index == 0,
                     isLastBlock: index == blocks.count - 1,
                     isFocused: focusedBlockId == block.id,
                     onFocus: {
                         focusedBlockId = block.id
+                        if !selectedBlockIds.contains(block.id) {
+                            selectedBlockIds.removeAll()
+                        }
+                    },
+                    onSelectHandle: {
+                        handleBlockHandleClick(block: block)
+                    },
+                    onSelectAllBlocks: {
+                        selectAllBlocks()
                     },
                     onUpdateText: { newText in
                         blocks[index].text = newText
@@ -182,6 +236,7 @@ struct BlockListView: View {
                             text: initialText
                         )
                         blocks.insert(newBlock, at: index + 1)
+                        selectedBlockIds.removeAll()
                         syncBackToStore()
                         DispatchQueue.main.async {
                             self.focusedBlockId = newId
@@ -218,7 +273,6 @@ struct BlockListView: View {
                         deleteBlockAt(index: index)
                     },
                     onDeleteEmpty: {
-                        // If it's a list or quote, convert to normal paragraph first
                         switch block.kind {
                         case .bullet, .numbered, .quote, .todo, .toggle:
                             blocks[index].kind = .paragraph
@@ -252,6 +306,7 @@ struct BlockListView: View {
                 .frame(height: 140)
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    selectedBlockIds.removeAll()
                     let newId = "blk_\(UUID().uuidString.prefix(6))"
                     if let last = blocks.last, !last.text.isEmpty {
                         let newBlock = UIBlockItem(
@@ -274,7 +329,102 @@ struct BlockListView: View {
         }
         .onChange(of: page.id) { _, _ in
             self.blocks = store.parseToUIBlocks(content: page.rawContent)
+            self.selectedBlockIds.removeAll()
         }
+        .onChange(of: blockActionTrigger) { _, cmd in
+            guard let cmd = cmd else { return }
+            switch cmd {
+            case .deleteSelected:
+                deleteSelectedBlocks()
+            case .duplicateSelected:
+                duplicateSelectedBlocks()
+            case .transformSelected(let kind):
+                transformSelectedBlocks(to: kind)
+            case .selectAll:
+                selectAllBlocks()
+            case .clearSelection:
+                selectedBlockIds.removeAll()
+            }
+            blockActionTrigger = nil
+        }
+    }
+
+    // MARK: - Multi-Selection Operations
+
+    private func handleBlockHandleClick(block: UIBlockItem) {
+        let isShift = NSEvent.modifierFlags.contains(.shift)
+        let isCmd = NSEvent.modifierFlags.contains(.command)
+
+        if isShift, let lastId = lastClickedBlockId,
+           let fromIdx = blocks.firstIndex(where: { $0.id == lastId }),
+           let toIdx = blocks.firstIndex(where: { $0.id == block.id }) {
+            let range = min(fromIdx, toIdx)...max(fromIdx, toIdx)
+            for idx in range {
+                selectedBlockIds.insert(blocks[idx].id)
+            }
+        } else if isCmd {
+            if selectedBlockIds.contains(block.id) {
+                selectedBlockIds.remove(block.id)
+            } else {
+                selectedBlockIds.insert(block.id)
+            }
+            lastClickedBlockId = block.id
+        } else {
+            if selectedBlockIds == [block.id] {
+                selectedBlockIds.removeAll()
+                lastClickedBlockId = nil
+            } else {
+                selectedBlockIds = [block.id]
+                lastClickedBlockId = block.id
+            }
+        }
+        // Resign text focus when selecting blocks via handle
+        focusedBlockId = nil
+    }
+
+    private func selectAllBlocks() {
+        selectedBlockIds = Set(blocks.map(\.id))
+        focusedBlockId = nil
+    }
+
+    private func deleteSelectedBlocks() {
+        guard !selectedBlockIds.isEmpty else { return }
+        blocks.removeAll { selectedBlockIds.contains($0.id) }
+        if blocks.isEmpty {
+            blocks = [UIBlockItem(id: "blk_1", kind: .paragraph, text: "")]
+        }
+        selectedBlockIds.removeAll()
+        syncBackToStore()
+    }
+
+    private func duplicateSelectedBlocks() {
+        guard !selectedBlockIds.isEmpty else { return }
+        var newBlocks: [UIBlockItem] = []
+        var newSelectedIds: Set<String> = []
+
+        for block in blocks {
+            newBlocks.append(block)
+            if selectedBlockIds.contains(block.id) {
+                let dupId = "blk_\(UUID().uuidString.prefix(6))"
+                let dup = UIBlockItem(id: dupId, kind: block.kind, text: block.text)
+                newBlocks.append(dup)
+                newSelectedIds.insert(dupId)
+            }
+        }
+
+        blocks = newBlocks
+        selectedBlockIds = newSelectedIds
+        syncBackToStore()
+    }
+
+    private func transformSelectedBlocks(to newKind: UIBlockKind) {
+        guard !selectedBlockIds.isEmpty else { return }
+        for i in 0..<blocks.count {
+            if selectedBlockIds.contains(blocks[i].id) {
+                blocks[i].kind = newKind
+            }
+        }
+        syncBackToStore()
     }
 
     private func deleteBlockAt(index: Int) {
@@ -356,10 +506,13 @@ struct SixDotsHandleView: View {
 struct BlockRowView: View {
     let block: UIBlockItem
     let isHovered: Bool
+    let isSelected: Bool
     let isFirstBlock: Bool
     let isLastBlock: Bool
     let isFocused: Bool
     let onFocus: () -> Void
+    let onSelectHandle: () -> Void
+    let onSelectAllBlocks: () -> Void
     let onUpdateText: (String) -> Void
     let onToggleTodo: () -> Void
     let onToggleExpand: () -> Void
@@ -412,7 +565,16 @@ struct BlockRowView: View {
                     .padding(.top, 4)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
         .contentShape(Rectangle())
         .onAppear {
             self.textBuffer = block.text
@@ -442,9 +604,19 @@ struct BlockRowView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .help("Click to add block below")
+            .accessibilityLabel("Add block below")
 
-            // "::" Drag Handle & Context Menu
-            Menu {
+            // "::" Drag Handle, Selection & Context Menu
+            Button(action: onSelectHandle) {
+                SixDotsHandleView()
+                    .frame(width: 18, height: 18)
+                    .background(isSelected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Click to select, Shift+Click to range select, or drag to move")
+            .accessibilityLabel("Block handle: click to select or drag to rearrange")
+            .contextMenu {
                 Menu("Turn into") {
                     allBlocksTransformMenu
                 }
@@ -470,23 +642,15 @@ struct BlockRowView: View {
                 Button(role: .destructive, action: onDelete) {
                     Label("Delete Block", systemImage: "trash")
                 }
-            } label: {
-                SixDotsHandleView()
-                    .frame(width: 18, height: 18)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .help("Drag to rearrange or click for block options")
             .onDrag {
                 onStartDrag()
                 return NSItemProvider(object: block.id as NSString)
             }
         }
         .frame(width: 44)
-        .opacity(isHovered ? 1.0 : 0.0)
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .opacity((isHovered || isSelected) ? 1.0 : 0.0)
+        .animation(.easeInOut(duration: 0.12), value: isHovered || isSelected)
     }
 
     // MARK: - Block Content Body
@@ -508,7 +672,9 @@ struct BlockRowView: View {
                 onDeleteEmpty: onDeleteEmpty,
                 onSlashCommit: handleSlashCommit,
                 onEscape: { isSlashCommandOpen = false; return true },
-                onTextChanged: checkSlashCommand
+                onTextChanged: checkSlashCommand,
+                onFocus: onFocus,
+                onSelectAllBlocks: onSelectAllBlocks
             )
 
         // 2. Plain Text Paragraph
@@ -525,7 +691,9 @@ struct BlockRowView: View {
                 onDeleteEmpty: onDeleteEmpty,
                 onSlashCommit: handleSlashCommit,
                 onEscape: { isSlashCommandOpen = false; return true },
-                onTextChanged: checkSlashCommand
+                onTextChanged: checkSlashCommand,
+                onFocus: onFocus,
+                onSelectAllBlocks: onSelectAllBlocks
             )
 
         // 3. Bulleted List
@@ -548,7 +716,9 @@ struct BlockRowView: View {
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: checkSlashCommand
+                    onTextChanged: checkSlashCommand,
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
             }
 
@@ -572,7 +742,9 @@ struct BlockRowView: View {
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: checkSlashCommand
+                    onTextChanged: checkSlashCommand,
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
             }
 
@@ -587,6 +759,7 @@ struct BlockRowView: View {
                             .frame(width: 16, height: 16)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(isExpanded ? "Collapse toggle" : "Expand toggle")
 
                     BlockEditorField(
                         text: $textBuffer,
@@ -600,7 +773,9 @@ struct BlockRowView: View {
                         onDeleteEmpty: onDeleteEmpty,
                         onSlashCommit: handleSlashCommit,
                         onEscape: { isSlashCommandOpen = false; return true },
-                        onTextChanged: checkSlashCommand
+                        onTextChanged: checkSlashCommand,
+                        onFocus: onFocus,
+                        onSelectAllBlocks: onSelectAllBlocks
                     )
                 }
 
@@ -633,7 +808,9 @@ struct BlockRowView: View {
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: checkSlashCommand
+                    onTextChanged: checkSlashCommand,
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
             }
             .padding(.vertical, 2)
@@ -644,7 +821,7 @@ struct BlockRowView: View {
                 Divider()
                     .frame(height: 1)
 
-                if isHovered {
+                if isHovered || isSelected {
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "trash")
                             .font(.system(size: 10))
@@ -652,6 +829,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Divider")
+                    .accessibilityLabel("Delete divider")
                 }
             }
             .padding(.vertical, 8)
@@ -666,6 +844,7 @@ struct BlockRowView: View {
                         .foregroundStyle(checked ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(checked ? "Completed task" : "Incomplete task")
 
                 BlockEditorField(
                     text: $textBuffer,
@@ -679,7 +858,9 @@ struct BlockRowView: View {
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: checkSlashCommand
+                    onTextChanged: checkSlashCommand,
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
             }
 
@@ -717,10 +898,12 @@ struct BlockRowView: View {
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: checkSlashCommand
+                    onTextChanged: checkSlashCommand,
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
 
-                if isHovered {
+                if isHovered || isSelected {
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "trash")
                             .font(.caption)
@@ -728,6 +911,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Callout")
+                    .accessibilityLabel("Delete callout")
                 }
             }
             .padding(12)
@@ -760,7 +944,9 @@ struct BlockRowView: View {
                         onDeleteEmpty: onDeleteEmpty,
                         onSlashCommit: handleSlashCommit,
                         onEscape: { isSlashCommandOpen = false; return true },
-                        onTextChanged: checkSlashCommand
+                        onTextChanged: checkSlashCommand,
+                        onFocus: onFocus,
+                        onSelectAllBlocks: onSelectAllBlocks
                     )
 
                     Spacer()
@@ -781,6 +967,7 @@ struct BlockRowView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Open bookmark in browser")
                     }
 
                     Button(role: .destructive, action: onDelete) {
@@ -790,6 +977,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Bookmark")
+                    .accessibilityLabel("Delete bookmark")
                 }
 
                 // Editable URL
@@ -807,6 +995,7 @@ struct BlockRowView: View {
                     .textFieldStyle(.plain)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("Bookmark URL")
                 }
             }
             .padding(10)
@@ -871,6 +1060,7 @@ struct BlockRowView: View {
                     ))
                     .textFieldStyle(.plain)
                     .font(.caption)
+                    .accessibilityLabel("Image URL")
 
                     Spacer()
 
@@ -881,6 +1071,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Image")
+                    .accessibilityLabel("Delete image")
                 }
 
                 BlockEditorField(
@@ -898,7 +1089,9 @@ struct BlockRowView: View {
                     onTextChanged: { newCap in
                         onTransformKind(.image(url: url, caption: newCap))
                         onUpdateText(newCap)
-                    }
+                    },
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
             }
             .padding(10)
@@ -926,6 +1119,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Math Block")
+                    .accessibilityLabel("Delete math formula")
                 }
 
                 BlockEditorField(
@@ -943,7 +1137,9 @@ struct BlockRowView: View {
                     onTextChanged: { newExpr in
                         onTransformKind(.math(expression: newExpr))
                         onUpdateText(newExpr)
-                    }
+                    },
+                    onFocus: onFocus,
+                    onSelectAllBlocks: onSelectAllBlocks
                 )
 
                 if !textBuffer.isEmpty {
@@ -987,6 +1183,7 @@ struct BlockRowView: View {
                         .foregroundStyle(.secondary)
                     }
                     .menuStyle(.borderlessButton)
+                    .accessibilityLabel("Select programming language")
 
                     Spacer()
 
@@ -996,6 +1193,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.borderless)
                     .font(.caption2)
+                    .accessibilityLabel("Copy code snippet")
 
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "trash")
@@ -1004,6 +1202,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Code Block")
+                    .accessibilityLabel("Delete code block")
                 }
 
                 TextEditor(text: $textBuffer)
@@ -1013,6 +1212,7 @@ struct BlockRowView: View {
                     .onChange(of: textBuffer) { _, newVal in
                         onUpdateText(newVal)
                     }
+                    .accessibilityLabel("Code editor")
             }
             .padding(12)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -1067,6 +1267,7 @@ struct BlockRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Table")
+                    .accessibilityLabel("Delete table")
                 }
             }
             .padding(8)

@@ -49,6 +49,20 @@ enum PresetGradientCover: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Focusable Title Text Field
+
+class FocusableTitleTextField: NSTextField {
+    var onDidBecomeFirstResponder: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok {
+            onDidBecomeFirstResponder?()
+        }
+        return ok
+    }
+}
+
 // MARK: - Native Title Editor Field (Supports Enter to Jump to Content)
 
 struct TitleEditorField: NSViewRepresentable {
@@ -56,9 +70,10 @@ struct TitleEditorField: NSViewRepresentable {
     var placeholder: String
     var onCommit: () -> Void
     var onTextChanged: (String) -> Void
+    var onBeginEditing: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> NSTextField {
-        let tf = NSTextField()
+        let tf = FocusableTitleTextField()
         tf.isBordered = false
         tf.drawsBackground = false
         tf.focusRingType = .none
@@ -71,6 +86,12 @@ struct TitleEditorField: NSViewRepresentable {
         tf.maximumNumberOfLines = 2
         tf.lineBreakMode = .byWordWrapping
         tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        tf.setAccessibilityLabel("Document Title")
+        tf.setAccessibilityRole(.textField)
+
+        tf.onDidBecomeFirstResponder = {
+            context.coordinator.parent.onBeginEditing?()
+        }
         return tf
     }
 
@@ -90,6 +111,10 @@ struct TitleEditorField: NSViewRepresentable {
 
         init(_ parent: TitleEditorField) {
             self.parent = parent
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            parent.onBeginEditing?()
         }
 
         func controlTextDidChange(_ obj: Notification) {
@@ -116,6 +141,8 @@ struct DocumentCanvasView: View {
 
     @State private var titleBuffer: String = ""
     @State private var focusedBlockId: String? = nil
+    @State private var selectedBlockIds: Set<String> = []
+    @State private var blockActionTrigger: BlockActionCommand? = nil
     @State private var isIconPickerOpen: Bool = false
     @State private var isCoverPickerOpen: Bool = false
     @State private var isCoverHovered: Bool = false
@@ -129,24 +156,68 @@ struct DocumentCanvasView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            documentCanvasBody
+        ZStack(alignment: .bottom) {
+            ZStack(alignment: .trailing) {
+                documentCanvasBody
 
-            // Slide-over Drawer for Typst Live Preview (Toggled with Cmd+P or ... menu)
-            if store.isPreviewDrawerPresented {
-                HStack(spacing: 0) {
-                    Divider()
-                    TypstPreviewView(
-                        svgString: store.currentSvg,
-                        onClose: { store.isPreviewDrawerPresented = false }
-                    )
-                    .frame(width: 440)
-                    .background(Color(nsColor: .windowBackgroundColor))
-                    .shadow(color: Color.black.opacity(0.12), radius: 8, x: -4)
+                // Slide-over Drawer for Typst Live Preview (Toggled with Cmd+P or ... menu)
+                if store.isPreviewDrawerPresented {
+                    HStack(spacing: 0) {
+                        Divider()
+                        TypstPreviewView(
+                            svgString: store.currentSvg,
+                            onClose: { store.isPreviewDrawerPresented = false }
+                        )
+                        .frame(width: 440)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .shadow(color: Color.black.opacity(0.12), radius: 8, x: -4)
+                    }
+                    .transition(.move(edge: .trailing))
                 }
-                .transition(.move(edge: .trailing))
+            }
+
+            // Floating Multi-Selection Action Toolbar (Notion Style)
+            if !selectedBlockIds.isEmpty {
+                floatingSelectionToolbar
+                    .padding(.bottom, 24)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
             }
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: selectedBlockIds.isEmpty)
+        .background(
+            Group {
+                Button("") {
+                    blockActionTrigger = .selectAll
+                }
+                .keyboardShortcut("a", modifiers: .command)
+
+                Button("") {
+                    if !selectedBlockIds.isEmpty {
+                        blockActionTrigger = .deleteSelected
+                    }
+                }
+                .keyboardShortcut(.delete, modifiers: [])
+
+                Button("") {
+                    if !selectedBlockIds.isEmpty {
+                        selectedBlockIds.removeAll()
+                    }
+                }
+                .keyboardShortcut(.escape, modifiers: [])
+
+                Button("") {
+                    if !selectedBlockIds.isEmpty {
+                        blockActionTrigger = .duplicateSelected
+                    }
+                }
+                .keyboardShortcut("d", modifiers: .command)
+            }
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
         .navigationTitle(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -251,7 +322,13 @@ struct DocumentCanvasView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     notionPageHeaderView
 
-                    BlockListView(store: store, page: currentPage, focusedBlockId: $focusedBlockId)
+                    BlockListView(
+                        store: store,
+                        page: currentPage,
+                        focusedBlockId: $focusedBlockId,
+                        selectedBlockIds: $selectedBlockIds,
+                        blockActionTrigger: $blockActionTrigger
+                    )
 
                     Spacer(minLength: 160)
                 }
@@ -422,6 +499,10 @@ struct DocumentCanvasView: View {
                 },
                 onTextChanged: { newTitle in
                     store.updatePageTitle(pageId: currentPage.id, newTitle: newTitle)
+                },
+                onBeginEditing: {
+                    focusedBlockId = nil
+                    selectedBlockIds.removeAll()
                 }
             )
             .padding(.top, 2)
@@ -703,5 +784,124 @@ struct DocumentCanvasView: View {
         }
         .padding(14)
         .frame(width: 340)
+    }
+
+    // MARK: - Notion-Style Floating Selection Toolbar
+
+    private var floatingSelectionToolbar: some View {
+        HStack(spacing: 10) {
+            // Selected Count Badge
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 7, height: 7)
+                Text("\(selectedBlockIds.count) selected")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, 4)
+
+            Divider()
+                .frame(height: 14)
+
+            // Turn Into Menu
+            Menu {
+                Section("Turn into") {
+                    Button("Text") { blockActionTrigger = .transformSelected(.paragraph) }
+                    Button("Heading 1") { blockActionTrigger = .transformSelected(.heading(level: 1)) }
+                    Button("Heading 2") { blockActionTrigger = .transformSelected(.heading(level: 2)) }
+                    Button("Heading 3") { blockActionTrigger = .transformSelected(.heading(level: 3)) }
+                    Button("To-do List") { blockActionTrigger = .transformSelected(.todo(checked: false)) }
+                    Button("Bulleted List") { blockActionTrigger = .transformSelected(.bullet) }
+                    Button("Numbered List") { blockActionTrigger = .transformSelected(.numbered(index: 1)) }
+                    Button("Quote") { blockActionTrigger = .transformSelected(.quote) }
+                    Button("Info Callout (💡)") { blockActionTrigger = .transformSelected(.callout(icon: "💡", theme: .blue)) }
+                    Button("Code Block") { blockActionTrigger = .transformSelected(.code(lang: "rust")) }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("Turn into")
+                        .font(.system(size: 12, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("Turn selected blocks into another kind")
+
+            // Duplicate Button
+            Button(action: {
+                blockActionTrigger = .duplicateSelected
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.square.on.square")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("Duplicate")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help("Duplicate selected blocks (Cmd+D)")
+
+            // Delete Button
+            Button(role: .destructive, action: {
+                blockActionTrigger = .deleteSelected
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("Delete")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help("Delete selected blocks (Backspace / Delete)")
+
+            Divider()
+                .frame(height: 14)
+
+            // Deselect (Escape) Button
+            Button(action: {
+                selectedBlockIds.removeAll()
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(5)
+                    .background(Color.primary.opacity(0.06))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Deselect all (Esc)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.ultraThickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.18), radius: 14, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Block selection toolbar")
     }
 }
