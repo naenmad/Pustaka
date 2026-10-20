@@ -752,6 +752,9 @@ class WorkspaceStore: ObservableObject {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "✅", theme: .green), text: String(trimmed.dropFirst(5))))
             } else if trimmed.hasPrefix(":idea ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "🎯", theme: .standard), text: String(trimmed.dropFirst(6))))
+            } else if trimmed.hasPrefix("[subpage] ") {
+                let subId = String(trimmed.dropFirst(10)).trimmingCharacters(in: .whitespaces)
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .subpage(pageId: subId), text: ""))
             } else if trimmed.hasPrefix(":callout ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💬", theme: .standard), text: String(trimmed.dropFirst(9))))
             } else if trimmed.hasPrefix(", ") {
@@ -861,6 +864,8 @@ class WorkspaceStore: ObservableObject {
                     tLines.append("| " + padded.prefix(cleanHeaders.count).joined(separator: " | ") + " |")
                 }
                 lines.append(tLines.joined(separator: "\n"))
+            case .subpage(let pageId):
+                lines.append("[subpage] \(pageId)")
             }
         }
         return lines.joined(separator: "\n\n")

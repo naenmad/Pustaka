@@ -856,26 +856,6 @@ struct DocumentCanvasView: View {
                     .buttonStyle(.plain)
                 }
 
-                // Add Subpage button in header actions
-                Button(action: {
-                    store.addNewSubpage(parentPageId: currentPage.id)
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.badge.plus")
-                            .font(.caption)
-                        Text("Add subpage")
-                            .font(.caption.weight(.medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.primary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Create a nested subpage inside this document")
-
                 Spacer()
             }
             .frame(height: 24)
@@ -908,74 +888,6 @@ struct DocumentCanvasView: View {
                 }
             )
             .padding(.top, 2)
-
-            // Subpages Section inside Document Canvas
-            let subpages = store.subpages(of: currentPage.id)
-            if !subpages.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("SUBPAGES")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.tertiary)
-
-                        Spacer()
-
-                        Button(action: {
-                            store.addNewSubpage(parentPageId: currentPage.id)
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 8, weight: .bold))
-                                Text("New Subpage")
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .foregroundStyle(Color.accentColor)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.top, 6)
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170, maximum: 260), spacing: 8)], spacing: 8) {
-                        ForEach(subpages) { subpage in
-                            Button(action: {
-                                store.selectPage(id: subpage.id)
-                            }) {
-                                HStack(spacing: 8) {
-                                    if !subpage.icon.isEmpty {
-                                        Text(subpage.icon).font(.system(size: 13))
-                                    } else {
-                                        Image(systemName: "doc.text")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Color.accentColor)
-                                    }
-
-                                    Text(subpage.title.isEmpty ? "Untitled" : subpage.title)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-
-                                    Spacer()
-
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 8, weight: .semibold))
-                                        .foregroundStyle(.secondary.opacity(0.6))
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(Color.primary.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 7)
-                                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                                )
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            }
         }
         .padding(.leading, 48)
         .contentShape(Rectangle())

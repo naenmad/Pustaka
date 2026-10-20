@@ -601,6 +601,7 @@ struct BlockEditorField: NSViewRepresentable {
 struct ColabInsertLineView: View {
     let onInsertText: () -> Void
     let onInsertKind: (UIBlockKind) -> Void
+    let onInsertSubpage: () -> Void
 
     @State private var isHovered: Bool = false
 
@@ -672,6 +673,7 @@ struct ColabInsertLineView: View {
                             Button("Toggle List") { onInsertKind(.toggle(isExpanded: false)) }
                             Button("Quote") { onInsertKind(.quote) }
                             Button("Divider") { onInsertKind(.divider) }
+                            Button("Subpage (📄)") { onInsertSubpage() }
                         }
                         Section("Callouts") {
                             Button("💡 Info Callout") { onInsertKind(.callout(icon: "💡", theme: .blue)) }
@@ -738,6 +740,7 @@ let allSlashCommands: [SlashCommandItem] = [
     SlashCommandItem(id: "toggle", title: "Toggle List", desc: "Collapsible toggle block to hide content.", icon: "arrowtriangle.right.fill", keywords: ["toggle", "collapse", "dropdown", "expand", ">"], kind: .toggle(isExpanded: false)),
     SlashCommandItem(id: "quote", title: "Quote", desc: "Capture a quote with an accent bar.", icon: "text.quote", keywords: ["quote", "blockquote", "citation", ">"], kind: .quote),
     SlashCommandItem(id: "divider", title: "Divider", desc: "Visually divide blocks with a clean line.", icon: "minus", keywords: ["divider", "line", "separator", "hr", "---", "rule"], kind: .divider),
+    SlashCommandItem(id: "subpage", title: "Subpage", desc: "Embed a subpage inside this document.", icon: "doc.badge.plus", keywords: ["subpage", "page", "child", "doc", "nested"], kind: .subpage(pageId: "")),
 
     // 2. Callouts
     SlashCommandItem(id: "callout_info", title: "Info Callout", desc: "Highlighted blue information note.", icon: "lightbulb.fill", keywords: ["info", "callout", "note", "tip", "blue", "lightbulb"], kind: .callout(icon: "💡", theme: .blue)),
@@ -894,6 +897,7 @@ struct BlockListView: View {
         VStack(spacing: 0) {
             BlockRowView(
                 store: store,
+                currentPageId: page.id,
                 block: block,
                 isHovered: hoveredBlockId == block.id,
                 isSelected: selectedBlockIds.contains(block.id),
@@ -1002,6 +1006,10 @@ struct BlockListView: View {
                 },
                 onInsertKind: { kind in
                     insertBlock(at: index + 1, kind: kind)
+                },
+                onInsertSubpage: {
+                    let sub = store.addNewSubpage(parentPageId: page.id)
+                    insertBlock(at: index + 1, kind: .subpage(pageId: sub.id))
                 }
             )
         }
@@ -1371,10 +1379,81 @@ struct SixDotsHandleView: View {
     }
 }
 
+// MARK: - Notion-Style Inline Subpage Block
+
+struct SubpageBlockView: View {
+    let pageId: String
+    @ObservedObject var store: WorkspaceStore
+    let onDelete: () -> Void
+
+    @State private var isHovered: Bool = false
+
+    private var page: DocumentPage? {
+        store.page(id: pageId)
+    }
+
+    var body: some View {
+        Button(action: {
+            store.selectPage(id: pageId)
+        }) {
+            HStack(spacing: 8) {
+                // Page Icon
+                if let p = page, !p.icon.isEmpty {
+                    Text(p.icon)
+                        .font(.system(size: 15))
+                        .frame(width: 20)
+                } else {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 20)
+                }
+
+                // Page Title
+                Text((page?.title.isEmpty ?? true) ? "Untitled" : (page?.title ?? "Untitled"))
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .underline(isHovered, color: .primary.opacity(0.45))
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isHovered {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+
+                        Button(role: .destructive, action: onDelete) {
+                            Image(systemName: "trash")
+                                .font(.caption2)
+                                .foregroundStyle(.red.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete subpage link")
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isHovered ? Color.secondary.opacity(0.18) : Color.clear, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
 // MARK: - Individual Block Row
 
 struct BlockRowView: View {
     @ObservedObject var store: WorkspaceStore
+    let currentPageId: String
     let block: UIBlockItem
     let isHovered: Bool
     let isSelected: Bool
@@ -2179,6 +2258,14 @@ struct BlockRowView: View {
                 },
                 onDelete: onDelete
             )
+
+        // 15. Subpage Block (Notion-style page block)
+        case .subpage(let pageId):
+            SubpageBlockView(
+                pageId: pageId,
+                store: store,
+                onDelete: onDelete
+            )
         }
     }
 
@@ -2273,7 +2360,12 @@ struct BlockRowView: View {
     private func applySlashCommand(_ kind: UIBlockKind) {
         self.textBuffer = ""
         self.isSlashCommandOpen = false
-        onTransformKind(kind)
+        if case .subpage = kind {
+            let newSub = store.addNewSubpage(parentPageId: currentPageId)
+            onTransformKind(.subpage(pageId: newSub.id))
+        } else {
+            onTransformKind(kind)
+        }
         onUpdateText("")
     }
 
@@ -2286,6 +2378,10 @@ struct BlockRowView: View {
             Button("Heading 1") { onInsertBelow(.heading(level: 1), "") }
             Button("Heading 2") { onInsertBelow(.heading(level: 2), "") }
             Button("Heading 3") { onInsertBelow(.heading(level: 3), "") }
+            Button("Subpage (📄)") {
+                let newSub = store.addNewSubpage(parentPageId: currentPageId)
+                onInsertBelow(.subpage(pageId: newSub.id), "")
+            }
             Button("To-do List") { onInsertBelow(.todo(checked: false), "") }
             Button("Bulleted List") { onInsertBelow(.bullet, "") }
             Button("Numbered List") { onInsertBelow(.numbered(index: 1), "") }

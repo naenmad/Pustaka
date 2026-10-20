@@ -199,6 +199,7 @@ enum UIBlockKind: Equatable {
     case image(url: String, caption: String)
     case math(expression: String)
     case grid(headers: [String], rows: [[String]])
+    case subpage(pageId: String)
 
     var accessibilityName: String {
         switch self {
@@ -216,6 +217,7 @@ enum UIBlockKind: Equatable {
         case .image: return "Image block"
         case .math: return "Math equation"
         case .grid: return "Data table"
+        case .subpage: return "Subpage link"
         }
     }
 }
