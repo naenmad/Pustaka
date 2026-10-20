@@ -282,152 +282,10 @@ struct DocumentCanvasView: View {
             .opacity(0)
             .frame(width: 0, height: 0)
         )
-        .navigationTitle(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
+        .navigationTitle("")
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                HStack(spacing: 6) {
-                    if !currentPage.icon.isEmpty {
-                        Text(currentPage.icon)
-                            .font(.system(size: 14))
-                    } else {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(currentPage.title.isEmpty ? .secondary : .primary)
-                        .lineLimit(1)
-                }
-            }
-
             ToolbarItemGroup(placement: .primaryAction) {
-                // 1. Quick Insert Menu
-                Menu {
-                    Section("Basic Blocks") {
-                        Button("Text Paragraph") { blockActionTrigger = .insertBlock(.paragraph) }
-                        Button("Heading 1") { blockActionTrigger = .insertBlock(.heading(level: 1)) }
-                        Button("Heading 2") { blockActionTrigger = .insertBlock(.heading(level: 2)) }
-                        Button("Heading 3") { blockActionTrigger = .insertBlock(.heading(level: 3)) }
-                    }
-                    Section("Lists") {
-                        Button("To-do List") { blockActionTrigger = .insertBlock(.todo(checked: false)) }
-                        Button("Bulleted List") { blockActionTrigger = .insertBlock(.bullet) }
-                        Button("Numbered List") { blockActionTrigger = .insertBlock(.numbered(index: 1)) }
-                        Button("Toggle List") { blockActionTrigger = .insertBlock(.toggle(isExpanded: false)) }
-                    }
-                    Section("Quotes & Callouts") {
-                        Button("Quote") { blockActionTrigger = .insertBlock(.quote) }
-                        Button("Info Callout (💡)") { blockActionTrigger = .insertBlock(.callout(icon: "💡", theme: .blue)) }
-                        Button("Warning Callout (⚠️)") { blockActionTrigger = .insertBlock(.callout(icon: "⚠️", theme: .red)) }
-                        Button("Tip Callout (✅)") { blockActionTrigger = .insertBlock(.callout(icon: "✅", theme: .green)) }
-                    }
-                    Section("Data & Media") {
-                        Button("Table / Grid") {
-                            blockActionTrigger = .insertBlock(.grid(
-                                headers: ["Column 1", "Column 2", "Column 3"],
-                                rows: [["", "", ""], ["", "", ""]]
-                            ))
-                        }
-                        Button("Code Block") { blockActionTrigger = .insertBlock(.code(lang: "rust")) }
-                        Button("Math Equation") { blockActionTrigger = .insertBlock(.math(expression: "")) }
-                        Button("Web Bookmark") { blockActionTrigger = .insertBlock(.bookmark(url: "https://apple.com")) }
-                        Button("Image") { blockActionTrigger = .insertBlock(.image(url: "", caption: "")) }
-                        Button("Divider") { blockActionTrigger = .insertBlock(.divider) }
-                    }
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Insert")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .help("Insert block into document")
-
-                // 2. Formatting Control Group with Live Active Indicators
-                HStack(spacing: 2) {
-                    topToolbarFormatButton(icon: "bold", isActive: formattingState.isBold, help: "Bold (⌘B)") {
-                        blockActionTrigger = .formatActiveBlock("**")
-                    }
-                    topToolbarFormatButton(icon: "italic", isActive: formattingState.isItalic, help: "Italic (⌘I)") {
-                        blockActionTrigger = .formatActiveBlock("*")
-                    }
-                    topToolbarFormatButton(icon: "strikethrough", isActive: formattingState.isStrike, help: "Strikethrough") {
-                        blockActionTrigger = .formatActiveBlock("~~")
-                    }
-                    topToolbarFormatButton(icon: "curlybraces", isActive: formattingState.isCode, help: "Inline Code") {
-                        blockActionTrigger = .formatActiveBlock("`")
-                    }
-                }
-                .padding(2)
-                .background(Color.primary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                // 3. Quick Table Shortcut Button
-                Button(action: {
-                    blockActionTrigger = .insertBlock(.grid(
-                        headers: ["Column 1", "Column 2", "Column 3"],
-                        rows: [["", "", ""], ["", "", ""]]
-                    ))
-                }) {
-                    Image(systemName: "tablecells")
-                        .font(.system(size: 12))
-                }
-                .help("Insert Table")
-
-                // 4. Quick Checklist Shortcut Button
-                Button(action: {
-                    blockActionTrigger = .insertBlock(.todo(checked: false))
-                }) {
-                    Image(systemName: "checkmark.square")
-                        .font(.system(size: 12))
-                }
-                .help("Insert To-do item")
-
-                // 5. Live Document Stats Pill
-                Button(action: { isStatsPopoverOpen.toggle() }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "chart.bar.doc.horizontal")
-                            .font(.system(size: 11))
-                        Text("\(wordCount)w")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(Capsule())
-                .help("Document Statistics")
-                .popover(isPresented: $isStatsPopoverOpen) {
-                    statsPopoverView
-                }
-
-                // 6. Live Typst Preview Toggle
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        store.isPreviewDrawerPresented.toggle()
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12))
-                        Text("Preview")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(store.isPreviewDrawerPresented ? Color.accentColor.opacity(0.18) : Color.clear)
-                    .foregroundStyle(store.isPreviewDrawerPresented ? Color.accentColor : Color.secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .help("Toggle Typst Vector Preview (⌘P)")
-
-                // 7. Share & Export Menu
+                // 1. Share & Export Menu
                 Menu {
                     Button(action: { exportDocument(format: "md") }) {
                         Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
@@ -457,11 +315,12 @@ struct DocumentCanvasView: View {
                     }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .help("Export & Share Document")
 
-                // 8. Page Options Menu (...)
+                // 2. Page Options Menu (...)
                 Menu {
                     Button(action: { isCoverPickerOpen = true }) {
                         Label(currentPage.coverUrl.isEmpty ? "Add Cover" : "Change Cover", systemImage: "photo")
@@ -470,6 +329,13 @@ struct DocumentCanvasView: View {
                         Label(currentPage.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
                     }
                     Divider()
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            store.isPreviewDrawerPresented.toggle()
+                        }
+                    }) {
+                        Label(store.isPreviewDrawerPresented ? "Hide Typst Preview" : "Show Typst Preview (⌘P)", systemImage: "sparkles")
+                    }
                     Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
                         Label("Reveal in Finder (Obsidian Vault)", systemImage: "folder")
                     }
@@ -746,25 +612,6 @@ struct DocumentCanvasView: View {
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
         .padding(.bottom, 22)
-    }
-
-    @ViewBuilder
-    private func topToolbarFormatButton(icon: String, isActive: Bool, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: isActive ? .bold : .medium))
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                .frame(width: 24, height: 20)
-                .background(isActive ? Color.accentColor.opacity(0.22) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
     }
 
     @ViewBuilder

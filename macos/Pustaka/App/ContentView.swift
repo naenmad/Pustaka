@@ -42,7 +42,7 @@ struct ContentView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
             }
         }
-        .navigationTitle(store.selectedPage?.title.isEmpty == false ? store.selectedPage!.title : "Pustaka")
+        .navigationTitle("")
     }
 }
 
