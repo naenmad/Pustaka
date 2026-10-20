@@ -197,6 +197,9 @@ final class BlockEditorTextView: NSTextView {
     var onSelectAllBlocks: (() -> Void)?
     var onFocus: (() -> Void)?
     var onFormattingStateChanged: ((EditorFormattingState) -> Void)?
+    var onHeightChange: ((CGFloat) -> Void)?
+
+    private var lastReportedHeight: CGFloat = 0
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -205,6 +208,7 @@ final class BlockEditorTextView: NSTextView {
         if ok {
             onFocus?()
             updateFormattingState()
+            recalculateHeight()
             needsDisplay = true
         }
         return ok
@@ -220,6 +224,44 @@ final class BlockEditorTextView: NSTextView {
         onFocus?()
         super.mouseDown(with: event)
         updateFormattingState()
+        recalculateHeight()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldW = frame.width
+        super.setFrameSize(newSize)
+        if abs(newSize.width - oldW) > 1 {
+            recalculateHeight()
+        }
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        recalculateHeight()
+        invalidateIntrinsicContentSize()
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard let lm = layoutManager, let tc = textContainer else { return super.intrinsicContentSize }
+        lm.ensureLayout(for: tc)
+        let used = lm.usedRect(for: tc)
+        let minH = (font?.pointSize ?? 15) * 1.35
+        let h = ceil(max(used.height + textContainerInset.height * 2, minH))
+        return NSSize(width: NSView.noIntrinsicMetric, height: h)
+    }
+
+    func recalculateHeight() {
+        guard let lm = layoutManager, let tc = textContainer else { return }
+        lm.ensureLayout(for: tc)
+        let used = lm.usedRect(for: tc)
+        let minH = (font?.pointSize ?? 15) * 1.35
+        let h = ceil(max(used.height + textContainerInset.height * 2, minH))
+        if abs(h - lastReportedHeight) > 1 {
+            lastReportedHeight = h
+            DispatchQueue.main.async { [weak self] in
+                self?.onHeightChange?(h)
+            }
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -246,6 +288,7 @@ final class BlockEditorTextView: NSTextView {
             if event.modifierFlags.contains(.shift) {
                 // Shift+Enter: soft newline inside the same block
                 super.keyDown(with: event)
+                recalculateHeight()
                 invalidateIntrinsicContentSize()
                 return
             }
@@ -331,6 +374,7 @@ final class BlockEditorTextView: NSTextView {
 
 struct BlockEditorField: NSViewRepresentable {
     @Binding var text: String
+    @Binding var dynamicHeight: CGFloat
     var placeholder: String
     var font: NSFont
     var textColor: NSColor = .labelColor
@@ -370,9 +414,15 @@ struct BlockEditorField: NSViewRepresentable {
         tv.onSelectAllBlocks = onSelectAllBlocks
         tv.onFocus = onFocus
         tv.onFormattingStateChanged = onFormattingStateChanged
+        tv.onHeightChange = { newH in
+            if abs(dynamicHeight - newH) > 1 {
+                dynamicHeight = newH
+            }
+        }
 
         let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
         tv.textStorage?.setAttributedString(styled)
+        tv.recalculateHeight()
 
         return tv
     }
@@ -388,6 +438,11 @@ struct BlockEditorField: NSViewRepresentable {
         nsView.onSelectAllBlocks = onSelectAllBlocks
         nsView.onFocus = onFocus
         nsView.onFormattingStateChanged = onFormattingStateChanged
+        nsView.onHeightChange = { newH in
+            if abs(dynamicHeight - newH) > 1 {
+                dynamicHeight = newH
+            }
+        }
 
         let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
         if nsView.attributedString() != styled && nsView.textStorage?.string != styled.string {
@@ -396,6 +451,7 @@ struct BlockEditorField: NSViewRepresentable {
             if prevRange.location <= (styled.string as NSString).length {
                 nsView.setSelectedRange(prevRange)
             }
+            nsView.recalculateHeight()
         }
 
         if isFocused {
@@ -414,7 +470,7 @@ struct BlockEditorField: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: BlockEditorTextView, context: Context) -> CGSize? {
-        let targetWidth = proposal.width ?? 600
+        let targetWidth = proposal.width ?? nsView.frame.width
         guard targetWidth > 0 else { return nil }
         if nsView.frame.width != targetWidth {
             nsView.frame.size.width = targetWidth
@@ -424,8 +480,8 @@ struct BlockEditorField: NSViewRepresentable {
             lm.ensureLayout(for: tc)
             let used = lm.usedRect(for: tc)
             let minH = (nsView.font?.pointSize ?? 15) * 1.35
-            let h = max(used.height + nsView.textContainerInset.height * 2, minH)
-            return CGSize(width: targetWidth, height: ceil(h))
+            let h = ceil(max(used.height + nsView.textContainerInset.height * 2, minH))
+            return CGSize(width: targetWidth, height: h)
         }
         return nil
     }
@@ -447,6 +503,7 @@ struct BlockEditorField: NSViewRepresentable {
             if let tv = notification.object as? BlockEditorTextView {
                 Coordinator.activeTextView = tv
                 tv.updateFormattingState()
+                tv.recalculateHeight()
             }
             parent.onFocus?()
         }
@@ -471,6 +528,7 @@ struct BlockEditorField: NSViewRepresentable {
             parent.text = md
             parent.onTextChanged?(md)
             tv.updateFormattingState()
+            tv.recalculateHeight()
             tv.needsDisplay = true
         }
 
@@ -478,6 +536,125 @@ struct BlockEditorField: NSViewRepresentable {
             guard let tv = notification.object as? BlockEditorTextView else { return }
             Coordinator.activeTextView = tv
             tv.updateFormattingState()
+        }
+    }
+}
+
+// MARK: - Google Colab Style Block Insertion Divider
+
+struct ColabInsertLineView: View {
+    let onInsertText: () -> Void
+    let onInsertKind: (UIBlockKind) -> Void
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        ZStack {
+            // Subtle horizontal dividing line visible on hover
+            if isHovered {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.35))
+                    .frame(height: 1.5)
+            } else {
+                Color.clear
+                    .frame(height: 1.5)
+            }
+
+            // Google Colab Style Insert Buttons
+            if isHovered {
+                HStack(spacing: 6) {
+                    // Quick "+ Text" pill
+                    Button(action: onInsertText) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Text")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.accentColor.opacity(0.45), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Quick "+ Table" pill
+                    Button(action: {
+                        onInsertKind(.grid(
+                            headers: ["Column 1", "Column 2", "Column 3"],
+                            rows: [["", "", ""], ["", "", ""]]
+                        ))
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "tablecells")
+                                .font(.system(size: 9, weight: .medium))
+                            Text("Table")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.secondary.opacity(0.3), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Quick "+ More" menu pill
+                    Menu {
+                        Section("Basic Blocks") {
+                            Button("Heading 1") { onInsertKind(.heading(level: 1)) }
+                            Button("Heading 2") { onInsertKind(.heading(level: 2)) }
+                            Button("Heading 3") { onInsertKind(.heading(level: 3)) }
+                            Button("To-do List") { onInsertKind(.todo(checked: false)) }
+                            Button("Bulleted List") { onInsertKind(.bullet) }
+                            Button("Numbered List") { onInsertKind(.numbered(index: 1)) }
+                            Button("Toggle List") { onInsertKind(.toggle(isExpanded: false)) }
+                            Button("Quote") { onInsertKind(.quote) }
+                            Button("Divider") { onInsertKind(.divider) }
+                        }
+                        Section("Callouts") {
+                            Button("💡 Info Callout") { onInsertKind(.callout(icon: "💡", theme: .blue)) }
+                            Button("⚠️ Warning Callout") { onInsertKind(.callout(icon: "⚠️", theme: .red)) }
+                            Button("✅ Tip Callout") { onInsertKind(.callout(icon: "✅", theme: .green)) }
+                        }
+                        Section("Media & Code") {
+                            Button("Code Block") { onInsertKind(.code(lang: "rust")) }
+                            Button("Math Formula") { onInsertKind(.math(expression: "")) }
+                            Button("Web Bookmark") { onInsertKind(.bookmark(url: "https://")) }
+                            Button("Image") { onInsertKind(.image(url: "", caption: "")) }
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("More")
+                                .font(.system(size: 11, weight: .medium))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 7))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.secondary.opacity(0.3), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .frame(height: 18)
+        .contentShape(Rectangle())
+        .onHover { h in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isHovered = h
+            }
         }
     }
 }
@@ -552,123 +729,31 @@ struct BlockListView: View {
     @State private var marqueeRect: CGRect? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
-                BlockRowView(
-                    block: block,
-                    isHovered: hoveredBlockId == block.id,
-                    isSelected: selectedBlockIds.contains(block.id),
-                    isFirstBlock: index == 0,
-                    isLastBlock: index == blocks.count - 1,
-                    isFocused: focusedBlockId == block.id,
-                    formattingState: $formattingState,
-                    onFocus: {
-                        focusedBlockId = block.id
-                        if !selectedBlockIds.contains(block.id) {
-                            selectedBlockIds.removeAll()
-                        }
-                    },
-                    onSelectHandle: {
-                        handleBlockHandleClick(block: block)
-                    },
-                    onSelectAllBlocks: {
-                        selectAllBlocks()
-                    },
-                    onUpdateText: { newText in
-                        blocks[index].text = newText
-                        syncBackToStore()
-                    },
-                    onToggleTodo: {
-                        if case .todo(let checked) = blocks[index].kind {
-                            blocks[index].kind = .todo(checked: !checked)
-                            syncBackToStore()
-                        }
-                    },
-                    onToggleExpand: {
-                        if case .toggle(let isExpanded) = blocks[index].kind {
-                            blocks[index].kind = .toggle(isExpanded: !isExpanded)
-                            syncBackToStore()
-                        }
-                    },
-                    onInsertBelow: { kind, initialText in
-                        let newId = "blk_\(UUID().uuidString.prefix(6))"
-                        let newBlock = UIBlockItem(
-                            id: newId,
-                            kind: kind,
-                            text: initialText
-                        )
-                        blocks.insert(newBlock, at: index + 1)
-                        selectedBlockIds.removeAll()
-                        syncBackToStore()
-                        DispatchQueue.main.async {
-                            self.focusedBlockId = newId
-                        }
-                    },
-                    onTransformKind: { newKind in
-                        blocks[index].kind = newKind
-                        syncBackToStore()
-                    },
-                    onMoveUp: {
-                        guard index > 0 else { return }
-                        blocks.swapAt(index, index - 1)
-                        syncBackToStore()
-                    },
-                    onMoveDown: {
-                        guard index < blocks.count - 1 else { return }
-                        blocks.swapAt(index, index + 1)
-                        syncBackToStore()
-                    },
-                    onDuplicate: {
-                        let newId = "blk_\(UUID().uuidString.prefix(6))"
-                        let dup = UIBlockItem(
-                            id: newId,
-                            kind: block.kind,
-                            text: block.text
-                        )
-                        blocks.insert(dup, at: index + 1)
-                        syncBackToStore()
-                        DispatchQueue.main.async {
-                            self.focusedBlockId = newId
-                        }
-                    },
-                    onDelete: {
-                        deleteBlockAt(index: index)
-                    },
-                    onDeleteEmpty: {
-                        switch block.kind {
-                        case .bullet, .numbered, .quote, .todo, .toggle:
-                            blocks[index].kind = .paragraph
-                            syncBackToStore()
-                        default:
-                            deleteBlockAt(index: index)
-                        }
-                    },
-                    onStartDrag: {
-                        self.draggedBlock = block
-                    }
-                )
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: BlockFramePreferenceKey.self,
-                            value: [BlockFrameItem(id: block.id, frame: geo.frame(in: .named("BlockCanvasSpace")))]
-                        )
-                    }
-                )
-                .onHover { isHovered in
-                    if isHovered {
-                        hoveredBlockId = block.id
-                    } else if hoveredBlockId == block.id {
-                        hoveredBlockId = nil
-                    }
-                }
-                .onDrop(of: [UTType.text], delegate: BlockDropDelegate(
-                    item: block,
-                    blocks: $blocks,
-                    draggedItem: $draggedBlock,
-                    onComplete: { syncBackToStore() }
-                ))
+                blockItemView(index: index, block: block)
             }
+
+            // Permanent Bottom "Add block" row at the end of the document
+            Button(action: {
+                insertBlock(at: blocks.count, kind: .paragraph)
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                    Text("Add block")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.secondary.opacity(0.18), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+            .padding(.leading, 18)
 
             // Clickable bottom buffer to start writing at end or clear selection
             Color.clear
@@ -680,21 +765,7 @@ struct BlockListView: View {
                         selectedBlockIds.removeAll()
                         return
                     }
-                    let newId = "blk_\(UUID().uuidString.prefix(6))"
-                    if let last = blocks.last, !last.text.isEmpty {
-                        let newBlock = UIBlockItem(
-                            id: newId,
-                            kind: .paragraph,
-                            text: ""
-                        )
-                        blocks.append(newBlock)
-                        syncBackToStore()
-                        DispatchQueue.main.async {
-                            self.focusedBlockId = newId
-                        }
-                    } else if let last = blocks.last {
-                        self.focusedBlockId = last.id
-                    }
+                    insertBlock(at: blocks.count, kind: .paragraph)
                 }
         }
         .coordinateSpace(name: "BlockCanvasSpace")
@@ -779,6 +850,137 @@ struct BlockListView: View {
                 formatActiveBlock(marker: marker)
             }
             blockActionTrigger = nil
+        }
+    }
+
+    @ViewBuilder
+    private func blockItemView(index: Int, block: UIBlockItem) -> some View {
+        VStack(spacing: 0) {
+            BlockRowView(
+                block: block,
+                isHovered: hoveredBlockId == block.id,
+                isSelected: selectedBlockIds.contains(block.id),
+                isFirstBlock: index == 0,
+                isLastBlock: index == blocks.count - 1,
+                isFocused: focusedBlockId == block.id,
+                formattingState: $formattingState,
+                onFocus: {
+                    focusedBlockId = block.id
+                    if !selectedBlockIds.contains(block.id) {
+                        selectedBlockIds.removeAll()
+                    }
+                },
+                onSelectHandle: {
+                    handleBlockHandleClick(block: block)
+                },
+                onSelectAllBlocks: {
+                    selectAllBlocks()
+                },
+                onUpdateText: { newText in
+                    blocks[index].text = newText
+                    syncBackToStore()
+                },
+                onToggleTodo: {
+                    if case .todo(let checked) = blocks[index].kind {
+                        blocks[index].kind = .todo(checked: !checked)
+                        syncBackToStore()
+                    }
+                },
+                onToggleExpand: {
+                    if case .toggle(let isExpanded) = blocks[index].kind {
+                        blocks[index].kind = .toggle(isExpanded: !isExpanded)
+                        syncBackToStore()
+                    }
+                },
+                onInsertBelow: { kind, initialText in
+                    insertBlock(at: index + 1, kind: kind, initialText: initialText)
+                },
+                onTransformKind: { newKind in
+                    blocks[index].kind = newKind
+                    syncBackToStore()
+                },
+                onMoveUp: {
+                    guard index > 0 else { return }
+                    blocks.swapAt(index, index - 1)
+                    syncBackToStore()
+                },
+                onMoveDown: {
+                    guard index < blocks.count - 1 else { return }
+                    blocks.swapAt(index, index + 1)
+                    syncBackToStore()
+                },
+                onDuplicate: {
+                    let newId = "blk_\(UUID().uuidString.prefix(6))"
+                    let dup = UIBlockItem(
+                        id: newId,
+                        kind: block.kind,
+                        text: block.text
+                    )
+                    blocks.insert(dup, at: index + 1)
+                    syncBackToStore()
+                    DispatchQueue.main.async {
+                        self.focusedBlockId = newId
+                    }
+                },
+                onDelete: {
+                    deleteBlockAt(index: index)
+                },
+                onDeleteEmpty: {
+                    switch block.kind {
+                    case .bullet, .numbered, .quote, .todo, .toggle:
+                        blocks[index].kind = .paragraph
+                        syncBackToStore()
+                    default:
+                        deleteBlockAt(index: index)
+                    }
+                },
+                onStartDrag: {
+                    self.draggedBlock = block
+                }
+            )
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: BlockFramePreferenceKey.self,
+                        value: [BlockFrameItem(id: block.id, frame: geo.frame(in: .named("BlockCanvasSpace")))]
+                    )
+                }
+            )
+            .onHover { isHovered in
+                if isHovered {
+                    hoveredBlockId = block.id
+                } else if hoveredBlockId == block.id {
+                    hoveredBlockId = nil
+                }
+            }
+            .onDrop(of: [UTType.text], delegate: BlockDropDelegate(
+                item: block,
+                blocks: $blocks,
+                draggedItem: $draggedBlock,
+                onComplete: { syncBackToStore() }
+            ))
+
+            // Google Colab Style Hover Insert Line between blocks
+            ColabInsertLineView(
+                onInsertText: {
+                    insertBlock(at: index + 1, kind: .paragraph)
+                },
+                onInsertKind: { kind in
+                    insertBlock(at: index + 1, kind: kind)
+                }
+            )
+        }
+    }
+
+    private func insertBlock(at targetIndex: Int, kind: UIBlockKind, initialText: String = "") {
+        let newId = "blk_\(UUID().uuidString.prefix(6))"
+        let newBlock = UIBlockItem(id: newId, kind: kind, text: initialText)
+        let safeIndex = min(max(0, targetIndex), blocks.count)
+        blocks.insert(newBlock, at: safeIndex)
+        selectedBlockIds.removeAll()
+        syncBackToStore()
+        DispatchQueue.main.async {
+            self.focusedBlockId = newId
         }
     }
 
@@ -1168,6 +1370,7 @@ struct BlockRowView: View {
     let onStartDrag: () -> Void
 
     @State private var textBuffer: String = ""
+    @State private var dynamicHeight: CGFloat = 26
     @State private var isSlashCommandOpen: Bool = false
 
     var slashQuery: String {
@@ -1191,8 +1394,8 @@ struct BlockRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top, spacing: 4) {
-                // Left Notion Gutter: [+] and [::] (width: 44pt)
-                leftGutterControls
+                // Left Gutter: 6-dots drag handle (width: 14pt)
+                dragHandleControl
                     .padding(.top, topGutterPadding)
 
                 // Main Block Content Body
@@ -1203,12 +1406,12 @@ struct BlockRowView: View {
             // Inline Filtered Notion Slash Command Palette
             if isSlashCommandOpen {
                 slashCommandPaletteView
-                    .padding(.leading, 48)
+                    .padding(.leading, 20)
                     .padding(.top, 4)
             }
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .padding(.horizontal, 2)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
@@ -1226,71 +1429,57 @@ struct BlockRowView: View {
                 self.textBuffer = newVal
             }
         }
-    }
-
-    // MARK: - Left Gutter Controls: [+] and [::] (Both fully visible & functional)
-
-    private var leftGutterControls: some View {
-        HStack(spacing: 4) {
-            // "+" Add Block Below Menu
-            Menu {
-                allBlocksInsertionMenu
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .help("Click to add block below")
-            .accessibilityLabel("Add block below")
-
-            // "::" Drag Handle, Selection & Context Menu
-            Button(action: onSelectHandle) {
-                SixDotsHandleView()
-                    .frame(width: 18, height: 18)
-                    .background(isSelected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-            }
-            .buttonStyle(.plain)
-            .help("Click to select, Shift+Click to range select, or drag to move")
-            .accessibilityLabel("Block handle: click to select or drag to rearrange")
-            .contextMenu {
-                Menu("Turn into") {
-                    allBlocksTransformMenu
-                }
-
-                Divider()
-
-                Button(action: onMoveUp) {
-                    Label("Move Up", systemImage: "arrow.up")
-                }
-                .disabled(isFirstBlock)
-
-                Button(action: onMoveDown) {
-                    Label("Move Down", systemImage: "arrow.down")
-                }
-                .disabled(isLastBlock)
-
-                Button(action: onDuplicate) {
-                    Label("Duplicate", systemImage: "plus.square.on.square")
-                }
-
-                Divider()
-
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete Block", systemImage: "trash")
-                }
-            }
-            .onDrag {
-                onStartDrag()
-                return NSItemProvider(object: block.id as NSString)
+        .onChange(of: textBuffer) { _, newVal in
+            if block.text != newVal {
+                onUpdateText(newVal)
             }
         }
-        .frame(width: 44)
+    }
+
+    // MARK: - Left Gutter Handle: [::] (Width: 14pt)
+
+    private var dragHandleControl: some View {
+        Button(action: onSelectHandle) {
+            SixDotsHandleView()
+                .frame(width: 14, height: 18)
+                .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+        }
+        .buttonStyle(.plain)
+        .help("Click to select, Shift+Click to range select, or drag to move")
+        .accessibilityLabel("Block handle: click to select or drag to rearrange")
+        .contextMenu {
+            Menu("Turn into") {
+                allBlocksTransformMenu
+            }
+
+            Divider()
+
+            Button(action: onMoveUp) {
+                Label("Move Up", systemImage: "arrow.up")
+            }
+            .disabled(isFirstBlock)
+
+            Button(action: onMoveDown) {
+                Label("Move Down", systemImage: "arrow.down")
+            }
+            .disabled(isLastBlock)
+
+            Button(action: onDuplicate) {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+
+            Divider()
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete Block", systemImage: "trash")
+            }
+        }
+        .onDrag {
+            onStartDrag()
+            return NSItemProvider(object: block.id as NSString)
+        }
+        .frame(width: 14)
         .opacity((isHovered || isSelected) ? 1.0 : 0.0)
         .animation(.easeInOut(duration: 0.12), value: isHovered || isSelected)
     }
@@ -1304,7 +1493,8 @@ struct BlockRowView: View {
         case .heading(let level):
             BlockEditorField(
                 text: $textBuffer,
-                placeholder: isFocused ? "Heading \(level)..." : "",
+                dynamicHeight: $dynamicHeight,
+                placeholder: (isFocused && textBuffer.isEmpty) ? "Heading \(level)..." : "",
                 font: NSFont.systemFont(ofSize: headingFontSize(level), weight: .bold),
                 textColor: .labelColor,
                 isFocused: isFocused,
@@ -1319,12 +1509,14 @@ struct BlockRowView: View {
                 onSelectAllBlocks: onSelectAllBlocks,
                 onFormattingStateChanged: { state in formattingState = state }
             )
+            .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
         // 2. Plain Text Paragraph
         case .paragraph:
             BlockEditorField(
                 text: $textBuffer,
-                placeholder: isFocused ? "Type '/' for commands, or start writing..." : "",
+                dynamicHeight: $dynamicHeight,
+                placeholder: (isFocused && textBuffer.isEmpty) ? "Type '/' for commands, or start writing..." : "",
                 font: NSFont.systemFont(ofSize: 15),
                 textColor: .labelColor,
                 isFocused: isFocused,
@@ -1339,18 +1531,20 @@ struct BlockRowView: View {
                 onSelectAllBlocks: onSelectAllBlocks,
                 onFormattingStateChanged: { state in formattingState = state }
             )
+            .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
         // 3. Bulleted List
         case .bullet:
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("•")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 12)
+                    .frame(width: 10)
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "List item..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "List item..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -1365,11 +1559,12 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
 
         // 4. Numbered List
         case .numbered(let idx):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(idx).")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -1377,7 +1572,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "List item..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "List item..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -1392,6 +1588,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
 
         // 5. Toggle List
@@ -1409,7 +1606,8 @@ struct BlockRowView: View {
 
                     BlockEditorField(
                         text: $textBuffer,
-                        placeholder: isFocused ? "Toggle list heading..." : "",
+                        dynamicHeight: $dynamicHeight,
+                        placeholder: (isFocused && textBuffer.isEmpty) ? "Toggle list heading..." : "",
                         font: NSFont.systemFont(ofSize: 15, weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
@@ -1424,10 +1622,11 @@ struct BlockRowView: View {
                         onSelectAllBlocks: onSelectAllBlocks,
                         onFormattingStateChanged: { state in formattingState = state }
                     )
+                    .frame(minHeight: dynamicHeight, alignment: .topLeading)
                 }
 
                 if isExpanded {
-                    Text("Empty toggle. Press '+' on left to add child blocks.")
+                    Text("Empty toggle. Press '+' below to add child blocks.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .padding(.leading, 24)
@@ -1445,7 +1644,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "Quote..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "Quote..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .secondaryLabelColor,
                     isFocused: isFocused,
@@ -1460,6 +1660,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
             .padding(.vertical, 2)
 
@@ -1496,7 +1697,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "To-do..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "To-do..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: checked ? .secondaryLabelColor : .labelColor,
                     isFocused: isFocused,
@@ -1511,6 +1713,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
 
         // 9. Callout Box (Editable text, emoji & theme menu, and delete button)
@@ -1537,7 +1740,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "Callout note..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "Callout note..." : "",
                     font: NSFont.systemFont(ofSize: 15),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -1552,6 +1756,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
                 if isHovered || isSelected {
                     Button(role: .destructive, action: onDelete) {
@@ -1584,7 +1789,8 @@ struct BlockRowView: View {
                     // Editable Title
                     BlockEditorField(
                         text: $textBuffer,
-                        placeholder: isFocused ? "Bookmark Title..." : "",
+                        dynamicHeight: $dynamicHeight,
+                        placeholder: (isFocused && textBuffer.isEmpty) ? "Bookmark Title..." : "",
                         font: NSFont.systemFont(ofSize: 14, weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
@@ -1599,6 +1805,7 @@ struct BlockRowView: View {
                         onSelectAllBlocks: onSelectAllBlocks,
                         onFormattingStateChanged: { state in formattingState = state }
                     )
+                    .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
                     Spacer()
 
@@ -1727,7 +1934,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "Add a caption (optional)..." : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "Add a caption (optional)..." : "",
                     font: NSFont.systemFont(ofSize: 13),
                     textColor: .secondaryLabelColor,
                     isFocused: isFocused,
@@ -1745,6 +1953,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -1776,7 +1985,8 @@ struct BlockRowView: View {
 
                 BlockEditorField(
                     text: $textBuffer,
-                    placeholder: isFocused ? "e.g. E = mc^2 or \\int_0^\\infty e^{-x} dx" : "",
+                    dynamicHeight: $dynamicHeight,
+                    placeholder: (isFocused && textBuffer.isEmpty) ? "e.g. E = mc^2 or \\int_0^\\infty e^{-x} dx" : "",
                     font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
                     textColor: .labelColor,
                     isFocused: isFocused,
@@ -1794,6 +2004,7 @@ struct BlockRowView: View {
                     onSelectAllBlocks: onSelectAllBlocks,
                     onFormattingStateChanged: { state in formattingState = state }
                 )
+                .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
                 if !textBuffer.isEmpty {
                     HStack {
@@ -1882,6 +2093,9 @@ struct BlockRowView: View {
                 rows: rows,
                 onUpdateTable: { newHeaders, newRows in
                     onTransformKind(.grid(headers: newHeaders, rows: newRows))
+                },
+                onInsertBelow: {
+                    onInsertBelow(.paragraph, "")
                 },
                 onDelete: onDelete
             )
@@ -2079,6 +2293,7 @@ struct ModernTableView: View {
     let headers: [String]
     let rows: [[String]]
     let onUpdateTable: ([String], [[String]]) -> Void
+    let onInsertBelow: () -> Void
     let onDelete: () -> Void
 
     @State private var hoveredRowIdx: Int? = nil
@@ -2156,8 +2371,8 @@ struct ModernTableView: View {
             }
             .padding(.horizontal, 2)
 
-            // Table Grid Container with Horizontal Scrolling if content exceeds width
-            ScrollView(.horizontal, showsIndicators: false) {
+            // Table Grid Container stretching full width of canvas
+            VStack(spacing: 0) {
                 VStack(spacing: 0) {
                     // Header Row
                     HStack(spacing: 0) {
@@ -2279,11 +2494,30 @@ struct ModernTableView: View {
                     .buttonStyle(.plain)
                     .background(Color.primary.opacity(0.02))
                 }
+                .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
+
+                // Unmissable "+ Add block below table" button
+                Button(action: onInsertBelow) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Add block below table")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.primary.opacity(0.03))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.secondary.opacity(0.18), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
         }
         .padding(.vertical, 4)
@@ -2322,7 +2556,7 @@ struct ModernTableView: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: cellHeight)
         .onHover { h in
             if h { hoveredColIdx = colIdx }
@@ -2347,7 +2581,7 @@ struct ModernTableView: View {
         .textFieldStyle(.plain)
         .font(.system(size: 13))
         .padding(.horizontal, 10)
-        .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: cellHeight)
     }
 

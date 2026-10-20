@@ -807,11 +807,20 @@ struct DocumentCanvasView: View {
                         formattingState: $formattingState
                     )
 
-                    Spacer(minLength: 200)
+                    // Clickable empty canvas space to immediately start writing at the bottom
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 180)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            blockActionTrigger = .insertBlock(.paragraph)
+                        }
+
+                    Spacer(minLength: 100)
                 }
-                .frame(maxWidth: 920)
-                .padding(.horizontal, 28)
-                .padding(.top, currentPage.coverUrl.isEmpty ? 28 : 16)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 16)
+                .padding(.top, currentPage.coverUrl.isEmpty ? 24 : 14)
                 .frame(maxWidth: .infinity)
             }
         }
