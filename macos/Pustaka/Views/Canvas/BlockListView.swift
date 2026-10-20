@@ -377,6 +377,24 @@ struct BlockListView: View {
     }
 
     private func formatActiveBlock(marker: String) {
+        // 1. If text is selected in the currently focused NSTextView, format that substring!
+        if let window = NSApp.keyWindow,
+           let textView = window.firstResponder as? NSTextView {
+            let range = textView.selectedRange()
+            if range.length > 0 {
+                let str = (textView.string as NSString).substring(with: range)
+                let replacement: String
+                if str.hasPrefix(marker) && str.hasSuffix(marker) && str.count >= marker.count * 2 {
+                    replacement = String(str.dropFirst(marker.count).dropLast(marker.count))
+                } else {
+                    replacement = "\(marker)\(str)\(marker)"
+                }
+                textView.insertText(replacement, replacementRange: range)
+                return
+            }
+        }
+
+        // 2. Multi-block selection formatting
         if !selectedBlockIds.isEmpty {
             for i in 0..<blocks.count {
                 if selectedBlockIds.contains(blocks[i].id) {
@@ -392,6 +410,7 @@ struct BlockListView: View {
             return
         }
 
+        // 3. Fallback: Entire active block
         if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
             let old = blocks[idx].text
             if old.hasPrefix(marker) && old.hasSuffix(marker) && old.count >= marker.count * 2 {
@@ -442,43 +461,68 @@ struct BlockListView: View {
     }
 
     private func deleteSelectedBlocks() {
-        guard !selectedBlockIds.isEmpty else { return }
-        blocks.removeAll { selectedBlockIds.contains($0.id) }
-        if blocks.isEmpty {
-            blocks = [UIBlockItem(id: "blk_1", kind: .paragraph, text: "")]
+        if !selectedBlockIds.isEmpty {
+            blocks.removeAll { selectedBlockIds.contains($0.id) }
+            if blocks.isEmpty {
+                blocks = [UIBlockItem(id: "blk_1", kind: .paragraph, text: "")]
+            }
+            selectedBlockIds.removeAll()
+            syncBackToStore()
+            return
         }
-        selectedBlockIds.removeAll()
-        syncBackToStore()
+
+        if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
+            deleteBlockAt(index: idx)
+        }
     }
 
     private func duplicateSelectedBlocks() {
-        guard !selectedBlockIds.isEmpty else { return }
-        var newBlocks: [UIBlockItem] = []
-        var newSelectedIds: Set<String> = []
+        if !selectedBlockIds.isEmpty {
+            var newBlocks: [UIBlockItem] = []
+            var newSelectedIds: Set<String> = []
 
-        for block in blocks {
-            newBlocks.append(block)
-            if selectedBlockIds.contains(block.id) {
-                let dupId = "blk_\(UUID().uuidString.prefix(6))"
-                let dup = UIBlockItem(id: dupId, kind: block.kind, text: block.text)
-                newBlocks.append(dup)
-                newSelectedIds.insert(dupId)
+            for block in blocks {
+                newBlocks.append(block)
+                if selectedBlockIds.contains(block.id) {
+                    let dupId = "blk_\(UUID().uuidString.prefix(6))"
+                    let dup = UIBlockItem(id: dupId, kind: block.kind, text: block.text)
+                    newBlocks.append(dup)
+                    newSelectedIds.insert(dupId)
+                }
             }
+
+            blocks = newBlocks
+            selectedBlockIds = newSelectedIds
+            syncBackToStore()
+            return
         }
 
-        blocks = newBlocks
-        selectedBlockIds = newSelectedIds
-        syncBackToStore()
+        if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
+            let dupId = "blk_\(UUID().uuidString.prefix(6))"
+            let dup = UIBlockItem(id: dupId, kind: blocks[idx].kind, text: blocks[idx].text)
+            blocks.insert(dup, at: idx + 1)
+            syncBackToStore()
+            DispatchQueue.main.async {
+                self.focusedBlockId = dupId
+            }
+        }
     }
 
     private func transformSelectedBlocks(to newKind: UIBlockKind) {
-        guard !selectedBlockIds.isEmpty else { return }
-        for i in 0..<blocks.count {
-            if selectedBlockIds.contains(blocks[i].id) {
-                blocks[i].kind = newKind
+        if !selectedBlockIds.isEmpty {
+            for i in 0..<blocks.count {
+                if selectedBlockIds.contains(blocks[i].id) {
+                    blocks[i].kind = newKind
+                }
             }
+            syncBackToStore()
+            return
         }
-        syncBackToStore()
+
+        if let focusedId = focusedBlockId, let idx = blocks.firstIndex(where: { $0.id == focusedId }) {
+            blocks[idx].kind = newKind
+            syncBackToStore()
+        }
     }
 
     private func deleteBlockAt(index: Int) {
@@ -1474,7 +1518,7 @@ struct BlockRowView: View {
     }
 }
 
-// MARK: - Modern 2D Interactive Table View (Spreadsheet style with editable cells, columns, rows)
+// MARK: - Notion-Style Table View (Clean grid with proper borders and cell editing)
 
 struct ModernTableView: View {
     let headers: [String]
@@ -1483,10 +1527,15 @@ struct ModernTableView: View {
     let onDelete: () -> Void
 
     @State private var hoveredRowIdx: Int? = nil
+    @State private var hoveredColIdx: Int? = nil
+    @State private var isTableHovered: Bool = false
+
+    private let cellHeight: CGFloat = 34
+    private let indexGutterWidth: CGFloat = 36
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Table Control Header Bar
+        VStack(alignment: .leading, spacing: 6) {
+            // Table Top Action Bar
             HStack(spacing: 8) {
                 Label("Table", systemImage: "tablecells")
                     .font(.system(size: 12, weight: .semibold))
@@ -1550,102 +1599,130 @@ struct ModernTableView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 2)
 
-            // Table Grid Container with Horizontal Scrolling if wide
+            // Table Grid Container with Horizontal Scrolling if content exceeds width
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(spacing: 0) {
                     // Header Row
                     HStack(spacing: 0) {
-                        ForEach(Array(headers.enumerated()), id: \.offset) { colIdx, headerTitle in
-                            HStack(spacing: 4) {
-                                TextField("Column \(colIdx + 1)", text: Binding(
-                                    get: { headerTitle },
-                                    set: { newTitle in
-                                        var newH = headers
-                                        newH[colIdx] = newTitle
-                                        onUpdateTable(newH, rows)
-                                    }
-                                ))
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.primary)
+                        // Left index corner
+                        Text("#")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: indexGutterWidth, height: cellHeight)
+                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
 
-                                if headers.count > 1 {
-                                    Button(action: { deleteColumn(at: colIdx) }) {
-                                        Image(systemName: "xmark")
-                                            .font(.system(size: 8, weight: .bold))
-                                            .foregroundStyle(.secondary.opacity(0.6))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help("Delete this column")
-                                }
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .frame(minWidth: 120, alignment: .leading)
-                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.18))
+                            .frame(width: 1, height: cellHeight)
+
+                        ForEach(Array(headers.enumerated()), id: \.offset) { colIdx, title in
+                            headerCell(colIdx: colIdx, title: title)
 
                             if colIdx < headers.count - 1 {
-                                Divider().frame(height: 28)
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.18))
+                                    .frame(width: 1, height: cellHeight)
                             }
                         }
-                    }
-                    .background(Color.primary.opacity(0.04))
 
-                    Divider()
+                        // Rightmost + Column button
+                        Button(action: addColumn) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 32, height: cellHeight)
+                        }
+                        .buttonStyle(.plain)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                        .help("Add Column")
+                    }
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.22))
+                        .frame(height: 1)
 
                     // Data Rows
                     ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, rowCells in
-                        HStack(spacing: 0) {
-                            ForEach(0..<headers.count, id: \.self) { colIdx in
-                                let cellVal = colIdx < rowCells.count ? rowCells[colIdx] : ""
-                                TextField("Empty", text: Binding(
-                                    get: { cellVal },
-                                    set: { newVal in
-                                        var newRows = rows
-                                        while newRows[rowIdx].count <= colIdx {
-                                            newRows[rowIdx].append("")
+                        VStack(spacing: 0) {
+                            HStack(spacing: 0) {
+                                // Left Row Number / Delete Button
+                                ZStack {
+                                    if hoveredRowIdx == rowIdx {
+                                        Button(action: { deleteRow(at: rowIdx) }) {
+                                            Image(systemName: "trash")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.red.opacity(0.8))
                                         }
-                                        newRows[rowIdx][colIdx] = newVal
-                                        onUpdateTable(headers, newRows)
+                                        .buttonStyle(.plain)
+                                        .help("Delete row")
+                                    } else {
+                                        Text("\(rowIdx + 1)")
+                                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
                                     }
-                                ))
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 12))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .frame(minWidth: 120, alignment: .leading)
-
-                                if colIdx < headers.count - 1 {
-                                    Divider().frame(height: 26)
                                 }
+                                .frame(width: indexGutterWidth, height: cellHeight)
+                                .background(Color.primary.opacity(0.015))
+
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.12))
+                                    .frame(width: 1, height: cellHeight)
+
+                                ForEach(0..<headers.count, id: \.self) { colIdx in
+                                    dataCell(rowIdx: rowIdx, colIdx: colIdx, rowCells: rowCells)
+
+                                    if colIdx < headers.count - 1 {
+                                        Rectangle()
+                                            .fill(Color.secondary.opacity(0.12))
+                                            .frame(width: 1, height: cellHeight)
+                                    }
+                                }
+
+                                // Match + Column header width
+                                Color.clear
+                                    .frame(width: 32, height: cellHeight)
+                            }
+                            .background(
+                                hoveredRowIdx == rowIdx
+                                    ? Color.accentColor.opacity(0.05)
+                                    : (rowIdx % 2 == 1 ? Color.primary.opacity(0.015) : Color.clear)
+                            )
+                            .onHover { h in
+                                if h { hoveredRowIdx = rowIdx }
+                                else if hoveredRowIdx == rowIdx { hoveredRowIdx = nil }
                             }
 
-                            // Subtle row delete button on hover
-                            if hoveredRowIdx == rowIdx {
-                                Button(action: { deleteRow(at: rowIdx) }) {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.red.opacity(0.75))
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal, 6)
-                                .help("Delete this row")
-                            } else {
-                                Color.clear.frame(width: 20)
+                            if rowIdx < rows.count - 1 {
+                                Rectangle()
+                                    .fill(Color.secondary.opacity(0.1))
+                                    .frame(height: 1)
                             }
-                        }
-                        .background(rowIdx % 2 == 1 ? Color.primary.opacity(0.015) : Color.clear)
-                        .onHover { isHovered in
-                            if isHovered { hoveredRowIdx = rowIdx }
-                            else if hoveredRowIdx == rowIdx { hoveredRowIdx = nil }
-                        }
-
-                        if rowIdx < rows.count - 1 {
-                            Divider()
                         }
                     }
+
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 1)
+
+                    // Bottom "New Row" strip inside table
+                    Button(action: addRow) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("New row")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, indexGutterWidth + 10)
+                        .frame(height: 30)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.primary.opacity(0.02))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
@@ -1653,63 +1730,105 @@ struct ModernTableView: View {
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
             }
-
-            // Bottom Quick Add Row Action
-            Button(action: addRow) {
-                HStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .medium))
-                    Text("New Row")
-                        .font(.system(size: 11))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.03))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onHover { isTableHovered = $0 }
     }
 
-    private func addColumn() {
-        var newH = headers
-        newH.append("Column \(newH.count + 1)")
-        var newR = rows
-        for i in 0..<newR.count {
-            newR[i].append("")
-        }
-        onUpdateTable(newH, newR)
-    }
+    // MARK: - Header Cell
 
-    private func deleteColumn(at colIdx: Int) {
-        guard headers.count > 1 else { return }
-        var newH = headers
-        newH.remove(at: colIdx)
-        var newR = rows
-        for i in 0..<newR.count {
-            if colIdx < newR[i].count {
-                newR[i].remove(at: colIdx)
+    @ViewBuilder
+    private func headerCell(colIdx: Int, title: String) -> some View {
+        HStack(spacing: 4) {
+            TextField("Column \(colIdx + 1)", text: Binding(
+                get: { title },
+                set: { newTitle in
+                    var h = headers
+                    h[colIdx] = newTitle
+                    onUpdateTable(h, rows)
+                }
+            ))
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.primary)
+
+            if headers.count > 1 && hoveredColIdx == colIdx {
+                Button(action: { deleteColumn(at: colIdx) }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                        .padding(3)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Delete column")
             }
         }
-        onUpdateTable(newH, newR)
+        .padding(.horizontal, 10)
+        .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+        .frame(height: cellHeight)
+        .onHover { h in
+            if h { hoveredColIdx = colIdx }
+            else if hoveredColIdx == colIdx { hoveredColIdx = nil }
+        }
+    }
+
+    // MARK: - Data Cell
+
+    @ViewBuilder
+    private func dataCell(rowIdx: Int, colIdx: Int, rowCells: [String]) -> some View {
+        let val = colIdx < rowCells.count ? rowCells[colIdx] : ""
+        TextField("Empty", text: Binding(
+            get: { val },
+            set: { newVal in
+                var r = rows
+                while r[rowIdx].count <= colIdx { r[rowIdx].append("") }
+                r[rowIdx][colIdx] = newVal
+                onUpdateTable(headers, r)
+            }
+        ))
+        .textFieldStyle(.plain)
+        .font(.system(size: 13))
+        .padding(.horizontal, 10)
+        .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+        .frame(height: cellHeight)
+    }
+
+    // MARK: - Table Mutations
+
+    private func addColumn() {
+        var h = headers
+        h.append("Column \(h.count + 1)")
+        var r = rows
+        for i in 0..<r.count { r[i].append("") }
+        onUpdateTable(h, r)
+    }
+
+    private func deleteColumn(at idx: Int) {
+        guard headers.count > 1 else { return }
+        var h = headers; h.remove(at: idx)
+        var r = rows
+        for i in 0..<r.count {
+            if idx < r[i].count { r[i].remove(at: idx) }
+        }
+        onUpdateTable(h, r)
     }
 
     private func addRow() {
-        var newR = rows
-        newR.append(Array(repeating: "", count: headers.count))
-        onUpdateTable(headers, newR)
+        var r = rows
+        r.append(Array(repeating: "", count: headers.count))
+        onUpdateTable(headers, r)
     }
 
-    private func deleteRow(at rowIdx: Int) {
+    private func deleteRow(at idx: Int) {
         guard rows.count > 1 else {
             onUpdateTable(headers, [Array(repeating: "", count: headers.count)])
             return
         }
-        var newR = rows
-        newR.remove(at: rowIdx)
-        onUpdateTable(headers, newR)
+        var r = rows; r.remove(at: idx)
+        onUpdateTable(headers, r)
     }
 
     private func clearCells() {

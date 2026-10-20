@@ -157,9 +157,28 @@ struct DocumentCanvasView: View {
     @State private var customEmojiInput: String = ""
     @State private var customCoverUrlInput: String = ""
 
-    // Dynamic accessor ensures immediate reactivity upon store updates
     var currentPage: DocumentPage {
         store.pages.first(where: { $0.id == page.id }) ?? page
+    }
+
+    // MARK: - Document Statistics
+
+    private var wordCount: Int {
+        let text = currentPage.rawContent
+        let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        return words.count
+    }
+
+    private var characterCount: Int {
+        currentPage.rawContent.count
+    }
+
+    private var readingTimeMinutes: Int {
+        max(1, Int(ceil(Double(wordCount) / 200.0)))
+    }
+
+    private var blockCount: Int {
+        store.parseToUIBlocks(content: currentPage.rawContent).count
     }
 
     var body: some View {
@@ -167,7 +186,6 @@ struct DocumentCanvasView: View {
             ZStack(alignment: .trailing) {
                 documentCanvasBody
 
-                // Slide-over Drawer for Typst Live Preview (Toggled with Cmd+P or ... menu)
                 if store.isPreviewDrawerPresented {
                     HStack(spacing: 0) {
                         Divider()
@@ -183,13 +201,19 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            // Floating Multi-Selection Action Toolbar (Notion Style)
+            // Floating Action Toolbar (Notion & Bear style glassmorphic island)
             if !selectedBlockIds.isEmpty {
                 floatingSelectionToolbar
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 22)
                     .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .bottom).combined(with: .opacity)
+                        insertion: .scale(scale: 0.95).combined(with: .opacity),
+                        removal: .scale(scale: 0.95).combined(with: .opacity)
+                    ))
+            } else {
+                floatingEditorToolbar
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.95).combined(with: .opacity),
+                        removal: .scale(scale: 0.95).combined(with: .opacity)
                     ))
             }
         }
@@ -221,6 +245,16 @@ struct DocumentCanvasView: View {
                     }
                 }
                 .keyboardShortcut("d", modifiers: .command)
+
+                Button("") {
+                    blockActionTrigger = .formatActiveBlock("**")
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Button("") {
+                    blockActionTrigger = .formatActiveBlock("*")
+                }
+                .keyboardShortcut("i", modifiers: .command)
             }
             .opacity(0)
             .frame(width: 0, height: 0)
@@ -241,6 +275,7 @@ struct DocumentCanvasView: View {
                     Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(currentPage.title.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
                 }
             }
 
@@ -286,36 +321,57 @@ struct DocumentCanvasView: View {
                             .font(.system(size: 12, weight: .medium))
                     }
                 }
-                .help("Insert a new block into the document")
+                .help("Insert block into document")
 
-                // 2. Rich Text Quick Format Tools
+                // 2. Formatting Control Group
                 ControlGroup {
                     Button(action: { blockActionTrigger = .formatActiveBlock("**") }) {
                         Image(systemName: "bold")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .help("Bold (wrap with **)")
+                    .help("Bold (⌘B)")
 
                     Button(action: { blockActionTrigger = .formatActiveBlock("*") }) {
                         Image(systemName: "italic")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .help("Italic (wrap with *)")
+                    .help("Italic (⌘I)")
 
-                    Button(action: { blockActionTrigger = .formatActiveBlock("~") }) {
+                    Button(action: { blockActionTrigger = .formatActiveBlock("~~") }) {
                         Image(systemName: "strikethrough")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .help("Strikethrough (wrap with ~)")
+                    .help("Strikethrough")
 
                     Button(action: { blockActionTrigger = .formatActiveBlock("`") }) {
                         Image(systemName: "curlybraces")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .help("Inline Code (wrap with `)")
+                    .help("Inline Code")
                 }
 
-                // 3. Document Live Word & Reading Time Stats
+                // 3. Quick Table Shortcut Button
+                Button(action: {
+                    blockActionTrigger = .insertBlock(.grid(
+                        headers: ["Column 1", "Column 2", "Column 3"],
+                        rows: [["", "", ""], ["", "", ""]]
+                    ))
+                }) {
+                    Image(systemName: "tablecells")
+                        .font(.system(size: 12))
+                }
+                .help("Insert Table")
+
+                // 4. Quick Checklist Shortcut Button
+                Button(action: {
+                    blockActionTrigger = .insertBlock(.todo(checked: false))
+                }) {
+                    Image(systemName: "checkmark.square")
+                        .font(.system(size: 12))
+                }
+                .help("Insert To-do item")
+
+                // 5. Live Document Stats Pill
                 Button(action: { isStatsPopoverOpen.toggle() }) {
                     HStack(spacing: 3) {
                         Image(systemName: "chart.bar.doc.horizontal")
@@ -335,7 +391,7 @@ struct DocumentCanvasView: View {
                     statsPopoverView
                 }
 
-                // 4. Live Typst Preview Toggle Button
+                // 6. Live Typst Preview Toggle
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.22)) {
                         store.isPreviewDrawerPresented.toggle()
@@ -354,15 +410,15 @@ struct DocumentCanvasView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
-                .help("Toggle Typst Vector Preview (Cmd+P)")
+                .help("Toggle Typst Vector Preview (⌘P)")
 
-                // 5. Share & Export Menu
+                // 7. Share & Export Menu
                 Menu {
                     Button(action: { exportDocument(format: "md") }) {
-                        Label("Export as Markdown (.md)...", systemImage: "arrow.down.doc")
+                        Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
                     }
                     Button(action: { exportDocument(format: "typ") }) {
-                        Label("Export as Typst (.typ)...", systemImage: "arrow.down.doc.fill")
+                        Label("Export as Typst (.typ)", systemImage: "arrow.down.doc.fill")
                     }
                     Divider()
                     Button(action: {
@@ -384,15 +440,15 @@ struct DocumentCanvasView: View {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 12))
                 }
-                .help("Share & Export Document")
+                .help("Export & Share Document")
 
-                // 6. Page Options Menu (...)
+                // 8. Page Options Menu (...)
                 Menu {
                     Button(action: { isCoverPickerOpen = true }) {
-                        Label(currentPage.coverUrl.isEmpty ? "Add Cover Image" : "Change Cover Image", systemImage: "photo")
+                        Label(currentPage.coverUrl.isEmpty ? "Add Cover" : "Change Cover", systemImage: "photo")
                     }
                     Button(action: { isIconPickerOpen = true }) {
-                        Label(currentPage.icon.isEmpty ? "Add Page Icon" : "Change Page Icon", systemImage: "face.smiling")
+                        Label(currentPage.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
                     }
                     Divider()
                     Button(action: { store.duplicatePage(id: currentPage.id) }) {
@@ -430,21 +486,39 @@ struct DocumentCanvasView: View {
         }
     }
 
-    // MARK: - Document Statistics
+    // MARK: - Export Action
 
-    private var wordCount: Int {
-        let text = currentPage.rawContent
-        let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-        return words.count
+    private func exportDocument(format: String) {
+        let panel = NSSavePanel()
+        panel.title = "Export Document"
+        let safeTitle = currentPage.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Untitled" : currentPage.title
+        panel.nameFieldStringValue = "\(safeTitle).\(format)"
+        panel.allowedContentTypes = [UTType(filenameExtension: format) ?? .plainText]
+        panel.canCreateDirectories = true
+
+        let content: String
+        if format == "typ" {
+            content = "= \(currentPage.title)\n\n\(currentPage.rawContent)"
+        } else {
+            content = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            try? content.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
-    private var characterCount: Int {
-        currentPage.rawContent.count
+    private func focusFirstBlock() {
+        let blocks = store.parseToUIBlocks(content: currentPage.rawContent)
+        if let first = blocks.first {
+            focusedBlockId = nil
+            DispatchQueue.main.async {
+                self.focusedBlockId = first.id
+            }
+        }
     }
 
-    private var readingTimeMinutes: Int {
-        max(1, Int(ceil(Double(wordCount) / 200.0)))
-    }
+    // MARK: - Document Statistics Popover
 
     private var statsPopoverView: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -485,7 +559,7 @@ struct DocumentCanvasView: View {
                 Text("Blocks")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(store.parseToUIBlocks(content: currentPage.rawContent).count)")
+                Text("\(blockCount)")
                     .fontWeight(.semibold)
             }
             .font(.caption)
@@ -494,36 +568,174 @@ struct DocumentCanvasView: View {
         .frame(width: 200)
     }
 
-    // MARK: - Export Action
+    // MARK: - Floating Editor Toolbar (Notion & Bear Glassmorphic Island)
 
-    private func exportDocument(format: String) {
-        let panel = NSSavePanel()
-        panel.title = "Export Document"
-        let safeTitle = currentPage.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Untitled" : currentPage.title
-        panel.nameFieldStringValue = "\(safeTitle).\(format)"
-        panel.allowedContentTypes = [UTType(filenameExtension: format) ?? .plainText]
-        panel.canCreateDirectories = true
+    private var floatingEditorToolbar: some View {
+        HStack(spacing: 8) {
+            // 1. Quick Insert Menu Button
+            Menu {
+                Section("Basic Blocks") {
+                    Button("Text Paragraph") { blockActionTrigger = .insertBlock(.paragraph) }
+                    Button("Heading 1") { blockActionTrigger = .insertBlock(.heading(level: 1)) }
+                    Button("Heading 2") { blockActionTrigger = .insertBlock(.heading(level: 2)) }
+                    Button("Heading 3") { blockActionTrigger = .insertBlock(.heading(level: 3)) }
+                }
+                Section("Lists") {
+                    Button("To-do List") { blockActionTrigger = .insertBlock(.todo(checked: false)) }
+                    Button("Bulleted List") { blockActionTrigger = .insertBlock(.bullet) }
+                    Button("Numbered List") { blockActionTrigger = .insertBlock(.numbered(index: 1)) }
+                    Button("Toggle List") { blockActionTrigger = .insertBlock(.toggle(isExpanded: false)) }
+                }
+                Section("Callouts & Quotes") {
+                    Button("Quote") { blockActionTrigger = .insertBlock(.quote) }
+                    Button("Info Callout (💡)") { blockActionTrigger = .insertBlock(.callout(icon: "💡", theme: .blue)) }
+                    Button("Warning Callout (⚠️)") { blockActionTrigger = .insertBlock(.callout(icon: "⚠️", theme: .red)) }
+                    Button("Tip Callout (✅)") { blockActionTrigger = .insertBlock(.callout(icon: "✅", theme: .green)) }
+                }
+                Section("Media & Data") {
+                    Button("Table / Grid") {
+                        blockActionTrigger = .insertBlock(.grid(
+                            headers: ["Column 1", "Column 2", "Column 3"],
+                            rows: [["", "", ""], ["", "", ""]]
+                        ))
+                    }
+                    Button("Code Block") { blockActionTrigger = .insertBlock(.code(lang: "rust")) }
+                    Button("Math Equation") { blockActionTrigger = .insertBlock(.math(expression: "")) }
+                    Button("Web Bookmark") { blockActionTrigger = .insertBlock(.bookmark(url: "https://apple.com")) }
+                    Button("Image") { blockActionTrigger = .insertBlock(.image(url: "", caption: "")) }
+                    Button("Divider") { blockActionTrigger = .insertBlock(.divider) }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                    Text("Add")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("Insert block")
 
-        let content: String
-        if format == "typ" {
-            content = "= \(currentPage.title)\n\n\(currentPage.rawContent)"
-        } else {
-            content = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
+            // 2. Turn into Menu
+            Menu {
+                Section("Turn into") {
+                    Button("Text") { blockActionTrigger = .transformSelected(.paragraph) }
+                    Button("Heading 1") { blockActionTrigger = .transformSelected(.heading(level: 1)) }
+                    Button("Heading 2") { blockActionTrigger = .transformSelected(.heading(level: 2)) }
+                    Button("Heading 3") { blockActionTrigger = .transformSelected(.heading(level: 3)) }
+                    Divider()
+                    Button("To-do List") { blockActionTrigger = .transformSelected(.todo(checked: false)) }
+                    Button("Bulleted List") { blockActionTrigger = .transformSelected(.bullet) }
+                    Button("Numbered List") { blockActionTrigger = .transformSelected(.numbered(index: 1)) }
+                    Button("Quote") { blockActionTrigger = .transformSelected(.quote) }
+                    Button("Code Block") { blockActionTrigger = .transformSelected(.code(lang: "rust")) }
+                    Button("Table / Grid") {
+                        blockActionTrigger = .transformSelected(.grid(
+                            headers: ["Column 1", "Column 2", "Column 3"],
+                            rows: [["", "", ""], ["", "", ""]]
+                        ))
+                    }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10))
+                    Text("Style")
+                        .font(.system(size: 12, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 7))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("Change block type")
+
+            Divider().frame(height: 16)
+
+            // 3. Formatting Buttons
+            HStack(spacing: 2) {
+                toolbarButton(icon: "bold", help: "Bold (⌘B)") {
+                    blockActionTrigger = .formatActiveBlock("**")
+                }
+                toolbarButton(icon: "italic", help: "Italic (⌘I)") {
+                    blockActionTrigger = .formatActiveBlock("*")
+                }
+                toolbarButton(icon: "strikethrough", help: "Strikethrough") {
+                    blockActionTrigger = .formatActiveBlock("~~")
+                }
+                toolbarButton(icon: "curlybraces", help: "Inline Code") {
+                    blockActionTrigger = .formatActiveBlock("`")
+                }
+            }
+
+            Divider().frame(height: 16)
+
+            // 4. Quick Action Shortcuts
+            HStack(spacing: 2) {
+                toolbarButton(icon: "tablecells", help: "Insert Table") {
+                    blockActionTrigger = .insertBlock(.grid(
+                        headers: ["Column 1", "Column 2", "Column 3"],
+                        rows: [["", "", ""], ["", "", ""]]
+                    ))
+                }
+                toolbarButton(icon: "checkmark.square", help: "Insert To-do") {
+                    blockActionTrigger = .insertBlock(.todo(checked: false))
+                }
+                toolbarButton(icon: "text.quote", help: "Insert Quote") {
+                    blockActionTrigger = .insertBlock(.quote)
+                }
+            }
+
+            Divider().frame(height: 16)
+
+            // 5. Live Document Reading Stats
+            HStack(spacing: 5) {
+                Text("\(wordCount) w")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Text("•")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                Text("~\(readingTimeMinutes)m")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 4)
         }
-
-        if panel.runModal() == .OK, let url = panel.url {
-            try? content.write(to: url, atomically: true, encoding: .utf8)
-        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.ultraThickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.16), radius: 14, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.bottom, 22)
     }
 
-    private func focusFirstBlock() {
-        let blocks = store.parseToUIBlocks(content: currentPage.rawContent)
-        if let first = blocks.first {
-            focusedBlockId = nil
-            DispatchQueue.main.async {
-                self.focusedBlockId = first.id
-            }
+    @ViewBuilder
+    private func toolbarButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     // MARK: - Document Body
@@ -531,12 +743,10 @@ struct DocumentCanvasView: View {
     private var documentCanvasBody: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: 0) {
-                // Cover Image Banner
                 if !currentPage.coverUrl.isEmpty {
                     pageCoverBannerView
                 }
 
-                // Centered Notion Page Area
                 VStack(alignment: .leading, spacing: 14) {
                     notionPageHeaderView
 
@@ -548,7 +758,7 @@ struct DocumentCanvasView: View {
                         blockActionTrigger: $blockActionTrigger
                     )
 
-                    Spacer(minLength: 160)
+                    Spacer(minLength: 200)
                 }
                 .frame(maxWidth: 740)
                 .padding(.horizontal, 36)
@@ -598,7 +808,6 @@ struct DocumentCanvasView: View {
             .frame(maxWidth: .infinity)
             .clipped()
 
-            // Cover Action Buttons: Change cover / Remove
             HStack(spacing: 8) {
                 Button(action: {
                     isCoverPickerOpen = true
@@ -648,7 +857,6 @@ struct DocumentCanvasView: View {
 
     private var notionPageHeaderView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Action bar: [Add icon] [Add cover] when missing
             HStack(spacing: 10) {
                 if currentPage.icon.isEmpty {
                     Button(action: {
@@ -694,7 +902,6 @@ struct DocumentCanvasView: View {
             }
             .frame(height: 24)
 
-            // Current Page Icon (If present, click to change or remove)
             if !currentPage.icon.isEmpty {
                 Button(action: {
                     isIconPickerOpen = true
@@ -708,7 +915,6 @@ struct DocumentCanvasView: View {
                 .help("Click to change or remove icon")
             }
 
-            // Page Title (Enter jumps down to document content)
             TitleEditorField(
                 text: $titleBuffer,
                 placeholder: "Untitled",
@@ -728,7 +934,6 @@ struct DocumentCanvasView: View {
         .padding(.leading, 48)
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
-        // Single, reliably anchored Popovers
         .popover(isPresented: $isIconPickerOpen) {
             iconPickerPopover
         }
@@ -768,7 +973,6 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            // Quick Curated Emoji Grid
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 6), count: 8), spacing: 6) {
                 ForEach(curatedEmojis, id: \.self) { emoji in
                     Button(action: {
@@ -788,7 +992,6 @@ struct DocumentCanvasView: View {
 
             Divider()
 
-            // Input / Random / Native Mac Palette
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     TextField("Paste or type emoji...", text: $customEmojiInput)
@@ -831,7 +1034,6 @@ struct DocumentCanvasView: View {
                     .controlSize(.small)
                 }
 
-                // Native macOS Emoji & Symbols Palette
                 Button(action: {
                     isIconPickerOpen = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -888,7 +1090,6 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            // Section 1: Vibrant Instant Gradients (Offline & 100% Reliable)
             Text("Vibrant Gradients")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -919,7 +1120,6 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            // Section 2: Online Unsplash Curated Photos
             Text("Unsplash Photography")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
@@ -957,7 +1157,6 @@ struct DocumentCanvasView: View {
 
             Divider()
 
-            // Custom URL & Random Option
             HStack(spacing: 6) {
                 TextField("Paste image URL...", text: $customCoverUrlInput)
                     .textFieldStyle(.plain)
@@ -1004,11 +1203,10 @@ struct DocumentCanvasView: View {
         .frame(width: 340)
     }
 
-    // MARK: - Notion-Style Floating Selection Toolbar
+    // MARK: - Floating Selection Toolbar
 
     private var floatingSelectionToolbar: some View {
         HStack(spacing: 10) {
-            // Selected Count Badge
             HStack(spacing: 6) {
                 Circle()
                     .fill(Color.accentColor)
@@ -1022,7 +1220,6 @@ struct DocumentCanvasView: View {
             Divider()
                 .frame(height: 14)
 
-            // Turn Into Menu
             Menu {
                 Section("Turn into") {
                     Button("Text") { blockActionTrigger = .transformSelected(.paragraph) }
@@ -1033,7 +1230,6 @@ struct DocumentCanvasView: View {
                     Button("Bulleted List") { blockActionTrigger = .transformSelected(.bullet) }
                     Button("Numbered List") { blockActionTrigger = .transformSelected(.numbered(index: 1)) }
                     Button("Quote") { blockActionTrigger = .transformSelected(.quote) }
-                    Button("Info Callout (💡)") { blockActionTrigger = .transformSelected(.callout(icon: "💡", theme: .blue)) }
                     Button("Code Block") { blockActionTrigger = .transformSelected(.code(lang: "rust")) }
                 }
             } label: {
@@ -1053,9 +1249,7 @@ struct DocumentCanvasView: View {
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
-            .help("Turn selected blocks into another kind")
 
-            // Duplicate Button
             Button(action: {
                 blockActionTrigger = .duplicateSelected
             }) {
@@ -1072,9 +1266,7 @@ struct DocumentCanvasView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .help("Duplicate selected blocks (Cmd+D)")
 
-            // Delete Button
             Button(role: .destructive, action: {
                 blockActionTrigger = .deleteSelected
             }) {
@@ -1091,12 +1283,10 @@ struct DocumentCanvasView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .help("Delete selected blocks (Backspace / Delete)")
 
             Divider()
                 .frame(height: 14)
 
-            // Deselect (Escape) Button
             Button(action: {
                 selectedBlockIds.removeAll()
             }) {
@@ -1108,7 +1298,6 @@ struct DocumentCanvasView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .help("Deselect all (Esc)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -1119,7 +1308,5 @@ struct DocumentCanvasView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Block selection toolbar")
     }
 }
