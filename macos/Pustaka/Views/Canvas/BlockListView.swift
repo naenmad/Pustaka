@@ -21,7 +21,121 @@ class FocusableBlockTextField: NSTextField {
     }
 }
 
-// MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete & Slash Command Support)
+// MARK: - Live Inline Markdown Styler Engine
+
+enum MarkdownStyler {
+    static func style(
+        text: String,
+        baseFont: NSFont,
+        baseColor: NSColor = .labelColor
+    ) -> NSAttributedString {
+        guard !text.isEmpty else {
+            return NSAttributedString(string: "", attributes: [.font: baseFont, .foregroundColor: baseColor])
+        }
+
+        let attributed = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .font: baseFont,
+                .foregroundColor: baseColor
+            ]
+        )
+
+        let fullRange = NSRange(location: 0, length: (text as NSString).length)
+        let dimColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.4)
+        let delimiterFont = NSFont.systemFont(ofSize: max(9, baseFont.pointSize * 0.82))
+
+        // 1. Bold: **text**
+        if let boldRegex = try? NSRegularExpression(pattern: #"\*\*([^\*]+)\*\*"#) {
+            boldRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
+                guard let m = match, m.numberOfRanges >= 2 else { return }
+                let innerRange = m.range(at: 1)
+                let openDelimRange = NSRange(location: m.range.location, length: 2)
+                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
+
+                let boldFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .boldFontMask)
+                attributed.addAttribute(.font, value: boldFont, range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+            }
+        }
+
+        // 2. Italic: *text* (excluding **)
+        if let italicRegex = try? NSRegularExpression(pattern: #"(?<!\*)\*([^\*]+)\*(?!\*)"#) {
+            italicRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
+                guard let m = match, m.numberOfRanges >= 2 else { return }
+                let innerRange = m.range(at: 1)
+                let openDelimRange = NSRange(location: m.range.location, length: 1)
+                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 1, length: 1)
+
+                let italicFont = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
+                attributed.addAttribute(.font, value: italicFont, range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+            }
+        }
+
+        // 3. Strikethrough: ~~text~~
+        if let strikeRegex = try? NSRegularExpression(pattern: #"~~([^~]+)~~"#) {
+            strikeRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
+                guard let m = match, m.numberOfRanges >= 2 else { return }
+                let innerRange = m.range(at: 1)
+                let openDelimRange = NSRange(location: m.range.location, length: 2)
+                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
+
+                attributed.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: innerRange)
+                attributed.addAttribute(.strikethroughColor, value: baseColor, range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+            }
+        }
+
+        // 4. Inline Code: `text`
+        if let codeRegex = try? NSRegularExpression(pattern: #"`([^`]+)`"#) {
+            codeRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
+                guard let m = match, m.numberOfRanges >= 2 else { return }
+                let innerRange = m.range(at: 1)
+                let openDelimRange = NSRange(location: m.range.location, length: 1)
+                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 1, length: 1)
+
+                let codeFont = NSFont.monospacedSystemFont(ofSize: baseFont.pointSize * 0.9, weight: .regular)
+                attributed.addAttribute(.font, value: codeFont, range: innerRange)
+                attributed.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: NSColor.systemRed, range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+            }
+        }
+
+        // 5. Highlight: ==text==
+        if let hlRegex = try? NSRegularExpression(pattern: #"==([^=]+)=="#) {
+            hlRegex.enumerateMatches(in: text, range: fullRange) { match, _, _ in
+                guard let m = match, m.numberOfRanges >= 2 else { return }
+                let innerRange = m.range(at: 1)
+                let openDelimRange = NSRange(location: m.range.location, length: 2)
+                let closeDelimRange = NSRange(location: m.range.location + m.range.length - 2, length: 2)
+
+                attributed.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.28), range: innerRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: openDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: openDelimRange)
+                attributed.addAttribute(.foregroundColor, value: dimColor, range: closeDelimRange)
+                attributed.addAttribute(.font, value: delimiterFont, range: closeDelimRange)
+            }
+        }
+
+        return attributed
+    }
+}
+
+// MARK: - Native AppKit Block Editor Field (Guaranteed Enter, Delete, Slash Commands & Live Markdown Styling)
 
 struct BlockEditorField: NSViewRepresentable {
     @Binding var text: String
@@ -60,8 +174,15 @@ struct BlockEditorField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
-        if nsView.stringValue != text {
-            nsView.stringValue = text
+        if nsView.currentEditor() == nil {
+            let styled = MarkdownStyler.style(text: text, baseFont: font, baseColor: textColor)
+            if nsView.attributedStringValue != styled {
+                nsView.attributedStringValue = styled
+            }
+        } else {
+            if nsView.stringValue != text {
+                nsView.stringValue = text
+            }
         }
         nsView.font = font
         nsView.textColor = textColor
@@ -91,22 +212,41 @@ struct BlockEditorField: NSViewRepresentable {
     class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: BlockEditorField
         var didFocusOnce: Bool = false
+        static weak var activeTextView: NSTextView?
 
         init(_ parent: BlockEditorField) {
             self.parent = parent
         }
 
         func controlTextDidBeginEditing(_ obj: Notification) {
+            if let tf = obj.object as? NSTextField, let tv = tf.currentEditor() as? NSTextView {
+                Coordinator.activeTextView = tv
+            }
             parent.onFocus?()
         }
 
         func controlTextDidChange(_ obj: Notification) {
             guard let tf = obj.object as? NSTextField else { return }
+            if let tv = tf.currentEditor() as? NSTextView {
+                Coordinator.activeTextView = tv
+            }
             parent.text = tf.stringValue
             parent.onTextChanged?(tf.stringValue)
         }
 
+        func controlTextDidEndEditing(_ obj: Notification) {
+            if let tf = obj.object as? NSTextField {
+                tf.attributedStringValue = MarkdownStyler.style(
+                    text: tf.stringValue,
+                    baseFont: parent.font,
+                    baseColor: parent.textColor
+                )
+            }
+        }
+
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            Coordinator.activeTextView = textView
+
             // Cmd+A inside text: if all text is already selected, select all blocks in canvas
             if commandSelector == #selector(NSResponder.selectAll(_:)) {
                 let selLen = textView.selectedRange().length
@@ -184,6 +324,20 @@ let allSlashCommands: [SlashCommandItem] = [
     SlashCommandItem(id: "table", title: "Table / Grid", desc: "Interactive data table with columns and rows.", icon: "tablecells", keywords: ["table", "grid", "column", "columns", "data"], kind: .grid(headers: ["Column 1", "Column 2", "Column 3"], rows: [["", "", ""], ["", "", ""]]))
 ]
 
+// MARK: - Block Frame Preference for Marquee Selection
+
+struct BlockFrameItem: Equatable {
+    let id: String
+    let frame: CGRect
+}
+
+struct BlockFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [BlockFrameItem] = []
+    static func reduce(value: inout [BlockFrameItem], nextValue: () -> [BlockFrameItem]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 // MARK: - Block List View
 
 struct BlockListView: View {
@@ -197,6 +351,8 @@ struct BlockListView: View {
     @State private var hoveredBlockId: String? = nil
     @State private var draggedBlock: UIBlockItem? = nil
     @State private var lastClickedBlockId: String? = nil
+    @State private var blockFrames: [String: CGRect] = [:]
+    @State private var marqueeRect: CGRect? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -293,6 +449,14 @@ struct BlockListView: View {
                         self.draggedBlock = block
                     }
                 )
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: BlockFramePreferenceKey.self,
+                            value: [BlockFrameItem(id: block.id, frame: geo.frame(in: .named("BlockCanvasSpace")))]
+                        )
+                    }
+                )
                 .onHover { isHovered in
                     if isHovered {
                         hoveredBlockId = block.id
@@ -308,13 +472,16 @@ struct BlockListView: View {
                 ))
             }
 
-            // Clickable bottom buffer to start writing at end
+            // Clickable bottom buffer to start writing at end or clear selection
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: 140)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    selectedBlockIds.removeAll()
+                    if !selectedBlockIds.isEmpty {
+                        selectedBlockIds.removeAll()
+                        return
+                    }
                     let newId = "blk_\(UUID().uuidString.prefix(6))"
                     if let last = blocks.last, !last.text.isEmpty {
                         let newBlock = UIBlockItem(
@@ -332,6 +499,62 @@ struct BlockListView: View {
                     }
                 }
         }
+        .coordinateSpace(name: "BlockCanvasSpace")
+        .onPreferenceChange(BlockFramePreferenceKey.self) { items in
+            var map: [String: CGRect] = [:]
+            for item in items {
+                map[item.id] = item.frame
+            }
+            self.blockFrames = map
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 6, coordinateSpace: .named("BlockCanvasSpace"))
+                .onChanged { gesture in
+                    let start = gesture.startLocation
+                    let current = gesture.location
+                    let rect = CGRect(
+                        x: min(start.x, current.x),
+                        y: min(start.y, current.y),
+                        width: max(1, abs(current.x - start.x)),
+                        height: max(1, abs(current.y - start.y))
+                    )
+                    self.marqueeRect = rect
+
+                    // Once dragging across canvas begins, resign text field responder
+                    if self.focusedBlockId != nil {
+                        self.focusedBlockId = nil
+                        DispatchQueue.main.async {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        }
+                    }
+
+                    var newlySelected = Set<String>()
+                    for (id, frame) in self.blockFrames {
+                        if rect.intersects(frame) {
+                            newlySelected.insert(id)
+                        }
+                    }
+                    self.selectedBlockIds = newlySelected
+                }
+                .onEnded { _ in
+                    self.marqueeRect = nil
+                }
+        )
+        .overlay(
+            Group {
+                if let rect = marqueeRect {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.accentColor.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .stroke(Color.accentColor.opacity(0.65), lineWidth: 1)
+                        )
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            }
+            .allowsHitTesting(false)
+        )
         .onAppear {
             self.blocks = store.parseToUIBlocks(content: page.rawContent)
         }
@@ -377,9 +600,9 @@ struct BlockListView: View {
     }
 
     private func formatActiveBlock(marker: String) {
-        // 1. If text is selected in the currently focused NSTextView, format that substring!
-        if let window = NSApp.keyWindow,
-           let textView = window.firstResponder as? NSTextView {
+        // 1. If text is selected in the currently focused or active NSTextView, format that substring!
+        let activeTV = (NSApp.keyWindow?.firstResponder as? NSTextView) ?? BlockEditorField.Coordinator.activeTextView
+        if let textView = activeTV {
             let range = textView.selectedRange()
             if range.length > 0 {
                 let str = (textView.string as NSString).substring(with: range)
@@ -390,6 +613,12 @@ struct BlockListView: View {
                     replacement = "\(marker)\(str)\(marker)"
                 }
                 textView.insertText(replacement, replacementRange: range)
+                return
+            } else if textView.window?.firstResponder == textView {
+                // No selection: insert marker pair and put cursor in the middle
+                textView.insertText("\(marker)\(marker)", replacementRange: range)
+                let newLocation = range.location + marker.count
+                textView.setSelectedRange(NSRange(location: newLocation, length: 0))
                 return
             }
         }

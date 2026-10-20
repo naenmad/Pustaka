@@ -234,6 +234,13 @@ struct DocumentCanvasView: View {
 
                 Button("") {
                     if !selectedBlockIds.isEmpty {
+                        blockActionTrigger = .deleteSelected
+                    }
+                }
+                .keyboardShortcut(.deleteForward, modifiers: [])
+
+                Button("") {
+                    if !selectedBlockIds.isEmpty {
                         selectedBlockIds.removeAll()
                     }
                 }
@@ -255,6 +262,21 @@ struct DocumentCanvasView: View {
                     blockActionTrigger = .formatActiveBlock("*")
                 }
                 .keyboardShortcut("i", modifiers: .command)
+
+                Button("") {
+                    blockActionTrigger = .formatActiveBlock("~~")
+                }
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+
+                Button("") {
+                    blockActionTrigger = .formatActiveBlock("`")
+                }
+                .keyboardShortcut("e", modifiers: .command)
+
+                Button("") {
+                    store.revealInFinder(pageId: currentPage.id)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
             }
             .opacity(0)
             .frame(width: 0, height: 0)
@@ -436,6 +458,10 @@ struct DocumentCanvasView: View {
                             Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
                         }
                     }
+                    Divider()
+                    Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
+                        Label("Reveal in Finder (Obsidian Vault)", systemImage: "folder")
+                    }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 12))
@@ -449,6 +475,10 @@ struct DocumentCanvasView: View {
                     }
                     Button(action: { isIconPickerOpen = true }) {
                         Label(currentPage.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
+                    }
+                    Divider()
+                    Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
+                        Label("Reveal in Finder (Obsidian Vault)", systemImage: "folder")
                     }
                     Divider()
                     Button(action: { store.duplicatePage(id: currentPage.id) }) {
@@ -1283,6 +1313,25 @@ struct DocumentCanvasView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
+
+            Divider()
+                .frame(height: 14)
+
+            // Multi-block formatting buttons
+            HStack(spacing: 2) {
+                toolbarButton(icon: "bold", help: "Bold (⌘B)") {
+                    blockActionTrigger = .formatActiveBlock("**")
+                }
+                toolbarButton(icon: "italic", help: "Italic (⌘I)") {
+                    blockActionTrigger = .formatActiveBlock("*")
+                }
+                toolbarButton(icon: "strikethrough", help: "Strikethrough") {
+                    blockActionTrigger = .formatActiveBlock("~~")
+                }
+                toolbarButton(icon: "curlybraces", help: "Inline Code") {
+                    blockActionTrigger = .formatActiveBlock("`")
+                }
+            }
 
             Divider()
                 .frame(height: 14)

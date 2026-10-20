@@ -25,22 +25,48 @@ class WorkspaceStore: ObservableObject {
         recompileCurrentPage()
     }
 
-    // MARK: - Disk Storage Management
+    // MARK: - Disk Storage Management (Obsidian-Style Vault in ~/Documents/Pustaka/)
 
-    private var storageURL: URL {
+    /// The root Obsidian-compatible vault directory in user Documents
+    var vaultURL: URL {
         let fileManager = FileManager.default
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let pustakaDir = appSupport.appendingPathComponent("Pustaka", isDirectory: true)
+        let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let pustakaDir = docs.appendingPathComponent("Pustaka", isDirectory: true)
         if !fileManager.fileExists(atPath: pustakaDir.path) {
             try? fileManager.createDirectory(at: pustakaDir, withIntermediateDirectories: true, attributes: nil)
         }
-        return pustakaDir.appendingPathComponent("workspace.json")
+        return pustakaDir
+    }
+
+    /// Legacy Application Support URL for automatic seamless migration
+    private var legacyStorageURL: URL {
+        let fileManager = FileManager.default
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("Pustaka", isDirectory: true).appendingPathComponent("workspace.json")
+    }
+
+    /// Primary workspace index file stored directly in ~/Documents/Pustaka/workspace.json
+    var storageURL: URL {
+        vaultURL.appendingPathComponent("workspace.json")
     }
 
     func loadFromDisk() {
+        let fileManager = FileManager.default
         let url = storageURL
-        if FileManager.default.fileExists(atPath: url.path),
-           let data = try? Data(contentsOf: url),
+        var dataToDecode: Data? = nil
+
+        // 1. Try loading from ~/Documents/Pustaka/workspace.json
+        if fileManager.fileExists(atPath: url.path),
+           let data = try? Data(contentsOf: url) {
+            dataToDecode = data
+        } else if fileManager.fileExists(atPath: legacyStorageURL.path),
+                  let legacyData = try? Data(contentsOf: legacyStorageURL) {
+            // 2. Seamlessly migrate from Application Support if existing
+            dataToDecode = legacyData
+            print("[WorkspaceStore] Migrating legacy workspace from Application Support to ~/Documents/Pustaka/")
+        }
+
+        if let data = dataToDecode,
            let decoded = try? JSONDecoder().decode(WorkspaceStorageData.self, from: data),
            !decoded.pages.isEmpty {
             self.categories = decoded.categories.isEmpty ? WorkspaceStore.defaultCategories : decoded.categories
@@ -55,8 +81,10 @@ class WorkspaceStore: ObservableObject {
             self.categories = WorkspaceStore.defaultCategories
             self.pages = WorkspaceStore.defaultPages
             self.selectedPageId = pages.first?.id
-            saveToDisk()
         }
+
+        // Save immediately to ensure ~/Documents/Pustaka and all .md files are written
+        saveToDisk()
     }
 
     func saveToDisk() {
@@ -71,8 +99,80 @@ class WorkspaceStore: ObservableObject {
             let data = try encoder.encode(storage)
             try data.write(to: storageURL, options: .atomic)
         } catch {
-            print("[WorkspaceStore] Error saving to disk: \(error)")
+            print("[WorkspaceStore] Error saving workspace.json: \(error)")
         }
+
+        // Sync individual Markdown (.md) files for Obsidian & Finder access
+        syncMarkdownVault()
+    }
+
+    // MARK: - Obsidian Vault Markdown Sync
+
+    func safeFileName(for page: DocumentPage) -> String {
+        let trimmed = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitized = trimmed
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "?", with: "")
+            .replacingOccurrences(of: "<", with: "")
+            .replacingOccurrences(of: ">", with: "")
+            .replacingOccurrences(of: "|", with: "")
+        let base = sanitized.isEmpty ? "Untitled" : sanitized
+        return "\(base).md"
+    }
+
+    /// Synchronizes all document pages as standard Markdown files (.md) in ~/Documents/Pustaka/
+    private func syncMarkdownVault() {
+        let vault = vaultURL
+        let isoFormatter = ISO8601DateFormatter()
+
+        for page in pages {
+            let fileName = safeFileName(for: page)
+            let fileURL = vault.appendingPathComponent(fileName)
+
+            let categoryName = categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
+            let isoDate = isoFormatter.string(from: page.lastModified)
+
+            var md = "---\n"
+            md += "id: \"\(page.id)\"\n"
+            md += "title: \"\(page.title.replacingOccurrences(of: "\"", with: "\\\""))\"\n"
+            if !page.icon.isEmpty {
+                md += "icon: \"\(page.icon)\"\n"
+            }
+            if !page.coverUrl.isEmpty {
+                md += "cover: \"\(page.coverUrl)\"\n"
+            }
+            md += "category: \"\(categoryName)\"\n"
+            md += "isFavorite: \(page.isFavorite)\n"
+            md += "lastModified: \"\(isoDate)\"\n"
+            md += "---\n\n"
+
+            if !page.title.isEmpty {
+                md += "# \(page.title)\n\n"
+            }
+            md += page.rawContent
+
+            if let data = md.data(using: .utf8) {
+                try? data.write(to: fileURL, options: .atomic)
+            }
+        }
+    }
+
+    /// Reveals the vault directory or a specific note file in macOS Finder
+    func revealInFinder(pageId: String? = nil) {
+        let targetId = pageId ?? selectedPageId
+        if let targetId = targetId,
+           let page = pages.first(where: { $0.id == targetId }) {
+            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                return
+            }
+        }
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: vaultURL.path)
     }
 
     // MARK: - Default Seeds
@@ -284,6 +384,10 @@ class WorkspaceStore: ObservableObject {
     }
 
     func deletePage(id: String) {
+        if let page = pages.first(where: { $0.id == id }) {
+            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
+            try? FileManager.default.removeItem(at: fileURL)
+        }
         pages.removeAll { $0.id == id }
         if selectedPageId == id {
             selectedPageId = pages.first?.id
@@ -337,9 +441,19 @@ class WorkspaceStore: ObservableObject {
 
     func updatePageTitle(pageId: String, newTitle: String) {
         guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        let oldPage = pages[idx]
+        let oldFileName = safeFileName(for: oldPage)
+        let oldFileURL = vaultURL.appendingPathComponent(oldFileName)
+
         objectWillChange.send()
         pages[idx].title = newTitle
         pages[idx].lastModified = Date()
+
+        let newFileName = safeFileName(for: pages[idx])
+        if oldFileName != newFileName && FileManager.default.fileExists(atPath: oldFileURL.path) {
+            try? FileManager.default.removeItem(at: oldFileURL)
+        }
+
         saveToDisk()
     }
 
