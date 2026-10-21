@@ -515,7 +515,7 @@ User Request: \(trimmed)
     ) {
         let rawCliPath = UserDefaults.standard.string(forKey: "aiAgentCliPath") ?? Self.defaultAgyPath
         guard let cliPath = Self.resolveExecutablePath(command: "agy", preferredPath: rawCliPath) else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Antigravity CLI not found** at `\(rawCliPath)`.\n\nPlease check Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Antigravity CLI not found** at `\(rawCliPath)`.\n\nPlease check Settings (⌘,) → **AI & ACP**.")
             return
         }
 
@@ -554,7 +554,7 @@ User Request: \(trimmed)
     ) {
         let rawPath = UserDefaults.standard.string(forKey: "claudeCliPath") ?? Self.defaultClaudePath
         guard let cliPath = Self.resolveExecutablePath(command: "claude", preferredPath: rawPath) else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Claude Code CLI not found** at `\(rawPath)`.\n\nInstall via `npm install -g @anthropic-ai/claude-code` or configure in Settings.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Claude Code CLI not found** at `\(rawPath)`.\n\nInstall via `npm install -g @anthropic-ai/claude-code` or configure in Settings.")
             return
         }
 
@@ -583,7 +583,7 @@ User Request: \(trimmed)
     ) {
         let rawPath = UserDefaults.standard.string(forKey: "geminiCliPath") ?? Self.defaultGeminiCliPath
         guard let cliPath = Self.resolveExecutablePath(command: "gemini", preferredPath: rawPath) else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Gemini CLI not found** at `\(rawPath)`.\n\nPlease verify your path in Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Gemini CLI not found** at `\(rawPath)`.\n\nPlease verify your path in Settings (⌘,) → **AI & ACP**.")
             return
         }
 
@@ -612,7 +612,7 @@ User Request: \(trimmed)
     ) {
         let rawPath = UserDefaults.standard.string(forKey: "customAcpPath") ?? ""
         guard let cliPath = Self.resolveExecutablePath(command: rawPath, preferredPath: rawPath) else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Custom ACP Executable not found**.\n\nPlease configure the command path in Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Custom ACP Executable not found**.\n\nPlease configure the command path in Settings (⌘,) → **AI & ACP**.")
             return
         }
 
@@ -665,7 +665,7 @@ User Request: \(trimmed)
             do {
                 try process.run()
             } catch {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Failed to start agent process: \(error.localizedDescription)")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Failed to start agent process: \(error.localizedDescription)")
                 return
             }
 
@@ -838,7 +838,7 @@ User Request: \(trimmed)
     private func sendGeminiApiMessage(prompt: String, assistantMsgId: UUID) {
         let apiKey = UserDefaults.standard.string(forKey: "geminiApiKey") ?? ""
         guard !apiKey.trimmingCharacters(in: .whitespaces).isEmpty else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Gemini API Key missing.**\n\nPlease add your API key in Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Gemini API Key missing.**\n\nPlease add your API key in Settings (⌘,) → **AI & ACP**.")
             return
         }
 
@@ -867,12 +867,12 @@ User Request: \(trimmed)
             guard let self = self else { return }
 
             if let error = error {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Connection error: \(error.localizedDescription)")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Connection error: \(error.localizedDescription)")
                 return
             }
 
             guard let data = data, let text = String(data: data, encoding: .utf8) else {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Empty response from Gemini API.")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Empty response from Gemini API.")
                 return
             }
 
@@ -922,12 +922,12 @@ User Request: \(trimmed)
 
         let isLocal = endpoint.contains("localhost") || endpoint.contains("127.0.0.1")
         if !isLocal && apiKey.trimmingCharacters(in: .whitespaces).isEmpty {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **OpenAI API Key missing.**\n\nPlease enter your key in Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**OpenAI API Key missing.**\n\nPlease enter your key in Settings (⌘,) → **AI & ACP**.")
             return
         }
 
         guard let url = URL(string: "\(endpoint)/chat/completions") else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Invalid API Endpoint URL.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Invalid API Endpoint URL.")
             return
         }
 
@@ -951,17 +951,17 @@ User Request: \(trimmed)
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             if let error = error {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Connection error: \(error.localizedDescription)")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Connection error: \(error.localizedDescription)")
                 return
             }
             guard let data = data else {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Empty response received.")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Empty response received.")
                 return
             }
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let errorObj = json["error"] as? [String: Any], let errText = errorObj["message"] as? String {
-                    self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ API Error: \(errText)")
+                    self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** API Error: \(errText)")
                     return
                 }
                 if let choices = json["choices"] as? [[String: Any]],
@@ -991,7 +991,7 @@ User Request: \(trimmed)
     private func sendClaudeApiMessage(prompt: String, assistantMsgId: UUID) {
         let apiKey = UserDefaults.standard.string(forKey: "claudeApiKey") ?? ""
         guard !apiKey.trimmingCharacters(in: .whitespaces).isEmpty else {
-            failWithMessage(assistantMsgId: assistantMsgId, text: "⚠️ **Anthropic Claude API Key missing.**\n\nPlease add your API key in Settings (⌘,) → **AI & ACP**.")
+            failWithMessage(assistantMsgId: assistantMsgId, text: "**Anthropic Claude API Key missing.**\n\nPlease add your API key in Settings (⌘,) → **AI & ACP**.")
             return
         }
 
@@ -1016,17 +1016,17 @@ User Request: \(trimmed)
         let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             if let error = error {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Connection error: \(error.localizedDescription)")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Connection error: \(error.localizedDescription)")
                 return
             }
             guard let data = data else {
-                self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Empty response received.")
+                self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Empty response received.")
                 return
             }
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let errorObj = json["error"] as? [String: Any], let errText = errorObj["message"] as? String {
-                    self.failWithMessage(assistantMsgId: assistantMsgId, text: "❌ Claude Error: \(errText)")
+                    self.failWithMessage(assistantMsgId: assistantMsgId, text: "**Error:** Claude Error: \(errText)")
                     return
                 }
                 if let contentList = json["content"] as? [[String: Any]],

@@ -6,17 +6,20 @@ struct CustomizeCategorySheet: View {
     let onDismiss: () -> Void
 
     @State private var nameBuffer: String = ""
-    @State private var iconBuffer: String = ""
+    @State private var iconBuffer: String = "folder"
     @State private var showCountBuffer: Bool = true
 
-    private let availableEmojis = [
-        "⭐️", "🤖", "👥", "🔒", "📁", "📚", "🚀", "💡",
-        "🎯", "🎨", "🛠️", "⚡️", "📝", "📊", "🧩", "🔬",
-        "📌", "💼", "✨", "🔥", "💻", "📦", "🏷️", "☕️"
+    private let availableSymbols = [
+        "folder", "folder.badge.gearshape", "book.closed", "doc.text",
+        "tray", "archivebox", "tag", "bookmark",
+        "star", "sparkles", "bolt", "terminal",
+        "cpu", "hammer", "wrench.and.screwdriver", "lightbulb",
+        "checkmark.seal", "chart.bar", "briefcase", "person.2",
+        "lock", "shield", "cup.and.saucer", "paperplane"
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack {
                 Text("Customize Category")
@@ -34,18 +37,20 @@ struct CustomizeCategorySheet: View {
 
             Divider()
 
-            // Name & Selected Icon
+            // Name & Selected Icon Preview
             VStack(alignment: .leading, spacing: 6) {
-                Text("Category Name")
+                Text("Category Name & Icon")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
-                    Text(iconBuffer)
-                        .font(.title2)
-                        .frame(width: 38, height: 38)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 38, height: 38)
+                        DynamicIconView(icon: iconBuffer, size: 18, defaultSymbol: "folder")
+                            .foregroundStyle(Color.accentColor)
+                    }
 
                     TextField("Category name...", text: $nameBuffer)
                         .textFieldStyle(.plain)
@@ -60,35 +65,33 @@ struct CustomizeCategorySheet: View {
                 }
             }
 
-            // Emoji Icon Picker with Native macOS Character Palette
+            // SF Symbol Grid Picker
             VStack(alignment: .leading, spacing: 8) {
-                Text("Icon Emoji")
+                Text("Select SF Symbol")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 8) {
-                    TextField("Emoji...", text: $iconBuffer)
-                        .textFieldStyle(.plain)
-                        .font(.title2)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 48, height: 38)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-
-                    Button(action: {
-                        NSApp.orderFrontCharacterPalette(nil)
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "face.smiling")
-                            Text("Open macOS Emoji Palette...")
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
+                    ForEach(availableSymbols, id: \.self) { sym in
+                        let isSelected = iconBuffer == sym
+                        Button(action: {
+                            iconBuffer = sym
+                        }) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 1)
+                                    )
+                                Image(systemName: sym)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                            }
+                            .frame(height: 32)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
                 }
             }
 
@@ -130,7 +133,8 @@ struct CustomizeCategorySheet: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             self.nameBuffer = category.name
-            self.iconBuffer = category.icon
+            let rawIcon = category.icon.trimmingCharacters(in: .whitespaces)
+            self.iconBuffer = rawIcon.isEmpty || rawIcon == "📁" ? "folder" : rawIcon
             self.showCountBuffer = category.showPageCount
         }
     }

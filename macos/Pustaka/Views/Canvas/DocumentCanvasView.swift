@@ -370,9 +370,9 @@ struct DocumentCanvasView: View {
                 }
                 Section("Callouts & Quotes") {
                     Button("Quote") { blockActionTrigger = .insertBlock(.quote) }
-                    Button("Info Callout (💡)") { blockActionTrigger = .insertBlock(.callout(icon: "💡", theme: .blue)) }
-                    Button("Warning Callout (⚠️)") { blockActionTrigger = .insertBlock(.callout(icon: "⚠️", theme: .red)) }
-                    Button("Tip Callout (✅)") { blockActionTrigger = .insertBlock(.callout(icon: "✅", theme: .green)) }
+                    Button("Info Callout") { blockActionTrigger = .insertBlock(.callout(icon: "info.circle.fill", theme: .blue)) }
+                    Button("Warning Callout") { blockActionTrigger = .insertBlock(.callout(icon: "exclamationmark.triangle.fill", theme: .red)) }
+                    Button("Tip Callout") { blockActionTrigger = .insertBlock(.callout(icon: "checkmark.circle.fill", theme: .green)) }
                 }
                 Section("Media & Data") {
                     Button("Table / Grid") {

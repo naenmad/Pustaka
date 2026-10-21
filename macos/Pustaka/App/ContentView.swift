@@ -194,7 +194,7 @@ struct ContentView: View {
                         Button(action: {
                             NotificationCenter.default.post(name: NSNotification.Name("OpenIconPicker"), object: nil)
                         }) {
-                            Label(page.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
+                            Label(page.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "sparkles")
                         }
                         Divider()
                         Button(action: { store.revealInFinder(pageId: page.id) }) {
@@ -233,7 +233,7 @@ struct ContentView: View {
                     .menuIndicator(.hidden)
                     .help("Page Options")
 
-                    // AI Assistant Toggle (✨)
+                    // AI Assistant Toggle
                     aiAssistantButton
                 }
             } else {

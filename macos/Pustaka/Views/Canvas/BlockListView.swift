@@ -772,12 +772,12 @@ struct ColabInsertLineView: View {
                             Button("Toggle List") { onInsertKind(.toggle(isExpanded: false)) }
                             Button("Quote") { onInsertKind(.quote) }
                             Button("Divider") { onInsertKind(.divider) }
-                            Button("Subpage (📄)") { onInsertSubpage() }
+                            Button("Subpage") { onInsertSubpage() }
                         }
                         Section("Callouts") {
-                            Button("💡 Info Callout") { onInsertKind(.callout(icon: "💡", theme: .blue)) }
-                            Button("⚠️ Warning Callout") { onInsertKind(.callout(icon: "⚠️", theme: .red)) }
-                            Button("✅ Tip Callout") { onInsertKind(.callout(icon: "✅", theme: .green)) }
+                            Button("Info Callout") { onInsertKind(.callout(icon: "info.circle.fill", theme: .blue)) }
+                            Button("Warning Callout") { onInsertKind(.callout(icon: "exclamationmark.triangle.fill", theme: .red)) }
+                            Button("Tip Callout") { onInsertKind(.callout(icon: "checkmark.circle.fill", theme: .green)) }
                         }
                         Section("Media & Code") {
                             Button("Code Block") { onInsertKind(.code(lang: "rust")) }
@@ -842,10 +842,10 @@ let allSlashCommands: [SlashCommandItem] = [
     SlashCommandItem(id: "subpage", title: "Subpage", desc: "Embed a subpage inside this document.", icon: "doc.badge.plus", keywords: ["subpage", "page", "child", "doc", "nested"], kind: .subpage(pageId: "")),
 
     // 2. Callouts
-    SlashCommandItem(id: "callout_info", title: "Info Callout", desc: "Highlighted blue information note.", icon: "lightbulb.fill", keywords: ["info", "callout", "note", "tip", "blue", "lightbulb"], kind: .callout(icon: "💡", theme: .blue)),
-    SlashCommandItem(id: "callout_warn", title: "Warning Callout", desc: "Highlighted warning alert banner.", icon: "exclamationmark.triangle.fill", keywords: ["warn", "warning", "alert", "danger", "red"], kind: .callout(icon: "⚠️", theme: .red)),
-    SlashCommandItem(id: "callout_tip", title: "Tip Callout", desc: "Highlighted success or tip banner.", icon: "checkmark.circle.fill", keywords: ["tip", "success", "green", "check"], kind: .callout(icon: "✅", theme: .green)),
-    SlashCommandItem(id: "callout_idea", title: "Idea Callout", desc: "Highlighted idea / goal note.", icon: "target", keywords: ["idea", "target", "goal", "callout"], kind: .callout(icon: "🎯", theme: .standard)),
+    SlashCommandItem(id: "callout_info", title: "Info Callout", desc: "Highlighted blue information note.", icon: "info.circle.fill", keywords: ["info", "callout", "note", "tip", "blue"], kind: .callout(icon: "info.circle.fill", theme: .blue)),
+    SlashCommandItem(id: "callout_warn", title: "Warning Callout", desc: "Highlighted warning alert banner.", icon: "exclamationmark.triangle.fill", keywords: ["warn", "warning", "alert", "danger", "red"], kind: .callout(icon: "exclamationmark.triangle.fill", theme: .red)),
+    SlashCommandItem(id: "callout_tip", title: "Tip Callout", desc: "Highlighted success or tip banner.", icon: "checkmark.circle.fill", keywords: ["tip", "success", "green", "check"], kind: .callout(icon: "checkmark.circle.fill", theme: .green)),
+    SlashCommandItem(id: "callout_idea", title: "Idea Callout", desc: "Highlighted idea / goal note.", icon: "lightbulb.fill", keywords: ["idea", "target", "goal", "callout"], kind: .callout(icon: "lightbulb.fill", theme: .standard)),
 
     // 3. Media & Advanced
     SlashCommandItem(id: "code", title: "Code Block", desc: "Code snippet with syntax support.", icon: "curlybraces", keywords: ["code", "snippet", "pre", "syntax", "rust", "python", "js", "swift"], kind: .code(lang: "rust")),
@@ -2098,13 +2098,26 @@ struct BlockRowView: View {
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
 
-        // 9. Callout Box (Editable text, emoji & theme menu, and delete button)
+        // 9. Callout Box (Editable text, icon & theme menu, and delete button)
         case .callout(let icon, let theme):
             HStack(alignment: .top, spacing: 10) {
                 Menu {
-                    ForEach(["💡", "⚠️", "✅", "🎯", "🔥", "📌", "🚀", "💬", "⭐️", "⚡️"], id: \.self) { emoji in
-                        Button(emoji) {
-                            onTransformKind(.callout(icon: emoji, theme: theme))
+                    ForEach([
+                        ("info.circle.fill", "Info"),
+                        ("exclamationmark.triangle.fill", "Warning"),
+                        ("checkmark.circle.fill", "Tip"),
+                        ("lightbulb.fill", "Idea"),
+                        ("flame.fill", "Important"),
+                        ("pin.fill", "Pinned"),
+                        ("paperplane.fill", "Note"),
+                        ("bubble.left.and.bubble.right.fill", "Comment"),
+                        ("star.fill", "Star"),
+                        ("bolt.fill", "Action")
+                    ], id: \.0) { sym, name in
+                        Button {
+                            onTransformKind(.callout(icon: sym, theme: theme))
+                        } label: {
+                            Label(name, systemImage: sym)
                         }
                     }
                     Divider()
@@ -2114,8 +2127,9 @@ struct BlockRowView: View {
                         }
                     }
                 } label: {
-                    Text(icon)
-                        .font(.system(size: 18))
+                    DynamicIconView(icon: icon, size: 16, defaultSymbol: "info.circle.fill")
+                        .foregroundStyle(theme.stroke)
+                        .frame(width: 20, height: 20)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -2982,7 +2996,7 @@ struct BlockRowView: View {
             Button("Heading 1") { onInsertBelow(.heading(level: 1), "") }
             Button("Heading 2") { onInsertBelow(.heading(level: 2), "") }
             Button("Heading 3") { onInsertBelow(.heading(level: 3), "") }
-            Button("Subpage (📄)") {
+            Button("Subpage") {
                 let newSub = store.addNewSubpage(parentPageId: currentPageId, title: "Untitled Subpage", switchToPage: false)
                 onInsertBelow(.subpage(pageId: newSub.id), "")
             }
@@ -2994,10 +3008,10 @@ struct BlockRowView: View {
             Button("Divider") { onInsertBelow(.divider, "") }
         }
         Section("Callouts") {
-            Button("Info Callout (💡)") { onInsertBelow(.callout(icon: "💡", theme: .blue), "") }
-            Button("Warning Callout (⚠️)") { onInsertBelow(.callout(icon: "⚠️", theme: .red), "") }
-            Button("Tip Callout (✅)") { onInsertBelow(.callout(icon: "✅", theme: .green), "") }
-            Button("Idea Callout (🎯)") { onInsertBelow(.callout(icon: "🎯", theme: .standard), "") }
+            Button("Info Callout") { onInsertBelow(.callout(icon: "info.circle.fill", theme: .blue), "") }
+            Button("Warning Callout") { onInsertBelow(.callout(icon: "exclamationmark.triangle.fill", theme: .red), "") }
+            Button("Tip Callout") { onInsertBelow(.callout(icon: "checkmark.circle.fill", theme: .green), "") }
+            Button("Idea Callout") { onInsertBelow(.callout(icon: "lightbulb.fill", theme: .standard), "") }
         }
         Section("Media & Advanced") {
             Button("Code Block") { onInsertBelow(.code(lang: "rust"), "") }
@@ -3026,9 +3040,9 @@ struct BlockRowView: View {
             Button("Toggle List") { onTransformKind(.toggle(isExpanded: false)) }
             Button("Quote") { onTransformKind(.quote) }
             Button("Divider") { onTransformKind(.divider) }
-            Button("Info Callout (💡)") { onTransformKind(.callout(icon: "💡", theme: .blue)) }
-            Button("Warning Callout (⚠️)") { onTransformKind(.callout(icon: "⚠️", theme: .red)) }
-            Button("Tip Callout (✅)") { onTransformKind(.callout(icon: "✅", theme: .green)) }
+            Button("Info Callout") { onTransformKind(.callout(icon: "info.circle.fill", theme: .blue)) }
+            Button("Warning Callout") { onTransformKind(.callout(icon: "exclamationmark.triangle.fill", theme: .red)) }
+            Button("Tip Callout") { onTransformKind(.callout(icon: "checkmark.circle.fill", theme: .green)) }
             Button("Code Block") { onTransformKind(.code(lang: "rust")) }
             Button("Web Bookmark") { onTransformKind(.bookmark(url: "https://apple.com")) }
             Button("Image") { onTransformKind(.image(url: "", caption: "")) }

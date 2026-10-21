@@ -294,9 +294,10 @@ struct TrashPageView: View {
             }
             .frame(height: 24)
 
-            // 44pt Big Document Emoji Icon
-            Text("🗑️")
-                .font(.system(size: 44))
+            // 44pt Big Document SF Symbol Icon
+            Image(systemName: "trash")
+                .font(.system(size: 38, weight: .light))
+                .foregroundStyle(Color.red.opacity(0.85))
                 .padding(4)
 
             // 34pt Bold Page Title (Identical to TitleEditorField style)
@@ -314,8 +315,9 @@ struct TrashPageView: View {
 
     private var vaultInfoCalloutBlock: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text("💡")
-                .font(.system(size: 18))
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 22, alignment: .top)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -485,16 +487,9 @@ struct TrashPageView: View {
             // Subpage Link Block Body (Identical to SubpageBlockView)
             HStack(spacing: 8) {
                 // Document Icon
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.system(size: 15))
-                        .frame(width: 20)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 20)
-                }
+                DynamicIconView(icon: page.icon, size: 14, defaultSymbol: "doc.text")
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20)
 
                 // Page Title
                 Text(page.title.isEmpty ? "Untitled Note" : page.title)
@@ -616,8 +611,9 @@ struct TrashPageView: View {
 
     private var emptyTrashCalloutBlock: some View {
         HStack(alignment: .top, spacing: 10) {
-            Text("✨")
-                .font(.system(size: 18))
+            Image(systemName: "sparkles")
+                .font(.system(size: 16))
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 22, alignment: .top)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -782,14 +778,8 @@ struct TrashNoteInspectorSheet: View {
         VStack(spacing: 0) {
             // Header Bar
             HStack(spacing: 10) {
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.title2)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.title3)
-                        .foregroundStyle(Color.secondary)
-                }
+                DynamicIconView(icon: page.icon, size: 20, defaultSymbol: "doc.text")
+                    .foregroundStyle(Color.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(page.title.isEmpty ? "Untitled Note" : page.title)

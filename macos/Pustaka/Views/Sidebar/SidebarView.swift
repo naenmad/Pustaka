@@ -640,8 +640,9 @@ struct SidebarView: View {
             // Inline New Category Input Box
             if isAddingCategory {
                 HStack(spacing: 6) {
-                    Text("📁")
+                    Image(systemName: "folder")
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     TextField("Folder name...", text: $newCategoryName)
                         .textFieldStyle(.plain)
                         .font(.subheadline)
@@ -673,7 +674,7 @@ struct SidebarView: View {
     private func commitNewCategory() {
         let trimmed = newCategoryName.trimmingCharacters(in: .whitespaces)
         if !trimmed.isEmpty {
-            store.addCategory(name: trimmed, icon: "📁")
+            store.addCategory(name: trimmed, icon: "folder")
             newCategoryName = ""
             isAddingCategory = false
         }
@@ -869,8 +870,8 @@ struct CategorySectionView: View {
                 }
             }) {
                 HStack(spacing: 5) {
-                    Text(category.icon)
-                        .font(.system(size: 12))
+                    DynamicIconView(icon: category.icon, size: 12, defaultSymbol: "folder")
+                        .foregroundStyle(.secondary)
 
                     Text(category.name)
                         .font(.system(size: 12, weight: .semibold))
@@ -1036,16 +1037,9 @@ struct SidebarDocumentItemRow: View {
                     }
 
                     // Document Icon
-                    if !page.icon.isEmpty {
-                        Text(page.icon)
-                            .font(.system(size: 12.5))
-                            .frame(width: 14)
-                    } else {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                            .frame(width: 14)
-                    }
+                    DynamicIconView(icon: page.icon, size: 12, defaultSymbol: "doc.text")
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                        .frame(width: 14)
 
                     // Title OR Inline Rename TextField
                     if isRenaming {
@@ -1122,10 +1116,10 @@ struct SidebarDocumentItemRow: View {
                 documentContextMenuContent
             }
             .popover(isPresented: $isIconPickerPresented, arrowEdge: .trailing) {
-                NativeEmojiPickerPopover(
-                    currentEmoji: page.icon,
-                    onEmojiSelected: { emoji in
-                        store.updatePageIcon(pageId: page.id, newIcon: emoji)
+                NativeIconPickerPopover(
+                    currentIcon: page.icon,
+                    onIconSelected: { icon in
+                        store.updatePageIcon(pageId: page.id, newIcon: icon)
                         isIconPickerPresented = false
                     },
                     onRemove: {
@@ -1189,7 +1183,7 @@ struct SidebarDocumentItemRow: View {
             store.selectPage(id: page.id)
             isIconPickerPresented = true
         }) {
-            Label(page.icon.isEmpty ? "Add Icon..." : "Change Icon...", systemImage: "face.smiling")
+            Label(page.icon.isEmpty ? "Add Icon..." : "Change Icon...", systemImage: "sparkles")
         }
 
         Button(action: {
@@ -1270,16 +1264,9 @@ struct RecentDocumentRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 5) {
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.system(size: 11.5))
-                        .frame(width: 14)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 11))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
-                        .frame(width: 14)
-                }
+                DynamicIconView(icon: page.icon, size: 11.5, defaultSymbol: "doc.text")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.8))
+                    .frame(width: 14)
 
                 Text(page.title.isEmpty ? "Untitled" : page.title)
                     .font(.system(size: 11.5))
@@ -1343,16 +1330,9 @@ struct SearchResultItemRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 6) {
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.system(size: 12))
-                        .frame(width: 14)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                        .frame(width: 14)
-                }
+                DynamicIconView(icon: page.icon, size: 12, defaultSymbol: "doc.text")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .frame(width: 14)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(page.title.isEmpty ? "Untitled" : page.title)
@@ -1384,82 +1364,105 @@ struct SearchResultItemRow: View {
     }
 }
 
-// MARK: - Native macOS Emoji Picker Popover
+// MARK: - Native macOS Icon Picker Popover (Curated SF Symbols)
 
-struct NativeEmojiPickerPopover: View {
-    let currentEmoji: String
-    let onEmojiSelected: (String) -> Void
+typealias NativeEmojiPickerPopover = NativeIconPickerPopover
+
+struct NativeIconPickerPopover: View {
+    let currentIcon: String
+    let onIconSelected: (String) -> Void
     let onRemove: (() -> Void)?
 
-    @State private var text: String = ""
-    @FocusState private var isFieldFocused: Bool
+    @State private var customSymbolText: String = ""
+
+    init(currentIcon: String, onIconSelected: @escaping (String) -> Void, onRemove: (() -> Void)?) {
+        self.currentIcon = currentIcon
+        self.onIconSelected = onIconSelected
+        self.onRemove = onRemove
+    }
+
+    // Backwards-compatible init
+    init(currentEmoji: String, onEmojiSelected: @escaping (String) -> Void, onRemove: (() -> Void)?) {
+        self.currentIcon = currentEmoji
+        self.onIconSelected = onEmojiSelected
+        self.onRemove = onRemove
+    }
+
+    private let symbols = [
+        "doc.text", "book.closed", "bookmark", "pencil.and.outline", "note.text", "quote.bubble",
+        "terminal", "cpu", "hammer", "wrench.and.screwdriver", "sparkles", "bolt",
+        "lightbulb", "flame", "star", "pin", "tag", "flag",
+        "folder", "tray", "archivebox", "briefcase", "person.2", "lock"
+    ]
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                TextField("Emoji...", text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 26))
-                    .multilineTextAlignment(.center)
-                    .frame(width: 46, height: 44)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-                    .focused($isFieldFocused)
-                    .onChange(of: text) { _, newText in
-                        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if let lastChar = trimmed.last {
-                            let emoji = String(lastChar)
-                            onEmojiSelected(emoji)
-                        }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Select Document Icon")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let onRemove = onRemove, !currentIcon.isEmpty {
+                    Button(role: .destructive, action: onRemove) {
+                        Text("Remove")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.red)
                     }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Button(action: {
-                        isFieldFocused = true
-                        DispatchQueue.main.async {
-                            NSApp.orderFrontCharacterPalette(nil)
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "face.smiling")
-                            Text("macOS Emoji Palette")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-
-                    Text("Press ⌃⌘Space or pick an emoji")
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
                 }
             }
 
-            if let onRemove = onRemove, !currentEmoji.isEmpty {
-                Divider()
-                Button(role: .destructive, action: onRemove) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                        Text("Remove Icon")
+            // Grid of SF Symbols
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
+                ForEach(symbols, id: \.self) { sym in
+                    let isSelected = currentIcon == sym
+                    Button(action: {
+                        onIconSelected(sym)
+                    }) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 1)
+                                )
+                            Image(systemName: sym)
+                                .font(.system(size: 13))
+                                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                        }
+                        .frame(height: 30)
                     }
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+            }
+
+            Divider()
+
+            // Custom SF Symbol Input
+            HStack(spacing: 6) {
+                TextField("Custom SF symbol name...", text: $customSymbolText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .onSubmit {
+                        let trimmed = customSymbolText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            onIconSelected(trimmed)
+                        }
+                    }
+
+                Button("Set") {
+                    let trimmed = customSymbolText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        onIconSelected(trimmed)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(customSymbolText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(10)
         .frame(width: 250)
-        .onAppear {
-            isFieldFocused = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                NSApp.orderFrontCharacterPalette(nil)
-            }
-        }
     }
 }
 

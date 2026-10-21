@@ -15,17 +15,13 @@ struct DocumentTabItemView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // Document Icon (Emoji or SF Symbol)
+            // Document Icon (Native SF Symbol or Custom Text)
             if page.id == WorkspaceStore.trashPageId {
                 Image(systemName: "trash")
                     .font(.system(size: 11))
                     .foregroundStyle(isSelected ? Color.red.opacity(0.9) : Color.secondary)
-            } else if !page.icon.isEmpty {
-                Text(page.icon)
-                    .font(.system(size: 13))
             } else {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 11))
+                DynamicIconView(icon: page.icon, size: 11.5, defaultSymbol: "doc.text")
                     .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
             }
 
@@ -290,7 +286,7 @@ struct TopDocumentNavBarView: View {
                         Button(action: {
                             NotificationCenter.default.post(name: NSNotification.Name("OpenIconPicker"), object: nil)
                         }) {
-                            Label(page.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
+                            Label(page.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "sparkles")
                         }
                         Divider()
                         Button(action: { store.revealInFinder(pageId: page.id) }) {

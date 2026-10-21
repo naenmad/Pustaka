@@ -286,11 +286,11 @@ struct AIAssistantPanelView: View {
                 }
 
                 VStack(spacing: 6) {
-                    suggestionChip(title: "⚡ Summarize this note", prompt: "Please summarize the key takeaways of this note in 3 concise bullet points.")
-                    suggestionChip(title: "📊 Generate structured table", prompt: "Organize the information in this note into an elegant Markdown table with 3-4 columns.")
-                    suggestionChip(title: "✍️ Expand and elaborate", prompt: "Expand the ideas in this note with more depth, supporting arguments, and practical examples.")
-                    suggestionChip(title: "✨ Polish grammar & tone", prompt: "Review and refine the diction in this note to sound clear, professional, and engaging.")
-                    suggestionChip(title: "📐 Generate Typst math formula", prompt: "Show me an elegant mathematical formula for this topic formatted as $$...$$.")
+                    suggestionChip(title: "Summarize this note", icon: "bolt.fill", prompt: "Please summarize the key takeaways of this note in 3 concise bullet points.")
+                    suggestionChip(title: "Generate structured table", icon: "tablecells", prompt: "Organize the information in this note into an elegant Markdown table with 3-4 columns.")
+                    suggestionChip(title: "Expand and elaborate", icon: "pencil.line", prompt: "Expand the ideas in this note with more depth, supporting arguments, and practical examples.")
+                    suggestionChip(title: "Polish grammar & tone", icon: "sparkles", prompt: "Review and refine the diction in this note to sound clear, professional, and engaging.")
+                    suggestionChip(title: "Generate Typst math formula", icon: "function", prompt: "Show me an elegant mathematical formula for this topic formatted as $$...$$.")
                 }
                 .padding(.horizontal, 12)
             }
@@ -298,12 +298,15 @@ struct AIAssistantPanelView: View {
         }
     }
 
-    private func suggestionChip(title: String, prompt: String) -> some View {
+    private func suggestionChip(title: String, icon: String, prompt: String) -> some View {
         Button(action: {
             inputPrompt = prompt
             dispatchPrompt()
         }) {
-            HStack {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(Color.accentColor)
                 Text(title)
                     .font(.system(size: 11.5, weight: .medium))
                 Spacer()
@@ -387,7 +390,7 @@ struct AIAssistantPanelView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.top, 2)
-                    } else if !msg.isStreaming && !msg.content.isEmpty && !msg.content.starts(with: "⚠️") && !msg.content.starts(with: "❌") {
+                    } else if !msg.isStreaming && !msg.content.isEmpty && !msg.content.starts(with: "[Error]") && !msg.content.starts(with: "Error:") && !msg.content.starts(with: "⚠️") && !msg.content.starts(with: "❌") {
                         Divider().opacity(0.2).padding(.vertical, 2)
 
                         // 3. Smart Contextual Action Buttons
@@ -1079,8 +1082,8 @@ struct ReusableMarkdownBlockView: View {
 
         case .callout(let icon, let theme):
             HStack(alignment: .top, spacing: 8) {
-                Text(icon)
-                    .font(.system(size: 13))
+                DynamicIconView(icon: icon, size: 13, defaultSymbol: "info.circle.fill")
+                    .foregroundStyle(theme.stroke)
                 Text(LocalizedStringKey(block.text))
                     .font(.system(size: 11.5))
                     .foregroundStyle(.primary)

@@ -29,7 +29,7 @@ class WorkspaceStore: ObservableObject {
         DocumentPage(
             id: Self.trashPageId,
             title: "Trash",
-            icon: "🗑️",
+            icon: "trash",
             coverUrl: "gradient:midnight",
             coverOffsetY: 0.5,
             categoryId: "",
@@ -337,7 +337,7 @@ class WorkspaceStore: ObservableObject {
 
     static var defaultCategories: [SidebarCategory] {
         [
-            SidebarCategory(id: "cat_notes", name: "Documents", icon: "📁", isExpanded: true, showPageCount: true, orderIndex: 0)
+            SidebarCategory(id: "cat_notes", name: "Documents", icon: "folder", isExpanded: true, showPageCount: true, orderIndex: 0)
         ]
     }
 
@@ -346,7 +346,7 @@ class WorkspaceStore: ObservableObject {
             DocumentPage(
                 id: "doc_welcome",
                 title: "Welcome to Pustaka",
-                icon: "👋",
+                icon: "hand.wave",
                 coverUrl: "https://images.metmuseum.org/CRDImages/ep/original/DP130999.jpg",
                 categoryId: "cat_notes",
                 rawContent: """
@@ -365,7 +365,7 @@ class WorkspaceStore: ObservableObject {
             DocumentPage(
                 id: "doc_architecture",
                 title: "Architecture & Pipeline",
-                icon: "⚡️",
+                icon: "bolt",
                 coverUrl: "",
                 categoryId: "cat_notes",
                 rawContent: """
@@ -608,7 +608,7 @@ class WorkspaceStore: ObservableObject {
         let subpage = DocumentPage(
             id: newId,
             title: cleanTitle,
-            icon: "📄",
+            icon: "doc.text",
             coverUrl: "",
             categoryId: catId,
             parentPageId: parentPageId,
@@ -1426,18 +1426,18 @@ class WorkspaceStore: ObservableObject {
                 let headers = cols.isEmpty ? ["Column 1", "Column 2", "Column 3"] : cols
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .grid(headers: headers, rows: [Array(repeating: "", count: headers.count)]), text: inner))
             } else if trimmed.hasPrefix(":info ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💡", theme: .blue), text: String(trimmed.dropFirst(6))))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "info.circle.fill", theme: .blue), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":warn ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "⚠️", theme: .red), text: String(trimmed.dropFirst(6))))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "exclamationmark.triangle.fill", theme: .red), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix(":tip ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "✅", theme: .green), text: String(trimmed.dropFirst(5))))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "checkmark.circle.fill", theme: .green), text: String(trimmed.dropFirst(5))))
             } else if trimmed.hasPrefix(":idea ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "🎯", theme: .standard), text: String(trimmed.dropFirst(6))))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "lightbulb.fill", theme: .standard), text: String(trimmed.dropFirst(6))))
             } else if trimmed.hasPrefix("[subpage] ") {
                 let subId = String(trimmed.dropFirst(10)).trimmingCharacters(in: .whitespaces)
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .subpage(pageId: subId), text: ""))
             } else if trimmed.hasPrefix(":callout ") {
-                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "💬", theme: .standard), text: String(trimmed.dropFirst(9))))
+                items.append(UIBlockItem(id: "blk_\(counter)", kind: .callout(icon: "bubble.left.and.bubble.right.fill", theme: .standard), text: String(trimmed.dropFirst(9))))
             } else if trimmed.hasPrefix(", ") {
                 items.append(UIBlockItem(id: "blk_\(counter)", kind: .todo(checked: false), text: String(trimmed.dropFirst(2))))
             } else {
