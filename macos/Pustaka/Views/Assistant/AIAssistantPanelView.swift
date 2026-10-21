@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - AI Assistant Side Panel View (Zed ACP & Multi-Provider)
+// MARK: - AI Assistant Side Panel View (Zed ACP & Multi-Provider Architecture)
 
 struct AIAssistantPanelView: View {
     @ObservedObject var store: WorkspaceStore
@@ -13,6 +13,8 @@ struct AIAssistantPanelView: View {
     @State private var showReplaceConfirmation: Bool = false
     @State private var textToReplace: String = ""
     @State private var isSettingsOpen: Bool = false
+    @State private var showCustomModelDialog: Bool = false
+    @State private var customModelInput: String = ""
 
     private var activePage: DocumentPage? {
         store.selectedPage
@@ -20,7 +22,7 @@ struct AIAssistantPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1. Assistant Header
+            // 1. Assistant Header & Agent/Model Bar
             assistantHeader
 
             Divider().opacity(0.3)
@@ -44,13 +46,23 @@ struct AIAssistantPanelView: View {
             // 4. Prompt Input & Dispatch Area
             promptInputArea
         }
-        .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
+        .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             agentService.checkAgentAvailability()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isInputFocused = true
             }
+        }
+        .sheet(isPresented: $isSettingsOpen) {
+            SettingsSheet(
+                store: store,
+                initialTab: .ai,
+                onDismiss: {
+                    isSettingsOpen = false
+                    agentService.checkAgentAvailability()
+                }
+            )
         }
         .alert("Replace Document Content?", isPresented: $showReplaceConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -60,35 +72,31 @@ struct AIAssistantPanelView: View {
         } message: {
             Text("This will replace the content of '\(activePage?.title ?? "Document")' with the AI response. You can undo this later via document history.")
         }
+        .alert("Custom Model ID", isPresented: $showCustomModelDialog) {
+            TextField("e.g. mistral-large, qwen-2.5-coder", text: $customModelInput)
+            Button("Cancel", role: .cancel) { }
+            Button("Set Model") {
+                let trimmed = customModelInput.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty {
+                    agentService.currentModel = trimmed
+                }
+            }
+        } message: {
+            Text("Enter the exact model identifier supported by \(agentService.currentProvider.shortName).")
+        }
     }
 
-    // MARK: - Header
+    // MARK: - Header & Agent / Model Bar
 
     private var assistantHeader: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.purple, Color.accentColor],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 22, height: 22)
+        VStack(spacing: 7) {
+            // Top Row: Agent Provider, Status & Actions
+            HStack(spacing: 8) {
+                providerSelectorMenu
 
-                Image(systemName: agentService.currentProvider.icon)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-            }
+                Spacer()
 
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 4) {
-                    Text(agentService.currentProvider.label)
-                        .font(.system(size: 11.5, weight: .bold))
-                        .lineLimit(1)
-                }
-
+                // Status Indicator
                 HStack(spacing: 4) {
                     Circle()
                         .fill(agentService.isAgentAvailable ? Color.green : Color.orange)
@@ -96,39 +104,243 @@ struct AIAssistantPanelView: View {
                     Text(agentService.statusMessage)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-            }
 
-            Spacer()
-
-            if !agentService.messages.isEmpty {
-                Button(action: { agentService.clearHistory() }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
+                // Settings Gear Button
+                Button(action: { isSettingsOpen = true }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
-                        .padding(4)
+                        .padding(3)
                 }
                 .buttonStyle(.plain)
-                .help("Clear Chat History")
+                .help("AI & ACP Settings (⌘,)")
+
+                if !agentService.messages.isEmpty {
+                    Button(action: { agentService.clearHistory() }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .padding(3)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear Chat History")
+                }
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isPresented = false
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close Assistant (⌘J)")
             }
 
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isPresented = false
+            // Second Row: Model Picker, Effort (if Antigravity), Protocol Badge
+            HStack(spacing: 6) {
+                modelSelectorMenu
+
+                if agentService.currentProvider == .antigravity {
+                    effortSelectorMenu
                 }
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+
+                Spacer()
+
+                Text(agentService.currentProvider.isLocalAcp ? "ACP stdio" : "REST SSE")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
                     .background(Color.primary.opacity(0.04))
-                    .clipShape(Circle())
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
             }
-            .buttonStyle(.plain)
-            .help("Close Assistant (⌘J)")
         }
         .padding(.horizontal, 12)
-        .frame(height: 40)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Provider Selector Menu
+
+    private var providerSelectorMenu: some View {
+        Menu {
+            Section("Local ACP Coding Agents (Zed Protocol)") {
+                Button(action: { agentService.currentProvider = .antigravity }) {
+                    Label("Antigravity CLI (Zed ACP)", systemImage: "sparkles")
+                }
+                Button(action: { agentService.currentProvider = .claudeCode }) {
+                    Label("Claude Code CLI", systemImage: "terminal.fill")
+                }
+                Button(action: { agentService.currentProvider = .geminiCli }) {
+                    Label("Gemini CLI", systemImage: "bolt.fill")
+                }
+                Button(action: { agentService.currentProvider = .customAcp }) {
+                    Label("Custom ACP Server", systemImage: "gearshape.2.fill")
+                }
+            }
+
+            Section("Direct Cloud & Local LLM APIs") {
+                Button(action: { agentService.currentProvider = .geminiApi }) {
+                    Label("Google Gemini API", systemImage: "wand.and.stars")
+                }
+                Button(action: { agentService.currentProvider = .openai }) {
+                    Label("OpenAI / OpenRouter / DeepSeek", systemImage: "cpu")
+                }
+                Button(action: { agentService.currentProvider = .claudeApi }) {
+                    Label("Anthropic Claude API", systemImage: "brain")
+                }
+            }
+
+            Divider()
+
+            Button(action: { isSettingsOpen = true }) {
+                Label("Configure in Settings... (⌘,)", systemImage: "gearshape")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 18, height: 18)
+                    Image(systemName: agentService.currentProvider.icon)
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
+                Text(agentService.currentProvider.shortName)
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Model Selector Menu
+
+    private var modelSelectorMenu: some View {
+        let models = AIModelRegistry.models(for: agentService.currentProvider)
+        let currentName = AIModelRegistry.displayName(for: agentService.currentModel, in: agentService.currentProvider)
+
+        return Menu {
+            ForEach(models) { m in
+                Button(action: {
+                    agentService.currentModel = m.id
+                }) {
+                    HStack {
+                        Text(m.name)
+                        if let badge = m.badge {
+                            Text("[\(badge)]")
+                        }
+                        if agentService.currentModel == m.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button(action: {
+                customModelInput = agentService.currentModel
+                showCustomModelDialog = true
+            }) {
+                Label("Custom Model...", systemImage: "pencil")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.accentColor)
+
+                Text(currentName)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Reasoning Effort Menu (Antigravity CLI)
+
+    private var effortSelectorMenu: some View {
+        Menu {
+            Button(action: { agentService.currentEffort = "default" }) {
+                HStack {
+                    Text("Auto / Default")
+                    if agentService.currentEffort == "default" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "low" }) {
+                HStack {
+                    Text("Low (Fastest)")
+                    if agentService.currentEffort == "low" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "medium" }) {
+                HStack {
+                    Text("Medium (Balanced)")
+                    if agentService.currentEffort == "medium" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "high" }) {
+                HStack {
+                    Text("High (Deep Thinking)")
+                    if agentService.currentEffort == "high" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "max" }) {
+                HStack {
+                    Text("Max (Maximum Intelligence)")
+                    if agentService.currentEffort == "max" { Image(systemName: "checkmark") }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "brain")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Color.purple)
+
+                Text("Effort: \(agentService.currentEffort.capitalized)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 6.5, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2.5)
+            .background(Color.purple.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     // MARK: - Context Badge Bar
@@ -155,20 +367,17 @@ struct AIAssistantPanelView: View {
 
             Spacer()
 
-            Text("ACP Mode")
+            Text(AIModelRegistry.displayName(for: agentService.currentModel, in: agentService.currentProvider))
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1.5)
-                .background(Color.primary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .lineLimit(1)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(Color.primary.opacity(0.02))
     }
 
-    // MARK: - Provider Onboarding View (When CLI / API Key Not Configured)
+    // MARK: - Provider Onboarding View
 
     private var providerOnboardingView: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -179,15 +388,15 @@ struct AIAssistantPanelView: View {
                     Circle()
                         .fill(Color.orange.opacity(0.12))
                         .frame(width: 44, height: 44)
-                    Image(systemName: "sparkles")
+                    Image(systemName: agentService.currentProvider.icon)
                         .font(.system(size: 20))
                         .foregroundStyle(Color.orange)
                 }
 
                 VStack(spacing: 4) {
-                    Text("Connect an AI Provider")
+                    Text("\(agentService.currentProvider.shortName) Configuration Required")
                         .font(.system(size: 13, weight: .bold))
-                    Text("Pustaka supports local Antigravity CLI (Zed ACP), Google Gemini, OpenAI, and Claude.")
+                    Text("The selected agent needs setup or credentials before it can answer.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -195,58 +404,67 @@ struct AIAssistantPanelView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    // Option A: Antigravity CLI
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Image(systemName: "terminal")
-                                .font(.system(size: 11))
-                            Text("Antigravity CLI (Recommended)")
-                                .font(.system(size: 11.5, weight: .semibold))
-                        }
-                        Text("Zero-setup local agent if `agy` is installed.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
-                        Button(action: {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString("curl -sSL https://antigravity.google/install.sh | bash", forType: .string)
-                        }) {
+                    if agentService.currentProvider.isLocalAcp {
+                        VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("Copy CLI Install Command")
-                                Spacer()
-                                Image(systemName: "doc.on.doc")
+                                Image(systemName: "terminal")
+                                    .font(.system(size: 11))
+                                Text("Local CLI Not Found")
+                                    .font(.system(size: 11.5, weight: .semibold))
                             }
-                            .font(.system(size: 10.5))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Text("Make sure the executable is in your PATH or configure the exact path in Settings.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
 
-                    // Option B: Open Settings to Configure API Key
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Image(systemName: "key")
-                                .font(.system(size: 11))
-                            Text("Direct API Keys (Gemini, OpenAI, Claude)")
-                                .font(.system(size: 11.5, weight: .semibold))
+                            Button(action: { isSettingsOpen = true }) {
+                                HStack {
+                                    Text("Open AI & ACP Settings (⌘,)")
+                                    Spacer()
+                                    Image(systemName: "arrow.right")
+                                }
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundStyle(Color.accentColor)
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        Text("Paste your free Gemini or OpenAI key in Settings to use without terminal.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        .padding(10)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "key")
+                                    .font(.system(size: 11))
+                                Text("API Key Missing")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                            }
+                            Text("Add your API credentials to connect directly to the model.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
 
-                        Text("Press ⌘, to configure in Settings → AI & ACP")
-                            .font(.caption2.bold())
-                            .foregroundStyle(Color.accentColor)
+                            Button(action: { isSettingsOpen = true }) {
+                                HStack {
+                                    Text("Enter API Key in Settings")
+                                    Spacer()
+                                    Image(systemName: "arrow.right")
+                                }
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundStyle(Color.accentColor)
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(10)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .padding(.horizontal, 12)
             }
@@ -344,10 +562,10 @@ struct AIAssistantPanelView: View {
         VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 4) {
             HStack(spacing: 5) {
                 if msg.role == .assistant {
-                    Image(systemName: "sparkles")
+                    Image(systemName: agentService.currentProvider.icon)
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.accentColor)
-                    Text("Assistant")
+                    Text("\(agentService.currentProvider.shortName)")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                 } else {
@@ -358,272 +576,283 @@ struct AIAssistantPanelView: View {
                 }
             }
 
-            // Message Bubble Card
-            VStack(alignment: .leading, spacing: 6) {
-                if msg.content.isEmpty && msg.isStreaming {
-                    HStack(spacing: 4) {
-                        ProgressView()
-                            .controlSize(.mini)
-                        Text("Generating response...")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 2)
-                } else {
-                    if msg.role == .user {
-                        Text(msg.content)
-                            .font(.system(size: 12))
-                            .lineSpacing(2)
-                            .foregroundStyle(Color.white)
-                            .textSelection(.enabled)
-                    } else {
-                        // Render formatted Markdown (No raw asterisks, bold/italic, code blocks)
-                        FormattedMarkdownMessageView(markdown: msg.content)
+            if msg.role == .assistant {
+                VStack(alignment: .leading, spacing: 8) {
+                    FormattedMarkdownMessageView(rawMarkdown: msg.content)
+
+                    if msg.isStreaming {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.accentColor)
+                                .frame(width: 5, height: 5)
+                            Text("Agent typing...")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 2)
+                    } else if !msg.content.isEmpty && !msg.content.starts(with: "⚠️") && !msg.content.starts(with: "❌") {
+                        Divider().opacity(0.2).padding(.vertical, 2)
+
+                        HStack(spacing: 8) {
+                            // Direct Replace Note Button
+                            Button(action: {
+                                textToReplace = msg.content
+                                showReplaceConfirmation = true
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 9))
+                                    Text("Replace Note")
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3.5)
+                                .background(Color.orange.opacity(0.12))
+                                .foregroundStyle(Color.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Replace active document with this text")
+
+                            // Append to Note Button
+                            Button(action: {
+                                appendContentToNote(msg.content)
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle")
+                                        .font(.system(size: 9))
+                                    Text("Append")
+                                        .font(.system(size: 10.5, weight: .medium))
+                                }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3.5)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundStyle(Color.accentColor)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Append response to end of active document")
+
+                            // Copy Raw Text Button
+                            Button(action: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(msg.content, forType: .string)
+                                copiedMessageId = msg.id
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    if copiedMessageId == msg.id { copiedMessageId = nil }
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: copiedMessageId == msg.id ? "checkmark" : "doc.on.doc")
+                                        .font(.system(size: 9))
+                                    Text(copiedMessageId == msg.id ? "Copied" : "Copy")
+                                        .font(.system(size: 10.5, weight: .medium))
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3.5)
+                                .background(Color.primary.opacity(0.04))
+                                .foregroundStyle(.secondary)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+                        }
                     }
                 }
-
-                // Assistant Action Bar
-                if msg.role == .assistant && !msg.content.isEmpty && !msg.isStreaming {
-                    HStack(spacing: 6) {
-                        // 1. Direct Replace Button (User requested: "minta tolong langsung edit")
-                        Button(action: {
-                            textToReplace = msg.content
-                            showReplaceConfirmation = true
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "pencil.and.outline")
-                                Text("Replace Note")
-                            }
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundStyle(Color.purple)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.purple.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Replace active note with this text")
-
-                        // 2. Append to Note Button
-                        Button(action: {
-                            appendContentToCurrentNote(msg.content)
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "arrow.down.doc.fill")
-                                Text("Append")
-                            }
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Append this text to the end of the note")
-
-                        // 3. Copy Button
-                        Button(action: {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(msg.content, forType: .string)
-                            copiedMessageId = msg.id
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                if copiedMessageId == msg.id { copiedMessageId = nil }
-                            }
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: copiedMessageId == msg.id ? "checkmark" : "doc.on.doc")
-                                Text(copiedMessageId == msg.id ? "Copied" : "Copy")
-                            }
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer()
-                    }
-                    .padding(.top, 4)
-                }
+                .padding(10)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                )
+            } else {
+                Text(msg.content)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(msg.role == .user ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(msg.role == .user ? Color.clear : Color.primary.opacity(0.08), lineWidth: 1)
-            )
         }
-        .frame(maxWidth: .infinity, alignment: msg.role == .user ? .trailing : .leading)
     }
 
     // MARK: - Prompt Input Area
 
     private var promptInputArea: some View {
         VStack(spacing: 6) {
-            HStack(alignment: .bottom, spacing: 6) {
-                // Multi-line Text Field
-                TextField("Ask Assistant... (↵ send)", text: $inputPrompt, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...5)
+            HStack(alignment: .bottom, spacing: 8) {
+                TextEditor(text: $inputPrompt)
                     .font(.system(size: 12))
+                    .frame(minHeight: 36, maxHeight: 100)
                     .focused($isInputFocused)
-                    .onSubmit {
-                        dispatchPrompt()
-                    }
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    )
 
-                // Send / Stop Button
                 if agentService.isStreaming {
-                    Button(action: { agentService.cancelCurrentStream() }) {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.red)
+                    Button(action: {
+                        agentService.cancelCurrentStream()
+                    }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color.red)
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .help("Stop generating")
+                    .help("Stop Generation")
                 } else {
                     Button(action: dispatchPrompt) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.4) : Color.accentColor)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.4) : Color.accentColor)
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .disabled(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .help("Send Message")
+                    .help("Send Prompt")
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(Color.primary.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isInputFocused ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
-            )
+
+            HStack {
+                Text(activePage != nil ? "Note attached as context" : "Global vault context")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+
+                Spacer()
+
+                Text("Return to send")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
         }
         .padding(10)
     }
 
+    // MARK: - Document Actions
+
     private func dispatchPrompt() {
-        let text = inputPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !agentService.isStreaming else { return }
+        let trimmed = inputPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         inputPrompt = ""
+
         agentService.sendMessage(
-            prompt: text,
+            prompt: trimmed,
             activePage: activePage,
             vaultURL: store.vaultURL
         )
     }
 
-    private func appendContentToCurrentNote(_ content: String) {
+    private func appendContentToNote(_ content: String) {
         guard let page = activePage else { return }
-        var current = page.rawContent
-        if !current.isEmpty && !current.hasSuffix("\n\n") {
-            current += current.hasSuffix("\n") ? "\n" : "\n\n"
+        let cleanAddition = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanAddition.isEmpty else { return }
+
+        var updated = page.rawContent
+        if !updated.isEmpty && !updated.hasSuffix("\n\n") {
+            updated += updated.hasSuffix("\n") ? "\n" : "\n\n"
         }
-        current += content
-        store.updatePageContent(pageId: page.id, newContent: current)
+        updated += cleanAddition
+
+        store.updatePageContent(updated)
     }
 
     private func replaceNoteWithContent(_ content: String) {
         guard let page = activePage else { return }
-        store.updatePageContent(pageId: page.id, newContent: content)
+        let clean = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+
+        store.updatePageContent(clean)
     }
 }
 
-// MARK: - Formatted Markdown Message View (No Raw Asterisks, Full Typography)
+// MARK: - Formatted Markdown Message View (No Raw Asterisks)
 
 struct FormattedMarkdownMessageView: View {
-    let markdown: String
+    let rawMarkdown: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            let lines = markdown.components(separatedBy: "\n")
-            var inCodeBlock = false
-            var codeBuffer = ""
-
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, rawLine in
-                let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
-
-                if trimmed.hasPrefix("```") {
-                    if inCodeBlock {
-                        // End code block
-                        CodeBlockCard(code: codeBuffer)
-                        let _ = { codeBuffer = ""; inCodeBlock = false }()
-                    } else {
-                        // Start code block
-                        let _ = { inCodeBlock = true; codeBuffer = "" }()
-                    }
-                } else if inCodeBlock {
-                    let _ = { codeBuffer += (codeBuffer.isEmpty ? "" : "\n") + rawLine }()
-                } else if trimmed.hasPrefix("### ") {
-                    Text(LocalizedStringKey(String(trimmed.dropFirst(4))))
-                        .font(.system(size: 13, weight: .bold))
+            let blocks = MarkdownBlockParser.parse(rawMarkdown)
+            ForEach(blocks) { block in
+                switch block.type {
+                case .code(let lang, let code):
+                    CodeBlockCard(language: lang, code: code)
+                case .heading(let level, let text):
+                    Text(LocalizedStringKey(text))
+                        .font(.system(size: headingSize(level), weight: .bold))
                         .foregroundStyle(.primary)
                         .padding(.top, 2)
-                } else if trimmed.hasPrefix("## ") {
-                    Text(LocalizedStringKey(String(trimmed.dropFirst(3))))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .padding(.top, 4)
-                } else if trimmed.hasPrefix("# ") {
-                    Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .padding(.top, 4)
-                } else if trimmed.hasPrefix("> ") {
-                    HStack(alignment: .top, spacing: 6) {
+                case .quote(let text):
+                    HStack(spacing: 8) {
                         Rectangle()
                             .fill(Color.accentColor.opacity(0.6))
-                            .frame(width: 2.5)
-                        Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
+                            .frame(width: 3)
+                        Text(LocalizedStringKey(text))
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 1)
-                } else if trimmed == "---" {
-                    Divider().opacity(0.4)
-                } else if trimmed.hasPrefix("* ") || trimmed.hasPrefix("- ") {
-                    HStack(alignment: .top, spacing: 5) {
+                    .padding(.vertical, 2)
+                case .bullet(let text):
+                    HStack(alignment: .top, spacing: 6) {
                         Text("•")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(Color.accentColor)
-                        Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
+                        Text(LocalizedStringKey(text))
                             .font(.system(size: 12))
-                            .lineSpacing(2)
                             .foregroundStyle(.primary)
                     }
-                } else if !trimmed.isEmpty {
-                    Text(LocalizedStringKey(trimmed))
+                case .divider:
+                    Divider().opacity(0.3)
+                case .paragraph(let text):
+                    Text(LocalizedStringKey(text))
                         .font(.system(size: 12))
-                        .lineSpacing(2)
                         .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .textSelection(.enabled)
+    }
+
+    private func headingSize(_ level: Int) -> CGFloat {
+        switch level {
+        case 1: return 15
+        case 2: return 13.5
+        default: return 12.5
+        }
     }
 }
 
 // MARK: - Code Block Card
 
 struct CodeBlockCard: View {
+    let language: String
     let code: String
+
     @State private var isCopied: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Code")
-                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                Text(language.isEmpty ? "code" : language)
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
+
                 Spacer()
+
                 Button(action: {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(code, forType: .string)
@@ -632,17 +861,21 @@ struct CodeBlockCard: View {
                         isCopied = false
                     }
                 }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 8.5))
                         Text(isCopied ? "Copied" : "Copy")
+                            .font(.system(size: 9.5, weight: .medium))
                     }
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
             .background(Color.primary.opacity(0.04))
 
             Divider().opacity(0.2)
@@ -650,16 +883,89 @@ struct CodeBlockCard: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .padding(8)
+                    .padding(10)
+                    .textSelection(.enabled)
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
-        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Markdown Block Parser
+
+enum MarkdownParsedBlockType {
+    case code(lang: String, content: String)
+    case heading(level: Int, text: String)
+    case quote(text: String)
+    case bullet(text: String)
+    case divider
+    case paragraph(text: String)
+}
+
+struct MarkdownParsedBlock: Identifiable {
+    let id = UUID()
+    let type: MarkdownParsedBlockType
+}
+
+enum MarkdownBlockParser {
+    static func parse(_ raw: String) -> [MarkdownParsedBlock] {
+        var blocks: [MarkdownParsedBlock] = []
+        var inCode = false
+        var codeLang = ""
+        var codeLines: [String] = []
+
+        let lines = raw.components(separatedBy: .newlines)
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("```") {
+                if !inCode {
+                    inCode = true
+                    codeLang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    codeLines.removeAll()
+                } else {
+                    inCode = false
+                    blocks.append(MarkdownParsedBlock(type: .code(lang: codeLang, content: codeLines.joined(separator: "\n"))))
+                }
+                continue
+            }
+
+            if inCode {
+                codeLines.append(line)
+                continue
+            }
+
+            if trimmed.isEmpty {
+                continue
+            }
+
+            if trimmed.hasPrefix("### ") {
+                blocks.append(MarkdownParsedBlock(type: .heading(level: 3, text: String(trimmed.dropFirst(4)))))
+            } else if trimmed.hasPrefix("## ") {
+                blocks.append(MarkdownParsedBlock(type: .heading(level: 2, text: String(trimmed.dropFirst(3)))))
+            } else if trimmed.hasPrefix("# ") {
+                blocks.append(MarkdownParsedBlock(type: .heading(level: 1, text: String(trimmed.dropFirst(2)))))
+            } else if trimmed.hasPrefix("> ") {
+                blocks.append(MarkdownParsedBlock(type: .quote(text: String(trimmed.dropFirst(2)))))
+            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                blocks.append(MarkdownParsedBlock(type: .bullet(text: String(trimmed.dropFirst(2)))))
+            } else if trimmed == "---" || trimmed == "___" {
+                blocks.append(MarkdownParsedBlock(type: .divider))
+            } else {
+                blocks.append(MarkdownParsedBlock(type: .paragraph(text: trimmed)))
+            }
+        }
+
+        if inCode {
+            blocks.append(MarkdownParsedBlock(type: .code(lang: codeLang, content: codeLines.joined(separator: "\n"))))
+        }
+
+        return blocks
     }
 }

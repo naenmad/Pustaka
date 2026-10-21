@@ -1469,6 +1469,7 @@ struct NativeEmojiPickerPopover: View {
 
 struct SettingsSheet: View {
     @ObservedObject var store: WorkspaceStore
+    var initialTab: SettingsTab = .appearance
     let onDismiss: () -> Void
 
     @AppStorage("appAppearance") private var appAppearance: String = "system"
@@ -1477,15 +1478,21 @@ struct SettingsSheet: View {
     @AppStorage("aiProviderType") private var aiProviderType: String = AIProviderType.antigravity.rawValue
     @AppStorage("aiAgentCliPath") private var aiAgentCliPath: String = ACPAgentService.defaultAgyPath
     @AppStorage("aiAgentModel") private var aiAgentModel: String = "default"
-    @AppStorage("aiAgentEffort") private var aiAgentEffort: String = "default"
+    @AppStorage("aiAgentEffort") private var aiAgentEffort: String = "high"
+    @AppStorage("claudeCodeCliPath") private var claudeCodeCliPath: String = "claude"
+    @AppStorage("geminiCliPath") private var geminiCliPath: String = "gemini"
+    @AppStorage("customAcpCommand") private var customAcpCommand: String = "npx"
+    @AppStorage("customAcpArgs") private var customAcpArgs: String = "-y @modelcontextprotocol/server-filesystem"
     @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
     @AppStorage("geminiModel") private var geminiModel: String = "gemini-2.5-flash"
     @AppStorage("openaiApiKey") private var openaiApiKey: String = ""
     @AppStorage("openaiBaseUrl") private var openaiBaseUrl: String = "https://api.openai.com/v1"
-    @AppStorage("openaiModel") private var openaiModel: String = "gpt-4o-mini"
+    @AppStorage("openaiModel") private var openaiModel: String = "gpt-4o"
     @AppStorage("claudeApiKey") private var claudeApiKey: String = ""
-    @AppStorage("claudeModel") private var claudeModel: String = "claude-3-5-sonnet-20241022"
+    @AppStorage("claudeModel") private var claudeModel: String = "claude-3-7-sonnet-latest"
+
     @State private var selectedTab: SettingsTab = .appearance
+    @State private var aiCategoryMode: Int = 0 // 0: Local ACP, 1: Direct APIs
 
     enum SettingsTab: String, CaseIterable, Identifiable {
         case appearance = "Appearance"
@@ -1573,7 +1580,12 @@ struct SettingsSheet: View {
                 .padding(16)
             }
         }
-        .frame(width: 520, height: 440)
+        .frame(width: 560, height: 490)
+        .onAppear {
+            selectedTab = initialTab
+            let current = AIProviderType.from(raw: aiProviderType)
+            aiCategoryMode = current.isLocalAcp ? 0 : 1
+        }
     }
 
     private var appearanceSettingsSection: some View {
@@ -1656,34 +1668,71 @@ struct SettingsSheet: View {
 
     private var aiSettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("AI & ACP AGENT PROVIDER")
+            Text("AI & ACP AGENT ARCHITECTURE")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
 
-            // Provider Picker
-            Picker("Provider", selection: $aiProviderType) {
-                ForEach(AIProviderType.allCases) { p in
-                    Label(p.label, systemImage: p.icon).tag(p.rawValue)
-                }
+            // Category Picker: Local ACP vs Direct Cloud APIs
+            Picker("Integration Mode", selection: $aiCategoryMode) {
+                Text("Local ACP Coding Agents (Zed Protocol)").tag(0)
+                Text("Direct Cloud & Local LLM APIs").tag(1)
             }
             .pickerStyle(.segmented)
+            .onChange(of: aiCategoryMode) { _, newMode in
+                let current = AIProviderType.from(raw: aiProviderType)
+                if newMode == 0 && !current.isLocalAcp {
+                    aiProviderType = AIProviderType.antigravity.rawValue
+                } else if newMode == 1 && current.isLocalAcp {
+                    aiProviderType = AIProviderType.geminiApi.rawValue
+                }
+            }
+
+            // Sub-Provider Picker based on selected category
+            if aiCategoryMode == 0 {
+                Picker("Agent", selection: $aiProviderType) {
+                    Text("Antigravity CLI").tag(AIProviderType.antigravity.rawValue)
+                    Text("Claude Code CLI").tag(AIProviderType.claudeCode.rawValue)
+                    Text("Gemini CLI").tag(AIProviderType.geminiCli.rawValue)
+                    Text("Custom ACP Server").tag(AIProviderType.customAcp.rawValue)
+                }
+                .pickerStyle(.segmented)
+            } else {
+                Picker("Provider", selection: $aiProviderType) {
+                    Text("Google Gemini API").tag(AIProviderType.geminiApi.rawValue)
+                    Text("OpenAI / DeepSeek / Ollama").tag(AIProviderType.openai.rawValue)
+                    Text("Anthropic Claude API").tag(AIProviderType.claudeApi.rawValue)
+                }
+                .pickerStyle(.segmented)
+            }
 
             Divider().opacity(0.3)
 
-            if aiProviderType == AIProviderType.antigravity.rawValue {
+            // Provider Configuration View
+            switch AIProviderType.from(raw: aiProviderType) {
+            case .antigravity:
                 antigravityConfigSection
-            } else if aiProviderType == AIProviderType.gemini.rawValue {
-                geminiConfigSection
-            } else if aiProviderType == AIProviderType.openai.rawValue {
+            case .claudeCode:
+                claudeCodeConfigSection
+            case .geminiCli:
+                geminiCliConfigSection
+            case .customAcp:
+                customAcpConfigSection
+            case .geminiApi:
+                geminiApiConfigSection
+            case .openai:
                 openaiConfigSection
-            } else if aiProviderType == AIProviderType.claude.rawValue {
-                claudeConfigSection
+            case .claudeApi:
+                claudeApiConfigSection
             }
         }
     }
 
+    // MARK: - 1. Antigravity CLI Config Section
+
     private var antigravityConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            let isFound = ACPAgentService.resolveExecutablePath(command: "agy", preferredPath: aiAgentCliPath) != nil
+
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     ZStack {
@@ -1696,31 +1745,297 @@ struct SettingsSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Antigravity Agent (Zed ACP Protocol)")
+                        Text("Antigravity Coding Agent (Zed ACP)")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Local subprocess stream-json via stdin/stdout")
+                        Text("Subprocess stream-json via stdio • Zero-config local auth")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
-                    let exists = FileManager.default.isExecutableFile(atPath: (aiAgentCliPath as NSString).expandingTildeInPath)
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(exists ? Color.green : Color.red)
+                            .fill(isFound ? Color.green : Color.red)
                             .frame(width: 5.5, height: 5.5)
-                        Text(exists ? "Ready" : "Missing")
+                        Text(isFound ? "Ready" : "Missing")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(exists ? Color.green : Color.red)
+                            .foregroundStyle(isFound ? Color.green : Color.red)
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(exists ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
                     .clipShape(Capsule())
                 }
 
-                Text("Pustaka communicates with Antigravity directly on your Mac. No API keys required if your CLI is already logged in.")
+                Text("Pustaka communicates with Antigravity CLI directly on macOS. Free & unlimited with Google account.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Executable Path
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("CLI Executable Path")
+                        .font(.system(size: 11.5, weight: .medium))
+                    Spacer()
+                    Button("Auto-Detect") {
+                        if let resolved = ACPAgentService.resolveExecutablePath(command: "agy") {
+                            aiAgentCliPath = resolved
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                }
+
+                TextField("Path to agy binary...", text: $aiAgentCliPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+
+            // Model Picker
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Selection")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $aiAgentModel) {
+                    ForEach(AIModelRegistry.models(for: .antigravity)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
+                }
+                .labelsHidden()
+            }
+
+            // Reasoning Effort Picker
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reasoning Effort")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $aiAgentEffort) {
+                    Text("Auto / Inherit").tag("default")
+                    Text("Low (Fastest)").tag("low")
+                    Text("Medium (Balanced)").tag("medium")
+                    Text("High (Deep Thinking)").tag("high")
+                    Text("Extra High (Complex Reasoning)").tag("xhigh")
+                    Text("Max (Maximum Intelligence)").tag("max")
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    // MARK: - 2. Claude Code CLI Config Section
+
+    private var claudeCodeConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let isFound = ACPAgentService.resolveExecutablePath(command: "claude", preferredPath: claudeCodeCliPath) != nil
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.orange, Color.red], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "terminal.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Claude Code CLI (Anthropic)")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Native terminal agent powered by Claude 3.7 Sonnet")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isFound ? Color.green : Color.red)
+                            .frame(width: 5.5, height: 5.5)
+                        Text(isFound ? "Ready" : "Missing")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(isFound ? Color.green : Color.red)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Text("Install via `npm install -g @anthropic-ai/claude-code` and log in via terminal once.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Executable Path
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("CLI Executable Path")
+                        .font(.system(size: 11.5, weight: .medium))
+                    Spacer()
+                    Button("Auto-Detect") {
+                        if let resolved = ACPAgentService.resolveExecutablePath(command: "claude") {
+                            claudeCodeCliPath = resolved
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                }
+
+                TextField("claude", text: $claudeCodeCliPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+
+            // Model Selection
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Selection")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $claudeModel) {
+                    ForEach(AIModelRegistry.models(for: .claudeCode)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    // MARK: - 3. Gemini CLI Config Section
+
+    private var geminiCliConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let isFound = ACPAgentService.resolveExecutablePath(command: "gemini", preferredPath: geminiCliPath) != nil
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Gemini CLI (Legacy ACP Mode)")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Local terminal agent with --acp protocol support")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isFound ? Color.green : Color.red)
+                            .frame(width: 5.5, height: 5.5)
+                        Text(isFound ? "Ready" : "Missing")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(isFound ? Color.green : Color.red)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Text("Runs `gemini -p` with auto-approved permissions. Note: Google recommends Antigravity (`agy`) for individual users.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Executable Path
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("CLI Executable Path")
+                        .font(.system(size: 11.5, weight: .medium))
+                    Spacer()
+                    Button("Auto-Detect") {
+                        if let resolved = ACPAgentService.resolveExecutablePath(command: "gemini") {
+                            geminiCliPath = resolved
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                }
+
+                TextField("gemini", text: $geminiCliPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+
+            // Model Selection
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Selection")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $geminiModel) {
+                    ForEach(AIModelRegistry.models(for: .geminiCli)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    // MARK: - 4. Custom ACP Server Config Section
+
+    private var customAcpConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let isFound = ACPAgentService.resolveExecutablePath(command: customAcpCommand, preferredPath: customAcpCommand) != nil
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.gray, Color.secondary], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "gearshape.2.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Custom Agent Server (Zed ACP)")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Connect any custom ACP or CLI orchestration tool")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(isFound ? Color.green : Color.red)
+                            .frame(width: 5.5, height: 5.5)
+                        Text(isFound ? "Command Found" : "Not Found")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(isFound ? Color.green : Color.red)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Text("Configure custom commands like `uvx agentpool@latest serve-acp` or your own agent binary.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1729,44 +2044,29 @@ struct SettingsSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("CLI Executable Path")
+                Text("Command Executable")
                     .font(.system(size: 11.5, weight: .medium))
-                TextField("Path to agy binary...", text: $aiAgentCliPath)
+                TextField("npx, uvx, or /path/to/binary...", text: $customAcpCommand)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                Text("Default location: ~/.local/bin/agy")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Model Override (Optional)")
+                Text("Arguments")
                     .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $aiAgentModel) {
-                    Text("Default (Inherit from active Antigravity session)").tag("default")
-                    Text("gemini-2.5-pro").tag("gemini-2.5-pro")
-                    Text("gemini-2.5-flash").tag("gemini-2.5-flash")
-                }
-                .labelsHidden()
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reasoning Effort")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $aiAgentEffort) {
-                    Text("Default").tag("default")
-                    Text("Low").tag("low")
-                    Text("Medium").tag("medium")
-                    Text("High").tag("high")
-                    Text("Max").tag("max")
-                }
-                .labelsHidden()
+                TextField("e.g. -y @modelcontextprotocol/server-filesystem", text: $customAcpArgs)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
             }
         }
     }
 
-    private var geminiConfigSection: some View {
+    // MARK: - 5. Google Gemini Direct API Config Section
+
+    private var geminiApiConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            let hasKey = !geminiApiKey.trimmingCharacters(in: .whitespaces).isEmpty
+
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     ZStack {
@@ -1781,14 +2081,13 @@ struct SettingsSheet: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Google Gemini Direct API")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Zero-install cloud connection")
+                        Text("Cloud connection via Google AI Studio")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
-                    let hasKey = !geminiApiKey.trimmingCharacters(in: .whitespaces).isEmpty
                     HStack(spacing: 4) {
                         Circle()
                             .fill(hasKey ? Color.green : Color.orange)
@@ -1829,16 +2128,19 @@ struct SettingsSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Model")
+                Text("Model Selection")
                     .font(.system(size: 11.5, weight: .medium))
                 Picker("", selection: $geminiModel) {
-                    Text("gemini-2.5-flash (Fast & Recommended)").tag("gemini-2.5-flash")
-                    Text("gemini-2.5-pro (High Quality)").tag("gemini-2.5-pro")
+                    ForEach(AIModelRegistry.models(for: .geminiApi)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
                 }
                 .labelsHidden()
             }
         }
     }
+
+    // MARK: - 6. OpenAI / OpenRouter / DeepSeek Config Section
 
     private var openaiConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1872,15 +2174,26 @@ struct SettingsSheet: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
+            // Presets row
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Quick Presets")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.tertiary)
+
+                HStack(spacing: 6) {
+                    presetButton(title: "OpenAI", url: "https://api.openai.com/v1", defaultModel: "gpt-4o")
+                    presetButton(title: "OpenRouter", url: "https://openrouter.ai/api/v1", defaultModel: "anthropic/claude-3.5-sonnet")
+                    presetButton(title: "DeepSeek", url: "https://api.deepseek.com", defaultModel: "deepseek-chat")
+                    presetButton(title: "Ollama (Local)", url: "http://localhost:11434/v1", defaultModel: "llama3.3:70b")
+                }
+            }
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Base URL")
                     .font(.system(size: 11.5, weight: .medium))
                 TextField("https://api.openai.com/v1", text: $openaiBaseUrl)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                Text("e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1892,17 +2205,43 @@ struct SettingsSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Model Name")
+                Text("Model Selection")
                     .font(.system(size: 11.5, weight: .medium))
-                TextField("gpt-4o-mini", text: $openaiModel)
+                Picker("", selection: $openaiModel) {
+                    ForEach(AIModelRegistry.models(for: .openai)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
+                }
+                .labelsHidden()
+
+                TextField("Or enter custom model ID...", text: $openaiModel)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
             }
         }
     }
 
-    private var claudeConfigSection: some View {
+    private func presetButton(title: String, url: String, defaultModel: String) -> some View {
+        Button(action: {
+            openaiBaseUrl = url
+            openaiModel = defaultModel
+        }) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3.5)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 7. Anthropic Claude Direct API Config Section
+
+    private var claudeApiConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            let hasKey = !claudeApiKey.trimmingCharacters(in: .whitespaces).isEmpty
+
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     ZStack {
@@ -1923,7 +2262,24 @@ struct SettingsSheet: View {
                     }
 
                     Spacer()
+
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(hasKey ? Color.green : Color.orange)
+                            .frame(width: 5.5, height: 5.5)
+                        Text(hasKey ? "Key Set" : "No Key")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(hasKey ? Color.green : Color.orange)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(hasKey ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
                 }
+
+                Text("Direct cloud connection to Anthropic's Claude 3.7 & 3.5 models via REST SSE.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -1938,11 +2294,12 @@ struct SettingsSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Model")
+                Text("Model Selection")
                     .font(.system(size: 11.5, weight: .medium))
                 Picker("", selection: $claudeModel) {
-                    Text("claude-3-5-sonnet-20241022").tag("claude-3-5-sonnet-20241022")
-                    Text("claude-3-5-haiku-20241022").tag("claude-3-5-haiku-20241022")
+                    ForEach(AIModelRegistry.models(for: .claudeApi)) { m in
+                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
+                    }
                 }
                 .labelsHidden()
             }
