@@ -22,6 +22,7 @@
 		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
 		E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */; };
+		5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829599 /* TrashPageView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
 		F4745E229503AC532D20FF00 /* TheMetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheMetService.swift; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
+		B015E83DED5C2530AA829599 /* TrashPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashPageView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -72,6 +74,7 @@
 				3A75D6E66F74E96C369E4F2E /* BlockListView.swift */,
 				B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */,
 				E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */,
+				B015E83DED5C2530AA829599 /* TrashPageView.swift */,
 			);
 			path = Canvas;
 			sourceTree = "<group>";
@@ -267,6 +270,7 @@
 				0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */,
 				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
 				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
+				5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */,
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
 				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,

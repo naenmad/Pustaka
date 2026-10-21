@@ -26,7 +26,9 @@ struct ContentView: View {
 
                 Divider().opacity(0.35)
 
-                if let page = store.selectedPage {
+                if store.isShowingTrash {
+                    TrashPageView(store: store)
+                } else if let page = store.selectedPage {
                     DocumentCanvasView(store: store, page: page)
                         .id(page.id)
                 } else {
@@ -72,12 +74,55 @@ struct ContentView: View {
                 .frame(height: 18)
                 .opacity(0.3)
 
-            // 2. Browser-Style Horizontal Document Tab Bar
-            DocumentTabBarView(store: store)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 2. Browser-Style Horizontal Document Tab Bar OR Trash Header
+            if store.isShowingTrash {
+                HStack(spacing: 8) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.red.opacity(0.85))
 
-            // 3. Trailing Document Actions (Share & 3-Dots Menu di Pojok Kanan)
-            if let page = store.selectedPage {
+                    Text("Trash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+
+                    if !store.trashPages.isEmpty {
+                        Text("\(store.trashPages.count) items")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 6)
+            } else {
+                DocumentTabBarView(store: store)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // 3. Trailing Document Actions (Share & 3-Dots for Document, Done for Trash)
+            if store.isShowingTrash {
+                HStack(spacing: 8) {
+                    Button(action: {
+                        store.closeTrash()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Done")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Return to documents")
+                }
+            } else if let page = store.selectedPage {
                 HStack(spacing: 6) {
                     // Share & Export Menu
                     Menu {

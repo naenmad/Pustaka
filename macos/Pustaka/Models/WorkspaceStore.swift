@@ -16,6 +16,7 @@ class WorkspaceStore: ObservableObject {
     @Published var pages: [DocumentPage] = []
     @Published var selectedPageId: String? = nil
     @Published var openTabIds: [String] = []
+    @Published var isShowingTrash: Bool = false
     @Published var isPreviewDrawerPresented: Bool = false
     @Published var engineInfo: String = "Ready"
     @Published var currentRon: String = ""
@@ -373,8 +374,17 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
+    func openTrash() {
+        self.isShowingTrash = true
+    }
+
+    func closeTrash() {
+        self.isShowingTrash = false
+    }
+
     func selectPage(id: String) {
         guard pages.contains(where: { $0.id == id && !$0.isDeleted }) else { return }
+        self.isShowingTrash = false
         self.selectedPageId = id
         if !openTabIds.contains(id) {
             openTabIds.append(id)
@@ -843,7 +853,7 @@ class WorkspaceStore: ObservableObject {
     }
 
     /// Restores a soft-deleted document and its subpages from Trash back to active notes
-    func restoreFromTrash(id: String) {
+    func restoreFromTrash(id: String, andOpen: Bool = false) {
         var toRestoreIds = Set<String>([id])
         var addedMore = true
         while addedMore {
@@ -865,6 +875,9 @@ class WorkspaceStore: ObservableObject {
         }
 
         self.selectedPageId = id
+        if andOpen {
+            self.isShowingTrash = false
+        }
         saveToDisk()
         recompileCurrentPage()
     }

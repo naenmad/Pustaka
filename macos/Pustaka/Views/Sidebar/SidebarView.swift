@@ -63,7 +63,7 @@ struct SidebarView: View {
     // Collapsible navigation states
     @State private var isFavoritesExpanded: Bool = true
     @State private var isRecentExpanded: Bool = false
-    @State private var isTrashSheetPresented: Bool = false
+    @State private var isTrashHovered: Bool = false
     @State private var isSettingsSheetPresented: Bool = false
 
     init(store: WorkspaceStore, columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all)) {
@@ -118,12 +118,6 @@ struct SidebarView: View {
                 store: store,
                 category: cat,
                 onDismiss: { categoryToCustomize = nil }
-            )
-        }
-        .sheet(isPresented: $isTrashSheetPresented) {
-            TrashManagerSheet(
-                store: store,
-                onDismiss: { isTrashSheetPresented = false }
             )
         }
         .sheet(isPresented: $isSettingsSheetPresented) {
@@ -459,17 +453,17 @@ struct SidebarView: View {
 
     private var trashPinnedRow: some View {
         Button(action: {
-            isTrashSheetPresented = true
+            store.openTrash()
         }) {
             HStack(spacing: 6) {
                 Image(systemName: store.trashPages.isEmpty ? "trash" : "trash.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(store.trashPages.isEmpty ? Color.secondary.opacity(0.8) : Color.red.opacity(0.85))
+                    .foregroundStyle(store.isShowingTrash ? Color.accentColor : (store.trashPages.isEmpty ? Color.secondary.opacity(0.8) : Color.red.opacity(0.85)))
                     .frame(width: 14)
 
                 Text("Trash")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: store.isShowingTrash ? .semibold : .medium))
+                    .foregroundStyle(store.isShowingTrash ? Color.primary : Color.secondary)
 
                 Spacer()
 
@@ -486,11 +480,12 @@ struct SidebarView: View {
             .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.clear)
+                    .fill(store.isShowingTrash ? Color.accentColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.04) : Color.clear))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { isTrashHovered = $0 }
         .help("View deleted documents (.trash/)")
     }
 
@@ -1297,217 +1292,7 @@ struct NativeEmojiPickerPopover: View {
     }
 }
 
-// MARK: - Trash Manager Sheet (Obsidian .trash/ Compatible)
 
-struct TrashManagerSheet: View {
-    @ObservedObject var store: WorkspaceStore
-    let onDismiss: () -> Void
-
-    @State private var trashSearchText: String = ""
-    @State private var isConfirmingEmptyTrash: Bool = false
-
-    private var filteredTrashPages: [DocumentPage] {
-        if trashSearchText.isEmpty {
-            return store.trashPages
-        }
-        return store.trashPages.filter { page in
-            page.title.localizedCaseInsensitiveContains(trashSearchText) ||
-            page.rawContent.localizedCaseInsensitiveContains(trashSearchText)
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color.red.opacity(0.12))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.red)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Trash")
-                        .font(.headline.weight(.semibold))
-
-                    Text("\(store.trashPages.count) items preserved in ~/Documents/Pustaka/.trash/")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if !store.trashPages.isEmpty {
-                    Button(role: .destructive, action: {
-                        isConfirmingEmptyTrash = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "trash")
-                            Text("Empty Trash...")
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Divider()
-
-            // Filter bar
-            if !store.trashPages.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextField("Filter trash...", text: $trashSearchText)
-                        .textFieldStyle(.plain)
-                        .font(.subheadline)
-
-                    if !trashSearchText.isEmpty {
-                        Button(action: { trashSearchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-                Divider()
-            }
-
-            // Trash Content List
-            if store.trashPages.isEmpty {
-                VStack(spacing: 12) {
-                    Spacer()
-                    Image(systemName: "trash")
-                        .font(.system(size: 42))
-                        .foregroundStyle(.tertiary)
-                    Text("Trash is Empty")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text("Deleted documents will appear here before being permanently destroyed.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 320)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredTrashPages.isEmpty {
-                VStack(spacing: 8) {
-                    Spacer()
-                    Text("No deleted notes matching \"\(trashSearchText)\"")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(filteredTrashPages) { page in
-                        HStack(spacing: 10) {
-                            if !page.icon.isEmpty {
-                                Text(page.icon)
-                                    .font(.title3)
-                                    .frame(width: 24)
-                            } else {
-                                Image(systemName: "doc.text")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 24)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(page.title.isEmpty ? "Untitled Note" : page.title)
-                                    .font(.system(size: 13, weight: .medium))
-
-                                HStack(spacing: 8) {
-                                    Text("Deleted \(relativeTimeString(from: page.lastModified))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-
-                                    let catName = store.categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
-                                    Text("Folder: \(catName)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Restore Button
-                            Button(action: {
-                                withAnimation {
-                                    store.restoreFromTrash(id: page.id)
-                                }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.uturn.backward")
-                                    Text("Restore")
-                                }
-                                .font(.system(size: 11.5, weight: .medium))
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .help("Restore to active notes")
-
-                            // Permanent Delete Button
-                            Button(action: {
-                                withAnimation {
-                                    store.permanentlyDelete(id: page.id)
-                                }
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.red)
-                                    .padding(5)
-                                    .background(Color.red.opacity(0.1))
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .help("Permanently delete")
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-        .frame(width: 580, height: 440)
-        .confirmationDialog(
-            "Empty Trash?",
-            isPresented: $isConfirmingEmptyTrash,
-            titleVisibility: .visible
-        ) {
-            Button("Empty Trash (\(store.trashPages.count) items)", role: .destructive) {
-                store.emptyTrash()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to permanently delete all \(store.trashPages.count) notes from disk? This cannot be undone.")
-        }
-    }
-}
 
 // MARK: - Settings & Workspace Preferences Sheet
 
