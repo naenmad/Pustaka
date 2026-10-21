@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - AI Assistant Side Panel View (Zed ACP Inspired)
+// MARK: - AI Assistant Side Panel View (Zed ACP & Multi-Provider)
 
 struct AIAssistantPanelView: View {
     @ObservedObject var store: WorkspaceStore
@@ -10,6 +10,9 @@ struct AIAssistantPanelView: View {
     @State private var inputPrompt: String = ""
     @FocusState private var isInputFocused: Bool
     @State private var copiedMessageId: UUID? = nil
+    @State private var showReplaceConfirmation: Bool = false
+    @State private var textToReplace: String = ""
+    @State private var isSettingsOpen: Bool = false
 
     private var activePage: DocumentPage? {
         store.selectedPage
@@ -27,8 +30,10 @@ struct AIAssistantPanelView: View {
 
             Divider().opacity(0.2)
 
-            // 3. Conversation ScrollView
-            if agentService.messages.isEmpty {
+            // 3. Conversation ScrollView OR Onboarding Card
+            if !agentService.isAgentAvailable && agentService.messages.isEmpty {
+                providerOnboardingView
+            } else if agentService.messages.isEmpty {
                 emptyStateSuggestionsView
             } else {
                 conversationMessagesView
@@ -39,13 +44,21 @@ struct AIAssistantPanelView: View {
             // 4. Prompt Input & Dispatch Area
             promptInputArea
         }
-        .frame(minWidth: 280, idealWidth: 320, maxWidth: 380)
+        .frame(minWidth: 300, idealWidth: 340, maxWidth: 420)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             agentService.checkAgentAvailability()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isInputFocused = true
             }
+        }
+        .alert("Replace Document Content?", isPresented: $showReplaceConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Replace Content", role: .destructive) {
+                replaceNoteWithContent(textToReplace)
+            }
+        } message: {
+            Text("This will replace the content of '\(activePage?.title ?? "Document")' with the AI response. You can undo this later via document history.")
         }
     }
 
@@ -64,28 +77,22 @@ struct AIAssistantPanelView: View {
                     )
                     .frame(width: 22, height: 22)
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .bold))
+                Image(systemName: agentService.currentProvider.icon)
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 4) {
-                    Text("Antigravity")
-                        .font(.system(size: 12.5, weight: .bold))
-                    Text("ACP")
-                        .font(.system(size: 9, weight: .heavy))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor.opacity(0.12))
-                        .foregroundStyle(Color.accentColor)
-                        .clipShape(Capsule())
+                    Text(agentService.currentProvider.label)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .lineLimit(1)
                 }
 
                 HStack(spacing: 4) {
                     Circle()
                         .fill(agentService.isAgentAvailable ? Color.green : Color.orange)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 5.5, height: 5.5)
                     Text(agentService.statusMessage)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
@@ -141,14 +148,14 @@ struct AIAssistantPanelView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             } else {
-                Text("No note selected (General Vault context)")
+                Text("No note selected (Vault context)")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            Text("Vault Mode")
+            Text("ACP Mode")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 5)
@@ -159,6 +166,92 @@ struct AIAssistantPanelView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Color.primary.opacity(0.02))
+    }
+
+    // MARK: - Provider Onboarding View (When CLI / API Key Not Configured)
+
+    private var providerOnboardingView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 14) {
+                Spacer().frame(height: 8)
+
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.orange)
+                }
+
+                VStack(spacing: 4) {
+                    Text("Connect an AI Provider")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Pustaka supports local Antigravity CLI (Zed ACP), Google Gemini, OpenAI, and Claude.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    // Option A: Antigravity CLI
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "terminal")
+                                .font(.system(size: 11))
+                            Text("Antigravity CLI (Recommended)")
+                                .font(.system(size: 11.5, weight: .semibold))
+                        }
+                        Text("Zero-setup local agent if `agy` is installed.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Button(action: {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("curl -sSL https://antigravity.google/install.sh | bash", forType: .string)
+                        }) {
+                            HStack {
+                                Text("Copy CLI Install Command")
+                                Spacer()
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .font(.system(size: 10.5))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.primary.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    // Option B: Open Settings to Configure API Key
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "key")
+                                .font(.system(size: 11))
+                            Text("Direct API Keys (Gemini, OpenAI, Claude)")
+                                .font(.system(size: 11.5, weight: .semibold))
+                        }
+                        Text("Paste your free Gemini or OpenAI key in Settings to use without terminal.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        Text("Press ⌘, to configure in Settings → AI & ACP")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.vertical, 12)
+        }
     }
 
     // MARK: - Empty State Suggestions
@@ -254,7 +347,7 @@ struct AIAssistantPanelView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.accentColor)
-                    Text("Antigravity")
+                    Text("Assistant")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                 } else {
@@ -277,29 +370,59 @@ struct AIAssistantPanelView: View {
                     }
                     .padding(.vertical, 2)
                 } else {
-                    Text(msg.content)
-                        .font(.system(size: 12))
-                        .lineSpacing(3)
-                        .foregroundStyle(msg.role == .user ? Color.white : Color.primary)
-                        .textSelection(.enabled)
+                    if msg.role == .user {
+                        Text(msg.content)
+                            .font(.system(size: 12))
+                            .lineSpacing(2)
+                            .foregroundStyle(Color.white)
+                            .textSelection(.enabled)
+                    } else {
+                        // Render formatted Markdown (No raw asterisks, bold/italic, code blocks)
+                        FormattedMarkdownMessageView(markdown: msg.content)
+                    }
                 }
 
                 // Assistant Action Bar
                 if msg.role == .assistant && !msg.content.isEmpty && !msg.isStreaming {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        // 1. Direct Replace Button (User requested: "minta tolong langsung edit")
+                        Button(action: {
+                            textToReplace = msg.content
+                            showReplaceConfirmation = true
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "pencil.and.outline")
+                                Text("Replace Note")
+                            }
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(Color.purple)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.purple.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Replace active note with this text")
+
+                        // 2. Append to Note Button
                         Button(action: {
                             appendContentToCurrentNote(msg.content)
                         }) {
                             HStack(spacing: 3) {
                                 Image(systemName: "arrow.down.doc.fill")
-                                Text("Append to Note")
+                                Text("Append")
                             }
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 9.5, weight: .semibold))
                             .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
-                        .help("Append this text to the end of the active note")
+                        .help("Append this text to the end of the note")
 
+                        // 3. Copy Button
                         Button(action: {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(msg.content, forType: .string)
@@ -312,8 +435,12 @@ struct AIAssistantPanelView: View {
                                 Image(systemName: copiedMessageId == msg.id ? "checkmark" : "doc.on.doc")
                                 Text(copiedMessageId == msg.id ? "Copied" : "Copy")
                             }
-                            .font(.system(size: 10))
+                            .font(.system(size: 9.5))
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.primary.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
 
@@ -342,7 +469,7 @@ struct AIAssistantPanelView: View {
         VStack(spacing: 6) {
             HStack(alignment: .bottom, spacing: 6) {
                 // Multi-line Text Field
-                TextField("Ask Antigravity... (↵ send)", text: $inputPrompt, axis: .vertical)
+                TextField("Ask Assistant... (↵ send)", text: $inputPrompt, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...5)
                     .font(.system(size: 12))
@@ -402,5 +529,137 @@ struct AIAssistantPanelView: View {
         }
         current += content
         store.updatePageContent(pageId: page.id, newContent: current)
+    }
+
+    private func replaceNoteWithContent(_ content: String) {
+        guard let page = activePage else { return }
+        store.updatePageContent(pageId: page.id, newContent: content)
+    }
+}
+
+// MARK: - Formatted Markdown Message View (No Raw Asterisks, Full Typography)
+
+struct FormattedMarkdownMessageView: View {
+    let markdown: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let lines = markdown.components(separatedBy: "\n")
+            var inCodeBlock = false
+            var codeBuffer = ""
+
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, rawLine in
+                let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+
+                if trimmed.hasPrefix("```") {
+                    if inCodeBlock {
+                        // End code block
+                        CodeBlockCard(code: codeBuffer)
+                        let _ = { codeBuffer = ""; inCodeBlock = false }()
+                    } else {
+                        // Start code block
+                        let _ = { inCodeBlock = true; codeBuffer = "" }()
+                    }
+                } else if inCodeBlock {
+                    let _ = { codeBuffer += (codeBuffer.isEmpty ? "" : "\n") + rawLine }()
+                } else if trimmed.hasPrefix("### ") {
+                    Text(LocalizedStringKey(String(trimmed.dropFirst(4))))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .padding(.top, 2)
+                } else if trimmed.hasPrefix("## ") {
+                    Text(LocalizedStringKey(String(trimmed.dropFirst(3))))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .padding(.top, 4)
+                } else if trimmed.hasPrefix("# ") {
+                    Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .padding(.top, 4)
+                } else if trimmed.hasPrefix("> ") {
+                    HStack(alignment: .top, spacing: 6) {
+                        Rectangle()
+                            .fill(Color.accentColor.opacity(0.6))
+                            .frame(width: 2.5)
+                        Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 1)
+                } else if trimmed == "---" {
+                    Divider().opacity(0.4)
+                } else if trimmed.hasPrefix("* ") || trimmed.hasPrefix("- ") {
+                    HStack(alignment: .top, spacing: 5) {
+                        Text("•")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.accentColor)
+                        Text(LocalizedStringKey(String(trimmed.dropFirst(2))))
+                            .font(.system(size: 12))
+                            .lineSpacing(2)
+                            .foregroundStyle(.primary)
+                    }
+                } else if !trimmed.isEmpty {
+                    Text(LocalizedStringKey(trimmed))
+                        .font(.system(size: 12))
+                        .lineSpacing(2)
+                        .foregroundStyle(.primary)
+                }
+            }
+        }
+        .textSelection(.enabled)
+    }
+}
+
+// MARK: - Code Block Card
+
+struct CodeBlockCard: View {
+    let code: String
+    @State private var isCopied: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Code")
+                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                    isCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        isCopied = false
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        Text(isCopied ? "Copied" : "Copy")
+                    }
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.primary.opacity(0.04))
+
+            Divider().opacity(0.2)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .padding(8)
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+        .padding(.vertical, 2)
     }
 }

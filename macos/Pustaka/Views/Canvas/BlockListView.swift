@@ -982,6 +982,12 @@ struct BlockListView: View {
             self.blocks = store.parseToUIBlocks(content: page.rawContent)
             self.selectedBlockIds.removeAll()
         }
+        .onChange(of: page.rawContent) { _, newContent in
+            let currentSerialized = store.uiBlocksToPfs(blocks: self.blocks)
+            if currentSerialized != newContent {
+                self.blocks = store.parseToUIBlocks(content: newContent)
+            }
+        }
         .onChange(of: blockActionTrigger) { _, cmd in
             guard let cmd = cmd else { return }
             switch cmd {

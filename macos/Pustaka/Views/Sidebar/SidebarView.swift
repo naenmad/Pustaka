@@ -1474,9 +1474,17 @@ struct SettingsSheet: View {
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
     @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
+    @AppStorage("aiProviderType") private var aiProviderType: String = AIProviderType.antigravity.rawValue
     @AppStorage("aiAgentCliPath") private var aiAgentCliPath: String = ACPAgentService.defaultAgyPath
     @AppStorage("aiAgentModel") private var aiAgentModel: String = "default"
     @AppStorage("aiAgentEffort") private var aiAgentEffort: String = "default"
+    @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
+    @AppStorage("geminiModel") private var geminiModel: String = "gemini-2.5-flash"
+    @AppStorage("openaiApiKey") private var openaiApiKey: String = ""
+    @AppStorage("openaiBaseUrl") private var openaiBaseUrl: String = "https://api.openai.com/v1"
+    @AppStorage("openaiModel") private var openaiModel: String = "gpt-4o-mini"
+    @AppStorage("claudeApiKey") private var claudeApiKey: String = ""
+    @AppStorage("claudeModel") private var claudeModel: String = "claude-3-5-sonnet-20241022"
     @State private var selectedTab: SettingsTab = .appearance
 
     enum SettingsTab: String, CaseIterable, Identifiable {
@@ -1648,25 +1656,49 @@ struct SettingsSheet: View {
 
     private var aiSettingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("ACP & AI AGENT PROVIDER")
+            Text("AI & ACP AGENT PROVIDER")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Provider Picker
+            Picker("Provider", selection: $aiProviderType) {
+                ForEach(AIProviderType.allCases) { p in
+                    Label(p.label, systemImage: p.icon).tag(p.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Divider().opacity(0.3)
+
+            if aiProviderType == AIProviderType.antigravity.rawValue {
+                antigravityConfigSection
+            } else if aiProviderType == AIProviderType.gemini.rawValue {
+                geminiConfigSection
+            } else if aiProviderType == AIProviderType.openai.rawValue {
+                openaiConfigSection
+            } else if aiProviderType == AIProviderType.claude.rawValue {
+                claudeConfigSection
+            }
+        }
+    }
+
+    private var antigravityConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     ZStack {
                         Circle()
                             .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 24, height: 24)
+                            .frame(width: 22, height: 22)
                         Image(systemName: "sparkles")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
                     }
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Antigravity Agent (Zed ACP Protocol)")
-                            .font(.system(size: 12.5, weight: .bold))
-                        Text("Subprocess stream-json via stdin/stdout")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Local subprocess stream-json via stdin/stdout")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -1677,18 +1709,18 @@ struct SettingsSheet: View {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(exists ? Color.green : Color.red)
-                            .frame(width: 6, height: 6)
+                            .frame(width: 5.5, height: 5.5)
                         Text(exists ? "Ready" : "Missing")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(exists ? Color.green : Color.red)
                     }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
                     .background(exists ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
                     .clipShape(Capsule())
                 }
 
-                Text("Pustaka communicates with Antigravity using line-delimited streaming JSON-RPC over stdin/stdout, following the open Agent Client Protocol (ACP) standard.")
+                Text("Pustaka communicates with Antigravity directly on your Mac. No API keys required if your CLI is already logged in.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1696,7 +1728,6 @@ struct SettingsSheet: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            // CLI Binary Path
             VStack(alignment: .leading, spacing: 4) {
                 Text("CLI Executable Path")
                     .font(.system(size: 11.5, weight: .medium))
@@ -1708,7 +1739,6 @@ struct SettingsSheet: View {
                     .foregroundStyle(.tertiary)
             }
 
-            // Model Selection
             VStack(alignment: .leading, spacing: 4) {
                 Text("Model Override (Optional)")
                     .font(.system(size: 11.5, weight: .medium))
@@ -1720,7 +1750,6 @@ struct SettingsSheet: View {
                 .labelsHidden()
             }
 
-            // Reasoning Effort
             VStack(alignment: .leading, spacing: 4) {
                 Text("Reasoning Effort")
                     .font(.system(size: 11.5, weight: .medium))
@@ -1730,6 +1759,190 @@ struct SettingsSheet: View {
                     Text("Medium").tag("medium")
                     Text("High").tag("high")
                     Text("Max").tag("max")
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var geminiConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Google Gemini Direct API")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Zero-install cloud connection")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    let hasKey = !geminiApiKey.trimmingCharacters(in: .whitespaces).isEmpty
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(hasKey ? Color.green : Color.orange)
+                            .frame(width: 5.5, height: 5.5)
+                        Text(hasKey ? "Key Set" : "No Key")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(hasKey ? Color.green : Color.orange)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(hasKey ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Text("Fast, reliable cloud access using your Google AI Studio API key. Works on any Mac without terminal setup.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Gemini API Key")
+                    .font(.system(size: 11.5, weight: .medium))
+                SecureField("Paste your AI Studio API key...", text: $geminiApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+
+                Button("Get free API Key from Google AI Studio ↗") {
+                    if let url = URL(string: "https://aistudio.google.com/app/apikey") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.caption2)
+                .foregroundStyle(Color.accentColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $geminiModel) {
+                    Text("gemini-2.5-flash (Fast & Recommended)").tag("gemini-2.5-flash")
+                    Text("gemini-2.5-pro (High Quality)").tag("gemini-2.5-pro")
+                }
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var openaiConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.green, Color.teal], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "cpu")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("OpenAI / OpenRouter / DeepSeek / Ollama")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Universal /v1/chat/completions endpoint")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+
+                Text("Compatible with OpenAI, OpenRouter, DeepSeek, Groq, or local Ollama servers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Base URL")
+                    .font(.system(size: 11.5, weight: .medium))
+                TextField("https://api.openai.com/v1", text: $openaiBaseUrl)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                Text("e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("API Key (Leave blank for local Ollama)")
+                    .font(.system(size: 11.5, weight: .medium))
+                SecureField("API Key...", text: $openaiApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Name")
+                    .font(.system(size: 11.5, weight: .medium))
+                TextField("gpt-4o-mini", text: $openaiModel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+        }
+    }
+
+    private var claudeConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.orange, Color.red], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 22, height: 22)
+                        Image(systemName: "brain")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Anthropic Claude API")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Direct Anthropic Messages API")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Claude API Key (sk-ant-...)")
+                    .font(.system(size: 11.5, weight: .medium))
+                SecureField("Paste your Anthropic API key...", text: $claudeApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $claudeModel) {
+                    Text("claude-3-5-sonnet-20241022").tag("claude-3-5-sonnet-20241022")
+                    Text("claude-3-5-haiku-20241022").tag("claude-3-5-haiku-20241022")
                 }
                 .labelsHidden()
             }
