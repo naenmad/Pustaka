@@ -520,6 +520,7 @@ class WorkspaceStore: ObservableObject {
             title: page.title.isEmpty ? "Copy of Untitled" : "\(page.title) (Copy)",
             icon: page.icon,
             coverUrl: page.coverUrl,
+            coverOffsetY: page.coverOffsetY,
             categoryId: page.categoryId,
             rawContent: page.rawContent,
             isFavorite: page.isFavorite,
@@ -662,6 +663,14 @@ class WorkspaceStore: ObservableObject {
         guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         objectWillChange.send()
         pages[idx].coverUrl = newCoverUrl
+        pages[idx].lastModified = Date()
+        saveToDisk()
+    }
+
+    func updatePageCoverOffset(pageId: String, newOffsetY: Double) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        objectWillChange.send()
+        pages[idx].coverOffsetY = max(0.0, min(1.0, newOffsetY))
         pages[idx].lastModified = Date()
         saveToDisk()
     }

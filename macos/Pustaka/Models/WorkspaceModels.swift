@@ -27,6 +27,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var title: String
     var icon: String // Emoji or symbol
     var coverUrl: String // Curated free Unsplash cover image URL
+    var coverOffsetY: Double = 0.5 // Vertical alignment offset (0.0 = top, 0.5 = center, 1.0 = bottom)
     var categoryId: String // References SidebarCategory.id
     var parentPageId: String? = nil // Optional parent page id for nested subpages
     var rawContent: String
@@ -36,7 +37,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var boardTasks: [TaskCard]
 
     enum CodingKeys: String, CodingKey {
-        case id, title, icon, coverUrl, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
+        case id, title, icon, coverUrl, coverOffsetY, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
     }
 
     init(
@@ -44,6 +45,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         title: String,
         icon: String,
         coverUrl: String,
+        coverOffsetY: Double = 0.5,
         categoryId: String,
         parentPageId: String? = nil,
         rawContent: String,
@@ -56,6 +58,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         self.title = title
         self.icon = icon
         self.coverUrl = coverUrl
+        self.coverOffsetY = coverOffsetY
         self.categoryId = categoryId
         self.parentPageId = parentPageId
         self.rawContent = rawContent
@@ -71,6 +74,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         title = try container.decode(String.self, forKey: .title)
         icon = try container.decode(String.self, forKey: .icon)
         coverUrl = try container.decode(String.self, forKey: .coverUrl)
+        coverOffsetY = try container.decodeIfPresent(Double.self, forKey: .coverOffsetY) ?? 0.5
         categoryId = try container.decode(String.self, forKey: .categoryId)
         parentPageId = try container.decodeIfPresent(String.self, forKey: .parentPageId)
         rawContent = try container.decode(String.self, forKey: .rawContent)

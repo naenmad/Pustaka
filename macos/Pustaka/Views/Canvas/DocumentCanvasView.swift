@@ -161,6 +161,9 @@ struct DocumentCanvasView: View {
     @State private var metSearchResults: [MetArtwork] = []
     @State private var isMetSearching: Bool = false
     @State private var coverPickerTab: Int = 0
+    @State private var isRepositioningCover: Bool = false
+    @State private var currentCoverOffsetY: Double = 0.5
+    @State private var initialDragOffsetY: Double = 0.5
 
     var currentPage: DocumentPage {
         store.pages.first(where: { $0.id == page.id }) ?? page
@@ -188,7 +191,14 @@ struct DocumentCanvasView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            documentCanvasBody
+            VStack(spacing: 0) {
+                // Top Page Header Bar (Sidebar Toggle on LEFT, Share & 3-Dots on RIGHT)
+                topPageNavBar
+
+                Divider().opacity(0.3)
+
+                documentCanvasBody
+            }
 
             // Floating Action Toolbar (Notion & Bear style glassmorphic island)
             if !selectedBlockIds.isEmpty {
@@ -270,9 +280,44 @@ struct DocumentCanvasView: View {
             .opacity(0)
             .frame(width: 0, height: 0)
         )
-        .navigationTitle("")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
+        .onAppear {
+            self.titleBuffer = currentPage.title
+            self.currentCoverOffsetY = currentPage.coverOffsetY
+        }
+        .onChange(of: page.id) { _, _ in
+            self.titleBuffer = currentPage.title
+            self.currentCoverOffsetY = currentPage.coverOffsetY
+            self.isRepositioningCover = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenCoverPicker"))) { _ in
+            self.isCoverPickerOpen = true
+        }
+    }
+
+    // MARK: - Top Page Navigation Bar (Leading Sidebar Toggle, Trailing Share & Page Options)
+
+    private var topPageNavBar: some View {
+        HStack(spacing: 12) {
+            // Button to toggle/show/hide sidebar (on the LEFT / leading side of the page)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+                }
+            }) {
+                Image(systemName: "sidebar.leading")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Sidebar (⌃⌘S)")
+
+            Spacer()
+
+            // Page Actions (on the FAR RIGHT / trailing side of the page)
+            HStack(spacing: 6) {
                 // 1. Share & Export Menu
                 Menu {
                     Button(action: { exportDocument(format: "md") }) {
@@ -305,10 +350,15 @@ struct DocumentCanvasView: View {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .help("Export & Share Document")
 
-                // 2. Page Options Menu (...)
+                // 2. Page Options Menu (Three Dots ...)
                 Menu {
                     Button(action: { store.addNewSubpage(parentPageId: currentPage.id) }) {
                         Label("Add Subpage", systemImage: "doc.badge.plus")
@@ -336,7 +386,8 @@ struct DocumentCanvasView: View {
                     }
                     Button(action: {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(currentPage.title.isEmpty ? "Untitled" : currentPage.title, forType: .string)
+                        let md = currentPage.title.isEmpty ? "Untitled" : currentPage.title
+                        NSPasteboard.general.setString(md, forType: .string)
                     }) {
                         Label("Copy Page Title", systemImage: "text.quote")
                     }
@@ -348,16 +399,17 @@ struct DocumentCanvasView: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .help("Page Options")
             }
         }
-        .onAppear {
-            self.titleBuffer = currentPage.title
-        }
-        .onChange(of: page.id) { _, _ in
-            self.titleBuffer = currentPage.title
-        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
     }
 
     // MARK: - Export Action
@@ -658,103 +710,197 @@ struct DocumentCanvasView: View {
         }
     }
 
-    // MARK: - Cover Banner View
+    // MARK: - Cover Banner View (Supports Drag-to-Reposition & Crop)
 
     private var pageCoverBannerView: some View {
         ZStack(alignment: .bottomTrailing) {
-            Group {
-                if currentPage.coverUrl.hasPrefix("gradient:") {
-                    LinearGradient(
-                        colors: PresetGradientCover.colors(for: currentPage.coverUrl),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                } else if let localPath = store.resolveVaultImagePath(currentPage.coverUrl),
-                          let nsImg = NSImage(contentsOfFile: localPath) {
-                    Image(nsImage: nsImg)
-                        .resizable()
-                        .scaledToFill()
-                } else if currentPage.coverUrl.hasPrefix("/") || currentPage.coverUrl.hasPrefix("file://") {
-                    let cleanPath = currentPage.coverUrl.replacingOccurrences(of: "file://", with: "")
-                    if let nsImg = NSImage(contentsOfFile: cleanPath) {
-                        Image(nsImage: nsImg)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Color.secondary.opacity(0.15)
-                    }
-                } else {
-                    AsyncImage(url: URL(string: currentPage.coverUrl)) { phase in
-                        switch phase {
-                        case .empty:
-                            LinearGradient(
-                                colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        case .failure:
-                            LinearGradient(
-                                colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.6)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        @unknown default:
-                            Color.secondary.opacity(0.2)
-                        }
-                    }
-                }
+            GeometryReader { geo in
+                coverImageContent
+                    .frame(width: geo.size.width)
+                    .offset(y: (0.5 - (isRepositioningCover ? currentCoverOffsetY : currentPage.coverOffsetY)) * 180)
             }
             .frame(height: 270)
-            .frame(maxWidth: .infinity)
             .clipped()
-
-            HStack(spacing: 8) {
-                Button(action: {
-                    isCoverPickerOpen = true
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "photo")
-                            .font(.caption)
-                        Text("Change cover")
-                            .font(.caption.weight(.medium))
+            .contentShape(Rectangle())
+            .gesture(
+                isRepositioningCover ?
+                DragGesture()
+                    .onChanged { value in
+                        let delta = -Double(value.translation.height) / 200.0
+                        currentCoverOffsetY = max(0.0, min(1.0, initialDragOffsetY + delta))
                     }
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                        Text("Remove")
-                            .font(.caption.weight(.medium))
+                    .onEnded { _ in
+                        initialDragOffsetY = currentCoverOffsetY
                     }
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
+                : nil
+            )
+
+            // Reposition Banner Overlay
+            if isRepositioningCover {
+                VStack {
+                    HStack(spacing: 12) {
+                        Image(systemName: "hand.draw.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white)
+
+                        Text("Drag image to reposition")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+
+                        // Precision slider
+                        Slider(value: $currentCoverOffsetY, in: 0.0...1.0)
+                            .frame(width: 90)
+                            .controlSize(.mini)
+
+                        Spacer()
+
+                        Button("Cancel") {
+                            currentCoverOffsetY = currentPage.coverOffsetY
+                            isRepositioningCover = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button("Save position") {
+                            store.updatePageCoverOffset(pageId: currentPage.id, newOffsetY: currentCoverOffsetY)
+                            isRepositioningCover = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
                     .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
+                    .clipShape(Capsule())
+                    .shadow(color: Color.black.opacity(0.25), radius: 8, y: 3)
+                    .padding(.top, 14)
+
+                    Spacer()
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .transition(.opacity)
             }
-            .padding(14)
-            .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
-            .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+
+            // Normal Hover Action Buttons (Change Cover, Reposition, Remove)
+            if !isRepositioningCover {
+                HStack(spacing: 6) {
+                    Button(action: {
+                        isCoverPickerOpen = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .font(.caption)
+                            Text("Change cover")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Reposition Button
+                    Button(action: {
+                        currentCoverOffsetY = currentPage.coverOffsetY
+                        initialDragOffsetY = currentPage.coverOffsetY
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isRepositioningCover = true
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                                .font(.caption)
+                            Text("Reposition")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Drag to reposition cover image")
+
+                    Button(action: {
+                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash")
+                                .font(.caption)
+                            Text("Remove")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(14)
+                .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+            }
         }
         .contentShape(Rectangle())
         .onHover { isCoverHovered = $0 }
+    }
+
+    // MARK: - Cover Image Content Renderer
+
+    @ViewBuilder
+    private var coverImageContent: some View {
+        if currentPage.coverUrl.hasPrefix("gradient:") {
+            LinearGradient(
+                colors: PresetGradientCover.colors(for: currentPage.coverUrl),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else if let localPath = store.resolveVaultImagePath(currentPage.coverUrl),
+                  let nsImg = NSImage(contentsOfFile: localPath) {
+            Image(nsImage: nsImg)
+                .resizable()
+                .scaledToFill()
+        } else if currentPage.coverUrl.hasPrefix("/") || currentPage.coverUrl.hasPrefix("file://") {
+            let cleanPath = currentPage.coverUrl.replacingOccurrences(of: "file://", with: "")
+            if let nsImg = NSImage(contentsOfFile: cleanPath) {
+                Image(nsImage: nsImg)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color.secondary.opacity(0.15)
+            }
+        } else {
+            AsyncImage(url: URL(string: currentPage.coverUrl)) { phase in
+                switch phase {
+                case .empty:
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.3)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.6)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                @unknown default:
+                    Color.secondary.opacity(0.2)
+                }
+            }
+        }
     }
 
     // MARK: - Notion Page Header
@@ -891,15 +1037,19 @@ struct DocumentCanvasView: View {
         }
     }
 
-    // MARK: - Cover Picker Popover (The Met Collection Masterworks)
+    // MARK: - Cover Picker Popover (Generous Size, Beautiful Cards, No Cropping)
 
     private var coverPickerPopover: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             // Header
             HStack {
-                Text("Select Cover Image")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Cover Image")
+                        .font(.headline.weight(.semibold))
+                    Text("Select a museum masterpiece, vibrant gradient, or upload a custom image.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer()
 
@@ -908,9 +1058,12 @@ struct DocumentCanvasView: View {
                         store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
                         isCoverPickerOpen = false
                     }) {
-                        Text("Remove Cover")
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash")
+                            Text("Remove Cover")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
                 }
@@ -923,51 +1076,57 @@ struct DocumentCanvasView: View {
                 Text("Upload & URL").tag(2)
             }
             .pickerStyle(.segmented)
-            .padding(.bottom, 2)
 
+            // Content
             if coverPickerTab == 0 {
-                // The Met Collection
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
+                // The Met Collection Masterpieces
+                VStack(alignment: .leading, spacing: 10) {
+                    // Search Bar
+                    HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11))
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
 
-                        TextField("Search The Met (e.g. Monet, Japan, Landscape)...", text: $metSearchText)
+                        TextField("Search The Met Collection (e.g. Monet, Japan, Landscape, Floral)...", text: $metSearchText)
                             .textFieldStyle(.plain)
-                            .font(.system(size: 11.5))
+                            .font(.system(size: 12))
                             .onSubmit {
                                 searchTheMet()
                             }
 
                         if isMetSearching {
                             ProgressView()
-                                .controlSize(.mini)
+                                .controlSize(.small)
                         } else if !metSearchText.isEmpty {
                             Button(action: {
                                 metSearchText = ""
                                 metSearchResults = []
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 11))
+                                    .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                         }
+
+                        Button("Search") {
+                            searchTheMet()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(8)
                     .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
                     )
 
                     let artworksToShow = metSearchResults.isEmpty ? TheMetService.shared.curatedArtworks : metSearchResults
 
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                             ForEach(artworksToShow) { art in
                                 Button(action: {
                                     store.updatePageCover(pageId: currentPage.id, newCoverUrl: art.imageUrl)
@@ -981,131 +1140,177 @@ struct DocumentCanvasView: View {
                                                 Color.secondary.opacity(0.12)
                                             }
                                         }
-                                        .frame(height: 72)
+                                        .frame(height: 96)
                                         .frame(maxWidth: .infinity)
                                         .clipped()
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                                        // Dark gradient overlay for text readability
+                                        // Dark gradient for crisp text contrast
                                         LinearGradient(
-                                            colors: [Color.clear, Color.black.opacity(0.8)],
+                                            colors: [Color.clear, Color.black.opacity(0.85)],
                                             startPoint: .top,
                                             endPoint: .bottom
                                         )
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
 
                                         VStack(alignment: .leading, spacing: 1) {
                                             Text(art.title)
-                                                .font(.system(size: 9.5, weight: .bold))
+                                                .font(.system(size: 11, weight: .bold))
                                                 .foregroundStyle(.white)
                                                 .lineLimit(1)
-                                            Text(art.artist)
-                                                .font(.system(size: 8))
-                                                .foregroundStyle(.white.opacity(0.85))
-                                                .lineLimit(1)
+
+                                            HStack(spacing: 4) {
+                                                Text(art.artist)
+                                                    .font(.system(size: 9.5))
+                                                    .foregroundStyle(.white.opacity(0.88))
+                                                    .lineLimit(1)
+                                                if !art.year.isEmpty {
+                                                    Text("•")
+                                                        .font(.system(size: 7))
+                                                        .foregroundStyle(.white.opacity(0.5))
+                                                    Text(art.year)
+                                                        .font(.system(size: 8.5))
+                                                        .foregroundStyle(.white.opacity(0.75))
+                                                        .lineLimit(1)
+                                                }
+                                            }
                                         }
-                                        .padding(5)
+                                        .padding(7)
                                     }
                                     .contentShape(Rectangle())
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(currentPage.coverUrl == art.imageUrl ? Color.accentColor : Color.clear, lineWidth: 2)
+                                    )
                                 }
                                 .buttonStyle(.plain)
                                 .help("\(art.title) by \(art.artist) (\(art.year))")
                             }
                         }
                         .padding(.vertical, 2)
+                        .padding(.trailing, 4)
                     }
-                    .frame(height: 220)
+                    .frame(height: 290)
                 }
             } else if coverPickerTab == 1 {
                 // Vibrant Gradients
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
-                    ForEach(PresetGradientCover.allCases) { preset in
-                        Button(action: {
-                            store.updatePageCover(pageId: currentPage.id, newCoverUrl: preset.rawValue)
-                            isCoverPickerOpen = false
-                        }) {
-                            ZStack(alignment: .bottomLeading) {
-                                LinearGradient(
-                                    colors: preset.colors,
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                                .frame(height: 52)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                        ForEach(PresetGradientCover.allCases) { preset in
+                            Button(action: {
+                                store.updatePageCover(pageId: currentPage.id, newCoverUrl: preset.rawValue)
+                                isCoverPickerOpen = false
+                            }) {
+                                ZStack(alignment: .bottomLeading) {
+                                    LinearGradient(
+                                        colors: preset.colors,
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                    .frame(height: 70)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                                Text(preset.title)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(5)
+                                    Text(preset.title)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(8)
+                                }
+                                .contentShape(Rectangle())
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(currentPage.coverUrl == preset.rawValue ? Color.white : Color.clear, lineWidth: 2)
+                                )
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.vertical, 4)
                 }
-                .frame(height: 140)
+                .frame(height: 290)
             } else {
                 // Upload & Custom URL
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Local Upload Card
                     Button(action: {
                         if let localAsset = store.importLocalImageToVault() {
                             store.updatePageCover(pageId: currentPage.id, newCoverUrl: localAsset)
                             isCoverPickerOpen = false
                         }
                     }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.up.doc.fill")
-                                .font(.system(size: 13))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Upload from Mac")
-                                    .font(.system(size: 12, weight: .semibold))
-                                Text("PNG, JPG, WebP, GIF from your computer")
-                                    .font(.system(size: 9.5))
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.12))
+                                    .frame(width: 44, height: 44)
+                                Image(systemName: "arrow.up.doc.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Upload Image from Mac")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                Text("Select PNG, JPG, WebP, or GIF from your Mac. Image will be copied into your vault.")
+                                    .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
+
                             Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.tertiary)
                         }
-                        .padding(10)
-                        .background(Color.primary.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .padding(14)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    // URL Input Section
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Paste Image URL")
-                            .font(.system(size: 10.5, weight: .medium))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(.secondary)
 
-                        HStack(spacing: 6) {
-                            TextField("https://...", text: $customCoverUrlInput)
+                        HStack(spacing: 8) {
+                            TextField("https://images.example.com/cover.jpg", text: $customCoverUrlInput)
                                 .textFieldStyle(.plain)
-                                .font(.caption)
-                                .padding(6)
+                                .font(.system(size: 12))
+                                .padding(8)
                                 .background(Color(nsColor: .controlBackgroundColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .clipShape(RoundedRectangle(cornerRadius: 7))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
+                                    RoundedRectangle(cornerRadius: 7)
                                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                                 )
                                 .onSubmit {
                                     applyCustomCoverUrl()
                                 }
 
-                            Button("Set") {
+                            Button("Set Cover") {
                                 applyCustomCoverUrl()
                             }
                             .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
+                            .controlSize(.regular)
                         }
                     }
+
+                    Spacer()
                 }
-                .frame(height: 140)
+                .padding(.top, 4)
+                .frame(height: 290)
             }
         }
-        .padding(12)
-        .frame(width: 360)
+        .padding(18)
+        .frame(width: 540, height: 440)
     }
 
     private func searchTheMet() {

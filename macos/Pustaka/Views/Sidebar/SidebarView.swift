@@ -78,7 +78,7 @@ struct SidebarView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 1. Vault Identity Header aligned parallel with detail App Bar (Height: 52)
+                // 1. Vault Identity Header positioned right at the top
                 vaultHeaderView
 
                 Divider()
@@ -111,6 +111,7 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
             }
+            .ignoresSafeArea(.container, edges: .top)
         }
         .sheet(item: $categoryToCustomize) { cat in
             CustomizeCategorySheet(
@@ -133,31 +134,10 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Vault Header in Sidebar (Height: 52, Aligned Parallel with App Bar)
+    // MARK: - Vault Header at Top of Sidebar (No Appbar Gap, No Sidebar Toggle Button)
 
     private var vaultHeaderView: some View {
-        HStack(spacing: 7) {
-            // Sidebar Toggle Button ("icon besar kecilin sidebar")
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if columnVisibility == .all {
-                        columnVisibility = .detailOnly
-                    } else {
-                        columnVisibility = .all
-                    }
-                }
-                NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
-            }) {
-                Image(systemName: "sidebar.leading")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
-            .help("Toggle Sidebar (⌃⌘S)")
-
+        HStack(spacing: 8) {
             // Vault Badge Icon
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -176,7 +156,7 @@ struct SidebarView: View {
                     .foregroundStyle(.white)
             }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0.5) {
                 Text("Pustaka Vault")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
@@ -185,7 +165,7 @@ struct SidebarView: View {
                 Button(action: {
                     store.revealInFinder()
                 }) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 2.5) {
                         Text("~/Documents/Pustaka")
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.secondary)
@@ -217,8 +197,9 @@ struct SidebarView: View {
             .buttonStyle(.plain)
             .help("Reveal in Finder (⇧⌘R)")
         }
-        .padding(.horizontal, 10)
-        .frame(height: 52)
+        .padding(.horizontal, 12)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Minimal Search Bar
@@ -1011,17 +992,9 @@ struct SidebarDocumentItemRow: View {
     @ViewBuilder
     private var documentContextMenuContent: some View {
         Button(action: {
-            renameTitle = page.title
-            isRenaming = true
-            isRenameFocused = true
+            store.selectPage(id: page.id)
         }) {
-            Label("Rename Note", systemImage: "pencil")
-        }
-
-        Button(action: {
-            isIconPickerPresented = true
-        }) {
-            Label("Change Icon...", systemImage: "face.smiling")
+            Label("Open Note", systemImage: "doc.text")
         }
 
         Divider()
@@ -1032,6 +1005,32 @@ struct SidebarDocumentItemRow: View {
         }) {
             Label("Add Subpage", systemImage: "doc.badge.plus")
         }
+
+        Button(action: {
+            store.selectPage(id: page.id)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                NotificationCenter.default.post(name: NSNotification.Name("OpenCoverPicker"), object: nil)
+            }
+        }) {
+            Label(page.coverUrl.isEmpty ? "Add Cover..." : "Change Cover...", systemImage: "photo")
+        }
+
+        Button(action: {
+            store.selectPage(id: page.id)
+            isIconPickerPresented = true
+        }) {
+            Label(page.icon.isEmpty ? "Add Icon..." : "Change Icon...", systemImage: "face.smiling")
+        }
+
+        Button(action: {
+            renameTitle = page.title
+            isRenaming = true
+            isRenameFocused = true
+        }) {
+            Label("Rename Note", systemImage: "pencil")
+        }
+
+        Divider()
 
         Menu("Move to Folder") {
             ForEach(store.sortedCategories.filter { $0.id != "cat_fav" }) { cat in
@@ -1055,8 +1054,6 @@ struct SidebarDocumentItemRow: View {
             Label("Duplicate Note", systemImage: "plus.square.on.square")
         }
 
-        Divider()
-
         Button(action: {
             store.toggleFavorite(id: page.id)
         }) {
@@ -1064,6 +1061,13 @@ struct SidebarDocumentItemRow: View {
                 page.isFavorite ? "Remove from Favorites" : "Add to Favorites",
                 systemImage: page.isFavorite ? "star.slash" : "star"
             )
+        }
+
+        Button(action: {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(page.title.isEmpty ? "Untitled" : page.title, forType: .string)
+        }) {
+            Label("Copy Note Title", systemImage: "text.quote")
         }
 
         Button(action: {
