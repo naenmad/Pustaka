@@ -1561,16 +1561,9 @@ struct SubpageBlockView: View {
             }) {
                 HStack(spacing: 8) {
                     // Page Icon
-                    if let p = subpage, !p.icon.isEmpty {
-                        Text(p.icon)
-                            .font(.system(size: 15))
-                            .frame(width: 20)
-                    } else {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 20)
-                    }
+                    DynamicIconView(icon: subpage?.icon ?? "", size: 14, defaultSymbol: "doc.text")
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 20)
 
                     // Page Title
                     Text((subpage?.title.isEmpty ?? true) ? "Untitled Subpage" : (subpage?.title ?? "Untitled Subpage"))

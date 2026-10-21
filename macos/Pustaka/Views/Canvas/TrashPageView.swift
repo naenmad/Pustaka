@@ -380,7 +380,7 @@ struct TrashPageView: View {
                     ForEach(store.categories) { cat in
                         let count = store.trashPages.filter { $0.categoryId == cat.id }.count
                         if count > 0 {
-                            filterPill(title: "\(cat.icon) \(cat.name)", count: count, isSelected: selectedCategoryFilter == cat.id) {
+                            filterPill(title: cat.name, icon: cat.icon, count: count, isSelected: selectedCategoryFilter == cat.id) {
                                 selectedCategoryFilter = cat.id
                             }
                         }
@@ -421,9 +421,12 @@ struct TrashPageView: View {
         }
     }
 
-    private func filterPill(title: String, count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func filterPill(title: String, icon: String? = nil, count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
+                if let ic = icon, !ic.isEmpty {
+                    DynamicIconView(icon: ic, size: 10.5, defaultSymbol: "folder")
+                }
                 Text(title)
                 Text("(\(count))").font(.caption2).opacity(0.8)
             }

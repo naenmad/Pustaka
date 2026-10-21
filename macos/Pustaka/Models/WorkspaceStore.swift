@@ -133,6 +133,32 @@ class WorkspaceStore: ObservableObject {
             self.categories = decoded.categories.isEmpty ? WorkspaceStore.defaultCategories : decoded.categories
             self.pages = decoded.pages
 
+            // Migrate legacy emoji icons to clean native SF Symbols
+            for i in 0..<self.pages.count {
+                let ic = self.pages[i].icon.trimmingCharacters(in: .whitespacesAndNewlines)
+                if ic == "👋" { self.pages[i].icon = "hand.wave" }
+                else if ic == "⚡️" || ic == "⚡" { self.pages[i].icon = "bolt" }
+                else if ic == "📄" { self.pages[i].icon = "doc.text" }
+                else if ic == "🗑️" || ic == "🗑" { self.pages[i].icon = "trash" }
+                else if ic == "💡" { self.pages[i].icon = "lightbulb" }
+                else if ic == "✨" { self.pages[i].icon = "sparkles" }
+                else if ic == "⭐️" || ic == "⭐" { self.pages[i].icon = "star" }
+                else if ic == "🚀" { self.pages[i].icon = "paperplane" }
+                else if ic == "📁" { self.pages[i].icon = "folder" }
+                else if ic == "📝" { self.pages[i].icon = "pencil.and.outline" }
+                else if ic == "📚" { self.pages[i].icon = "book.closed" }
+            }
+            for i in 0..<self.categories.count {
+                let ic = self.categories[i].icon.trimmingCharacters(in: .whitespacesAndNewlines)
+                if ic == "📁" { self.categories[i].icon = "folder" }
+                else if ic == "🗑️" || ic == "🗑" { self.categories[i].icon = "trash" }
+                else if ic == "📚" { self.categories[i].icon = "book.closed" }
+                else if ic == "⭐️" || ic == "⭐" { self.categories[i].icon = "star" }
+                else if ic == "🚀" { self.categories[i].icon = "paperplane" }
+                else if ic == "💡" { self.categories[i].icon = "lightbulb" }
+                else if ic == "⚡️" || ic == "⚡" { self.categories[i].icon = "bolt" }
+            }
+
             // Ensure categories don't have cat_fav as a folder (Favorites has its own pinned group)
             for i in 0..<self.pages.count {
                 if self.pages[i].categoryId == "cat_fav" {

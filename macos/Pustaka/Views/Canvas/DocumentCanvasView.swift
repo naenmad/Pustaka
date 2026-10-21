@@ -769,12 +769,10 @@ struct DocumentCanvasView: View {
                     Button(action: {
                         store.selectPage(id: parent.id)
                     }) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 8, weight: .bold))
-                            if !parent.icon.isEmpty {
-                                Text(parent.icon).font(.caption2)
-                            }
+                            DynamicIconView(icon: parent.icon, size: 10, defaultSymbol: "doc.text")
                             Text(parent.title.isEmpty ? "Untitled" : parent.title)
                                 .font(.caption.weight(.medium))
                         }
@@ -786,10 +784,8 @@ struct DocumentCanvasView: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
 
-                    HStack(spacing: 3) {
-                        if !currentPage.icon.isEmpty {
-                            Text(currentPage.icon).font(.caption2)
-                        }
+                    HStack(spacing: 4) {
+                        DynamicIconView(icon: currentPage.icon, size: 10, defaultSymbol: "doc.text")
                         Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.primary)
@@ -804,7 +800,7 @@ struct DocumentCanvasView: View {
                         isIconPickerOpen = true
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "face.smiling")
+                            Image(systemName: "sparkles")
                                 .font(.caption)
                             Text("Add icon")
                                 .font(.caption.weight(.medium))
@@ -847,10 +843,15 @@ struct DocumentCanvasView: View {
                 Button(action: {
                     isIconPickerOpen = true
                 }) {
-                    Text(currentPage.icon)
-                        .font(.system(size: 44))
-                        .padding(4)
-                        .contentShape(Rectangle())
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.accentColor.opacity(0.1))
+                            .frame(width: 52, height: 52)
+                        DynamicIconView(icon: currentPage.icon, size: 30, weight: .medium, defaultSymbol: "doc.text")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Click to change or remove icon")
@@ -876,10 +877,10 @@ struct DocumentCanvasView: View {
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
         .popover(isPresented: $isIconPickerOpen) {
-            NativeEmojiPickerPopover(
-                currentEmoji: currentPage.icon,
-                onEmojiSelected: { emoji in
-                    store.updatePageIcon(pageId: currentPage.id, newIcon: emoji)
+            NativeIconPickerPopover(
+                currentIcon: currentPage.icon,
+                onIconSelected: { icon in
+                    store.updatePageIcon(pageId: currentPage.id, newIcon: icon)
                     isIconPickerOpen = false
                 },
                 onRemove: {

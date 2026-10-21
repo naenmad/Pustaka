@@ -1201,13 +1201,8 @@ struct SidebarDocumentItemRow: View {
                 Button(action: {
                     store.movePage(id: page.id, toCategory: cat.id)
                 }) {
-                    HStack {
-                        Text(cat.icon)
-                        Text(cat.name)
-                        if page.categoryId == cat.id {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                    let sym = NSImage(systemSymbolName: cat.icon, accessibilityDescription: nil) != nil ? cat.icon : "folder"
+                    Label(cat.name, systemImage: sym)
                 }
             }
         }
