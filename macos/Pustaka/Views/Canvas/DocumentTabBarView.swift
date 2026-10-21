@@ -31,7 +31,7 @@ struct DocumentTabItemView: View {
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: 150, alignment: .leading)
+                .frame(maxWidth: 160, alignment: .leading)
 
             // Close Tab Button (xmark)
             Button(action: onClose) {
@@ -47,18 +47,18 @@ struct DocumentTabItemView: View {
             .onHover { h in isCloseHovered = h }
             .help("Close Tab (⌘W)")
         }
-        .padding(.leading, 9)
+        .padding(.leading, 10)
         .padding(.trailing, 6)
-        .frame(height: 28)
+        .frame(height: 30)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(isSelected ? Color(nsColor: .controlBackgroundColor) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isSelected ? Color.primary.opacity(0.10) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(isSelected ? Color.primary.opacity(0.14) : Color.clear, lineWidth: 1)
         )
-        .shadow(color: isSelected ? Color.black.opacity(0.04) : Color.clear, radius: 1, y: 1)
+        .shadow(color: isSelected ? Color.black.opacity(0.06) : Color.clear, radius: 1.5, y: 0.5)
         .contentShape(Rectangle())
         .onHover { h in isHovered = h }
         .onTapGesture {
@@ -130,9 +130,9 @@ struct DocumentTabBarView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 26, height: 26)
                             .background(isHoveringPlus ? Color.primary.opacity(0.08) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
                     .onHover { h in isHoveringPlus = h }
