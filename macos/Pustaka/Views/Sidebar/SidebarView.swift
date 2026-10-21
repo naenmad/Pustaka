@@ -1474,10 +1474,14 @@ struct SettingsSheet: View {
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
     @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
+    @AppStorage("aiAgentCliPath") private var aiAgentCliPath: String = ACPAgentService.defaultAgyPath
+    @AppStorage("aiAgentModel") private var aiAgentModel: String = "default"
+    @AppStorage("aiAgentEffort") private var aiAgentEffort: String = "default"
     @State private var selectedTab: SettingsTab = .appearance
 
     enum SettingsTab: String, CaseIterable, Identifiable {
         case appearance = "Appearance"
+        case ai = "AI & ACP"
         case vault = "Vault & Storage"
         case shortcuts = "Shortcuts"
         case about = "About"
@@ -1487,6 +1491,7 @@ struct SettingsSheet: View {
         var icon: String {
             switch self {
             case .appearance: return "circle.lefthalf.filled"
+            case .ai: return "sparkles"
             case .vault: return "folder.badge.gearshape"
             case .shortcuts: return "command"
             case .about: return "info.circle"
@@ -1547,6 +1552,8 @@ struct SettingsSheet: View {
                     switch selectedTab {
                     case .appearance:
                         appearanceSettingsSection
+                    case .ai:
+                        aiSettingsSection
                     case .vault:
                         vaultSettingsSection
                     case .shortcuts:
@@ -1637,6 +1644,96 @@ struct SettingsSheet: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var aiSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("ACP & AI AGENT PROVIDER")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 24, height: 24)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Antigravity Agent (Zed ACP Protocol)")
+                            .font(.system(size: 12.5, weight: .bold))
+                        Text("Subprocess stream-json via stdin/stdout")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    let exists = FileManager.default.isExecutableFile(atPath: (aiAgentCliPath as NSString).expandingTildeInPath)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(exists ? Color.green : Color.red)
+                            .frame(width: 6, height: 6)
+                        Text(exists ? "Ready" : "Missing")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(exists ? Color.green : Color.red)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(exists ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Text("Pustaka communicates with Antigravity using line-delimited streaming JSON-RPC over stdin/stdout, following the open Agent Client Protocol (ACP) standard.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // CLI Binary Path
+            VStack(alignment: .leading, spacing: 4) {
+                Text("CLI Executable Path")
+                    .font(.system(size: 11.5, weight: .medium))
+                TextField("Path to agy binary...", text: $aiAgentCliPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                Text("Default location: ~/.local/bin/agy")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            // Model Selection
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Override (Optional)")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $aiAgentModel) {
+                    Text("Default (Inherit from active Antigravity session)").tag("default")
+                    Text("gemini-2.5-pro").tag("gemini-2.5-pro")
+                    Text("gemini-2.5-flash").tag("gemini-2.5-flash")
+                }
+                .labelsHidden()
+            }
+
+            // Reasoning Effort
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reasoning Effort")
+                    .font(.system(size: 11.5, weight: .medium))
+                Picker("", selection: $aiAgentEffort) {
+                    Text("Default").tag("default")
+                    Text("Low").tag("low")
+                    Text("Medium").tag("medium")
+                    Text("High").tag("high")
+                    Text("Max").tag("max")
+                }
+                .labelsHidden()
+            }
+        }
     }
 
     private var vaultSettingsSection: some View {
@@ -1736,6 +1833,7 @@ struct SettingsSheet: View {
             shortcutRow(key: "⌘K", description: "Focus search bar")
             shortcutRow(key: "⇧⌘R", description: "Reveal vault in Finder")
             shortcutRow(key: "⌘,", description: "Open Settings")
+            shortcutRow(key: "⌘J", description: "Toggle AI Assistant panel")
             shortcutRow(key: "⌘B / ⌘I", description: "Format Bold / Italic")
             shortcutRow(key: "⌘D", description: "Duplicate selected block or note")
             shortcutRow(key: "/subpage", description: "Insert inline subpage block")

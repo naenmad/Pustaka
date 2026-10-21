@@ -23,6 +23,8 @@
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
 		E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */; };
 		5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829599 /* TrashPageView.swift */; };
+		927181AFDBEB3610699E90C1 /* ACPAgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF01 /* ACPAgentService.swift */; };
+		927181AFDBEB3610699E90C2 /* AIAssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +50,8 @@
 		F4745E229503AC532D20FF00 /* TheMetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheMetService.swift; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
 		B015E83DED5C2530AA829599 /* TrashPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashPageView.swift; sourceTree = "<group>"; };
+		F4745E229503AC532D20FF01 /* ACPAgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPAgentService.swift; sourceTree = "<group>"; };
+		F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantPanelView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -83,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				F4745E229503AC532D20FF00 /* TheMetService.swift */,
+				F4745E229503AC532D20FF01 /* ACPAgentService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -163,9 +168,18 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		DC83FE2B60159C31607FB257 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
 		DC83FE2B60159C31607FB256 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				DC83FE2B60159C31607FB257 /* Assistant */,
 				4ECEBF9A62B55877B487E36F /* Canvas */,
 				66315969544D29720622AAB1 /* Common */,
 				A9D0F98EDD7C19E922EC42EE /* Kanban */,
@@ -280,6 +294,8 @@
 				5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */,
 				9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */,
 				773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */,
+				927181AFDBEB3610699E90C1 /* ACPAgentService.swift in Sources */,
+				927181AFDBEB3610699E90C2 /* AIAssistantPanelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

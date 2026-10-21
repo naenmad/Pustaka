@@ -1166,12 +1166,16 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
-    func updatePageContent(_ newContent: String) {
-        guard let id = selectedPageId,
-              let idx = pages.firstIndex(where: { $0.id == id }) else { return }
+    func updatePageContent(pageId: String, newContent: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         pages[idx].rawContent = newContent
         pages[idx].lastModified = Date()
         saveToDisk()
+    }
+
+    func updatePageContent(_ newContent: String) {
+        guard let id = selectedPageId else { return }
+        updatePageContent(pageId: id, newContent: newContent)
     }
 
     /// Generates a Typst vector SVG on-demand for previewing, exporting, or copying

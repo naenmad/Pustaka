@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var store = WorkspaceStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isAIAssistantPresented: Bool = false
     @AppStorage("appAppearance") private var appAppearance: String = "system"
 
     private var preferredScheme: ColorScheme? {
@@ -20,22 +21,30 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
                 .background(Color(nsColor: .windowBackgroundColor))
         } detail: {
-            VStack(spacing: 0) {
-                // Browser-Style Top Header Bar (Sidebar Toggle on LEFT, Browser Tabs in CENTER, Share & 3-Dots on RIGHT)
-                browserTopBar
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    // Browser-Style Top Header Bar (Sidebar Toggle on LEFT, Browser Tabs in CENTER, Share & 3-Dots on RIGHT)
+                    browserTopBar
 
-                Divider().opacity(0.35)
+                    Divider().opacity(0.35)
 
-                if store.isShowingTrash {
-                    TrashPageView(store: store)
-                } else if let page = store.selectedPage {
-                    DocumentCanvasView(store: store, page: page)
-                        .id(page.id)
-                } else {
-                    noDocumentEmptyState
+                    if store.isShowingTrash {
+                        TrashPageView(store: store)
+                    } else if let page = store.selectedPage {
+                        DocumentCanvasView(store: store, page: page)
+                            .id(page.id)
+                    } else {
+                        noDocumentEmptyState
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if isAIAssistantPresented {
+                    Divider().opacity(0.35)
+                    AIAssistantPanelView(store: store, isPresented: $isAIAssistantPresented)
+                        .transition(.move(edge: .trailing))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
             .ignoresSafeArea(.container, edges: .top)
         }
@@ -223,6 +232,13 @@ struct ContentView: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .help("Page Options")
+
+                    // AI Assistant Toggle (✨)
+                    aiAssistantButton
+                }
+            } else {
+                HStack(spacing: 6) {
+                    aiAssistantButton
                 }
             }
         }
@@ -230,6 +246,25 @@ struct ContentView: View {
         .frame(height: 40)
         .background(Color(nsColor: .windowBackgroundColor))
         .background(WindowDragView())
+    }
+
+    // MARK: - AI Assistant Button
+
+    private var aiAssistantButton: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isAIAssistantPresented.toggle()
+            }
+        }) {
+            Image(systemName: isAIAssistantPresented ? "sparkles.rectangle.stack.fill" : "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isAIAssistantPresented ? Color.accentColor : Color.secondary)
+                .frame(width: 28, height: 28)
+                .background(isAIAssistantPresented ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(isAIAssistantPresented ? "Hide AI Assistant (⌘J)" : "Open AI Assistant (⌘J)")
     }
 
     // MARK: - Window Configurator (Disables Default Toolbar, Enables FullSize Content)
@@ -317,6 +352,14 @@ struct ContentView: View {
                 }
             }
             .keyboardShortcut("[", modifiers: [.command, .shift])
+
+            // ⌘J -> Toggle AI Assistant
+            Button("") {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isAIAssistantPresented.toggle()
+                }
+            }
+            .keyboardShortcut("j", modifiers: .command)
         }
         .opacity(0)
         .frame(width: 0, height: 0)
