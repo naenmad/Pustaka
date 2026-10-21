@@ -55,7 +55,6 @@ class WorkspaceStore: ObservableObject {
     init() {
         loadFromDisk()
         self.engineInfo = getEngineInfo()
-        recompileCurrentPage()
     }
 
     // MARK: - Disk Storage Management (Obsidian-Style Vault in ~/Documents/Pustaka/)
@@ -438,7 +437,6 @@ class WorkspaceStore: ObservableObject {
             openTabIds.append(id)
         }
         saveToDisk()
-        recompileCurrentPage()
     }
 
     // MARK: - Tab Management (Tabbed Document Interface)
@@ -894,7 +892,6 @@ class WorkspaceStore: ObservableObject {
                 if let newSel = selectedPageId {
                     openTabIds.append(newSel)
                 }
-                recompileCurrentPage()
             }
         }
 
@@ -928,7 +925,6 @@ class WorkspaceStore: ObservableObject {
         } else {
             saveToDisk()
         }
-        recompileCurrentPage()
     }
 
     /// Permanently destroys a document and its subpages from disk and memory
@@ -971,7 +967,6 @@ class WorkspaceStore: ObservableObject {
                 if let newSel = selectedPageId {
                     openTabIds.append(newSel)
                 }
-                recompileCurrentPage()
             }
         }
         saveToDisk()
@@ -1116,16 +1111,24 @@ class WorkspaceStore: ObservableObject {
         pages[idx].rawContent = newContent
         pages[idx].lastModified = Date()
         saveToDisk()
-        recompileCurrentPage()
     }
 
-    func recompileCurrentPage() {
-        guard let page = selectedPage else { return }
-        let contentToCompile = page.rawContent.isEmpty ? (page.title.isEmpty ? "" : ". \(page.title)") : page.rawContent
+    /// Generates a Typst vector SVG on-demand for previewing, exporting, or copying
+    @discardableResult
+    func generateTypstSvg(for page: DocumentPage? = nil) -> String {
+        guard let targetPage = page ?? selectedPage else { return "" }
+        let titleLine = targetPage.title.isEmpty ? "" : ". \(targetPage.title)\n\n"
+        let contentToCompile = "\(titleLine)\(targetPage.rawContent)"
         let ron = parsePfsToRon(input: contentToCompile)
         self.currentRon = ron
         let svg = renderRonToSvg(ronStr: ron)
         self.currentSvg = svg
+        return svg
+    }
+
+    /// Legacy on-demand recompile alias for compatibility
+    func recompileCurrentPage() {
+        generateTypstSvg()
     }
 
     // MARK: - Clean Block Parser

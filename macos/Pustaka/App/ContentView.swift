@@ -42,6 +42,15 @@ struct ContentView: View {
         .preferredColorScheme(preferredScheme)
         .background(WindowConfigurator())
         .background(tabKeyboardShortcuts)
+        .sheet(isPresented: $store.isPreviewDrawerPresented) {
+            if let page = store.selectedPage {
+                TypstPreviewView(
+                    svgString: store.generateTypstSvg(for: page),
+                    onClose: { store.isPreviewDrawerPresented = false }
+                )
+                .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 780)
+            }
+        }
     }
 
     // MARK: - Browser-Style Top Header Bar (40pt Height, Aligned with Traffic Lights)
@@ -118,6 +127,13 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     // Share & Export Menu
                     Menu {
+                        Button(action: {
+                            _ = store.generateTypstSvg(for: page)
+                            store.isPreviewDrawerPresented = true
+                        }) {
+                            Label("Preview Typst Typesetting...", systemImage: "sparkles")
+                        }
+                        Divider()
                         Button(action: { exportDocument(page: page, format: "md") }) {
                             Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
                         }
@@ -132,13 +148,12 @@ struct ContentView: View {
                         }) {
                             Label("Copy Full Markdown", systemImage: "doc.on.doc")
                         }
-                        if !store.currentSvg.isEmpty {
-                            Button(action: {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(store.currentSvg, forType: .string)
-                            }) {
-                                Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
-                            }
+                        Button(action: {
+                            let svg = store.generateTypstSvg(for: page)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(svg, forType: .string)
+                        }) {
+                            Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
                         }
                         Divider()
                         Button(action: { store.revealInFinder(pageId: page.id) }) {

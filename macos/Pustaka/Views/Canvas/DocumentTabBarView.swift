@@ -232,6 +232,13 @@ struct TopDocumentNavBarView: View {
                 HStack(spacing: 6) {
                     // Share & Export Menu
                     Menu {
+                        Button(action: {
+                            _ = store.generateTypstSvg(for: page)
+                            store.isPreviewDrawerPresented = true
+                        }) {
+                            Label("Preview Typst Typesetting...", systemImage: "sparkles")
+                        }
+                        Divider()
                         Button(action: { exportDocument(page: page, format: "md") }) {
                             Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
                         }
@@ -246,13 +253,12 @@ struct TopDocumentNavBarView: View {
                         }) {
                             Label("Copy Full Markdown", systemImage: "doc.on.doc")
                         }
-                        if !store.currentSvg.isEmpty {
-                            Button(action: {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(store.currentSvg, forType: .string)
-                            }) {
-                                Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
-                            }
+                        Button(action: {
+                            let svg = store.generateTypstSvg(for: page)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(svg, forType: .string)
+                        }) {
+                            Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
                         }
                         Divider()
                         Button(action: { store.revealInFinder(pageId: page.id) }) {
