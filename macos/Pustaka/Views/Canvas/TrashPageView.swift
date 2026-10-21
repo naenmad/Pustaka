@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Dedicated Block-First Full-Page Trash View (Multi-Tab & Obsidian .trash/ Compatible)
+// MARK: - Native Document-Identical Trash Page View
 
 struct TrashPageView: View {
     @ObservedObject var store: WorkspaceStore
@@ -17,7 +17,7 @@ struct TrashPageView: View {
     @State private var hoveredBlockId: String? = nil
     @State private var currentCoverUrl: String = "gradient:midnight"
     @State private var isCoverHovered: Bool = false
-    @State private var isCoverPickerOpen: Bool = false
+    @State private var isHeaderHovered: Bool = false
 
     enum TrashSortOption: String, CaseIterable {
         case newestDeleted = "Recently Deleted"
@@ -64,57 +64,68 @@ struct TrashPageView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(spacing: 0) {
-                // 1. Page Cover Banner (Matches DocumentCanvasView Notion Header)
-                if !currentCoverUrl.isEmpty {
-                    pageCoverBannerView
-                }
-
-                // 2. Main Canvas Body Composed of Document Blocks
-                VStack(alignment: .leading, spacing: 18) {
-                    // Notion Document Page Header Block
-                    notionPageHeaderBlock
-
-                    // Block 1: Callout Block (Vault Info & Fast Actions)
-                    vaultInfoCalloutBlock
-
-                    // Block 2: Horizontal Divider Block
-                    Divider().opacity(0.35)
-
-                    // Block 3: Database Filter & Search Block
-                    if !store.trashPages.isEmpty {
-                        filterAndSortControlsBlock
+        ZStack(alignment: .bottom) {
+            // Main Document Canvas Scroll Area (100% Identical to DocumentCanvasView)
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 0) {
+                    if !currentCoverUrl.isEmpty {
+                        pageCoverBannerView
                     }
 
-                    // Block 4: Section Heading Block
-                    sectionHeadingBlock
+                    VStack(alignment: .leading, spacing: 14) {
+                        // Notion Page Header (Icon & 34pt Bold Title)
+                        notionPageHeaderView
 
-                    // Block 5: Deleted Notes Rendered as Blocks
-                    if store.trashPages.isEmpty {
-                        emptyTrashCalloutBlock
-                    } else if filteredTrashPages.isEmpty {
-                        emptyFilterResultCalloutBlock
-                    } else {
-                        deletedNotesBlockList
+                        // Block 1: Callout Block (Vault Info & Explanations)
+                        vaultInfoCalloutBlock
+                            .padding(.leading, 48)
+
+                        // Block 2: Divider Block
+                        Divider()
+                            .opacity(0.35)
+                            .padding(.leading, 48)
+
+                        // Block 3: Search & Folder Filter Toolbar
+                        if !store.trashPages.isEmpty {
+                            searchAndFilterToolbar
+                                .padding(.leading, 48)
+                        }
+
+                        // Block 4: Section Heading Block
+                        sectionHeadingBlock
+                            .padding(.leading, 48)
+
+                        // Block 5: Deleted Notes List (Styled as Native Pustaka Blocks)
+                        if store.trashPages.isEmpty {
+                            emptyTrashCalloutBlock
+                                .padding(.leading, 48)
+                        } else if filteredTrashPages.isEmpty {
+                            emptyFilterResultCalloutBlock
+                                .padding(.leading, 48)
+                        } else {
+                            deletedNotesBlockList
+                        }
+
+                        // Bottom Spacer matching regular documents
+                        Spacer(minLength: 140)
                     }
-
-                    // Bottom Canvas Padding
-                    Spacer(minLength: 120)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, currentCoverUrl.isEmpty ? 24 : 14)
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 28)
-                .padding(.top, currentCoverUrl.isEmpty ? 24 : 14)
-                .frame(maxWidth: 880)
-                .frame(maxWidth: .infinity)
             }
+
+            // Floating Bottom Action Island (Identical to DocumentCanvasView floating island)
+            floatingTrashIsland
+                .padding(.bottom, 22)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottom) {
             if showRestoreToast, let info = lastRestoredInfo {
                 restoreToastView(info: info)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 72)
             }
         }
         .confirmationDialog(
@@ -178,15 +189,15 @@ struct TrashPageView: View {
         }
     }
 
-    // MARK: - Notion Cover Banner View (Identical to DocumentCanvasView)
+    // MARK: - Notion Cover Banner (Identical 270pt Banner to DocumentCanvasView)
 
     private var pageCoverBannerView: some View {
         ZStack(alignment: .bottomTrailing) {
-            coverBannerImageContent
-                .frame(height: 200)
+            coverImageContent
+                .frame(height: 270)
                 .clipped()
 
-            // Normal Hover Action Buttons (Change Cover, Remove Cover)
+            // Hover action controls
             HStack(spacing: 6) {
                 Menu {
                     Section("Preset Gradients") {
@@ -208,7 +219,6 @@ struct TrashPageView: View {
                     .padding(.vertical, 5)
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -227,20 +237,19 @@ struct TrashPageView: View {
                     .padding(.vertical, 5)
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
             .padding(14)
-            .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
-            .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+            .opacity(isCoverHovered ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.15), value: isCoverHovered)
         }
         .contentShape(Rectangle())
         .onHover { isCoverHovered = $0 }
     }
 
     @ViewBuilder
-    private var coverBannerImageContent: some View {
+    private var coverImageContent: some View {
         if currentCoverUrl.hasPrefix("gradient:") {
             LinearGradient(
                 colors: PresetGradientCover.colors(for: currentCoverUrl),
@@ -256,130 +265,68 @@ struct TrashPageView: View {
         }
     }
 
-    // MARK: - Notion Page Header Block
+    // MARK: - Notion Page Header (Identical 48pt Indentation & Typography to DocumentCanvasView)
 
-    private var notionPageHeaderBlock: some View {
+    private var notionPageHeaderView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Breadcrumbs
-            HStack(spacing: 4) {
-                Text("Vault")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-
-                Text("/")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-
-                Text("🗑️ Trash")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.bottom, 2)
-
-            // Add cover button if cover was removed
-            if currentCoverUrl.isEmpty {
-                Button(action: {
-                    currentCoverUrl = "gradient:midnight"
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "photo")
-                            .font(.caption)
-                        Text("Add cover")
-                            .font(.caption.weight(.medium))
+            // Header buttons row: "Add cover" if removed
+            HStack(spacing: 10) {
+                if currentCoverUrl.isEmpty {
+                    Button(action: {
+                        currentCoverUrl = "gradient:midnight"
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo")
+                                .font(.caption)
+                            Text("Add cover")
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.primary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
 
-            // Big Emoji Icon (Font size 44, matching DocumentCanvasView)
+                Spacer()
+            }
+            .frame(height: 24)
+
+            // 44pt Big Document Emoji Icon
             Text("🗑️")
                 .font(.system(size: 44))
-                .padding(.vertical, 2)
+                .padding(4)
 
-            // Document Title (Font size 34 bold, matching TitleEditorField)
+            // 34pt Bold Page Title (Identical to TitleEditorField style)
             Text("Trash")
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(.primary)
-
-            // Description Paragraph Block
-            Text("Catatan yang dihapus disimpan di folder `.trash` vault Anda. Item di sini dapat dipulihkan kapan saja ke foldernya masing-masing atau dibersihkan secara permanen.")
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-                .lineSpacing(4)
+                .padding(.top, 2)
         }
+        .padding(.leading, 48)
+        .contentShape(Rectangle())
+        .onHover { isHeaderHovered = $0 }
     }
 
-    // MARK: - Block 1: Callout Block (Vault Info & Fast Actions)
+    // MARK: - Block 1: Callout Box (Exact Pustaka Callout Design)
 
     private var vaultInfoCalloutBlock: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
             Text("💡")
-                .font(.system(size: 20))
-                .frame(width: 24, alignment: .top)
+                .font(.system(size: 18))
+                .frame(width: 22, alignment: .top)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("**Vault Trash (`~/.trash/`)** — Catatan dan subpage yang dihapus tersimpan aman di direktori lokal. Merestore catatan akan mengembalikannya beserta seluruh struktur subpage.")
-                    .font(.system(size: 13.5))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("**Vault Trash (`~/.trash/`)** — Catatan dan subpage yang dihapus tersimpan di direktori lokal vault Anda. Merestore catatan akan mengembalikannya beserta seluruh struktur subpage.")
+                    .font(.system(size: 15))
                     .foregroundStyle(.primary)
                     .lineSpacing(3)
-
-                HStack(spacing: 8) {
-                    // Reveal in Finder Button
-                    Button(action: {
-                        store.revealTrashInFinder()
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "folder")
-                                .font(.system(size: 11))
-                            Text("Reveal .trash in Finder")
-                                .font(.system(size: 11.5, weight: .medium))
-                        }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .foregroundStyle(.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .help("Open .trash directory in macOS Finder")
-
-                    // Empty Trash Button
-                    if !store.trashPages.isEmpty {
-                        Button(action: {
-                            isConfirmingEmptyTrash = true
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 11))
-                                Text("Empty Trash (\(store.trashPages.count) items)...")
-                                    .font(.system(size: 11.5, weight: .semibold))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.red.opacity(0.1))
-                            .foregroundStyle(Color.red)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.red.opacity(0.25), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .help("Permanently delete all items from disk")
-                    }
-                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -389,106 +336,106 @@ struct TrashPageView: View {
         )
     }
 
-    // MARK: - Block 3: Database Filter & Search Block
+    // MARK: - Block 3: Search & Folder Filter Toolbar
 
-    private var filterAndSortControlsBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                // Search Input Field
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+    private var searchAndFilterToolbar: some View {
+        HStack(spacing: 10) {
+            // Search Input
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
 
-                    TextField("Filter deleted notes by title or content...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
+                TextField("Search deleted notes...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12.5))
 
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                )
-
-                // Sort Dropdown
-                Menu {
-                    ForEach(TrashSortOption.allCases, id: \.self) { option in
-                        Button(action: { sortOption = option }) {
-                            HStack {
-                                Text(option.rawValue)
-                                if sortOption == option {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.up.arrow.down")
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 11))
-                        Text(sortOption.rawValue)
-                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .foregroundStyle(.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                    )
+                    .buttonStyle(.plain)
                 }
-                .menuStyle(.borderlessButton)
             }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+            )
 
-            // Category Filter Pills
+            // Folder Filter Pills
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    filterChip(title: "All Folders (\(store.trashPages.count))", isSelected: selectedCategoryFilter == nil) {
+                HStack(spacing: 4) {
+                    filterPill(title: "All", count: store.trashPages.count, isSelected: selectedCategoryFilter == nil) {
                         selectedCategoryFilter = nil
                     }
 
                     ForEach(store.categories) { cat in
                         let count = store.trashPages.filter { $0.categoryId == cat.id }.count
                         if count > 0 {
-                            filterChip(title: "\(cat.icon) \(cat.name) (\(count))", isSelected: selectedCategoryFilter == cat.id) {
+                            filterPill(title: "\(cat.icon) \(cat.name)", count: count, isSelected: selectedCategoryFilter == cat.id) {
                                 selectedCategoryFilter = cat.id
                             }
                         }
                     }
                 }
-                .padding(.vertical, 2)
             }
+
+            // Sort Menu
+            Menu {
+                ForEach(TrashSortOption.allCases, id: \.self) { option in
+                    Button(action: { sortOption = option }) {
+                        HStack {
+                            Text(option.rawValue)
+                            if sortOption == option {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 10))
+                    Text(sortOption.rawValue)
+                        .font(.system(size: 11.5, weight: .medium))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .foregroundStyle(.secondary)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                )
+            }
+            .menuStyle(.borderlessButton)
         }
     }
 
-    private func filterChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func filterPill(title: String, count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.85))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
-                .clipShape(Capsule())
+            HStack(spacing: 3) {
+                Text(title)
+                Text("(\(count))").font(.caption2).opacity(0.8)
+            }
+            .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+            .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.85))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+            .clipShape(Capsule())
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Block 4: Section Heading Block
+    // MARK: - Block 4: Section Heading Block (20pt Bold)
 
     private var sectionHeadingBlock: some View {
         HStack(spacing: 8) {
@@ -498,180 +445,140 @@ struct TrashPageView: View {
 
             if !store.trashPages.isEmpty {
                 Text("\(filteredTrashPages.count)")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1.5)
                     .background(Capsule().fill(Color.primary.opacity(0.06)))
             }
 
             Spacer()
         }
-        .padding(.top, 4)
+        .padding(.top, 6)
     }
 
-    // MARK: - Block 5: Deleted Notes Rendered as Native Pustaka Blocks
+    // MARK: - Block 5: Deleted Notes (100% Identical to SubpageBlockView in BlockListView)
 
     private var deletedNotesBlockList: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 2) {
             ForEach(filteredTrashPages) { page in
-                deletedNoteBlockRow(page: page)
+                deletedSubpageBlockRow(page: page)
             }
         }
     }
 
-    private func deletedNoteBlockRow(page: DocumentPage) -> some View {
+    private func deletedSubpageBlockRow(page: DocumentPage) -> some View {
         let isHovered = (hoveredBlockId == page.id)
         let categoryName = store.categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
         let parentTitle = page.parentPageId.flatMap { pId in
             store.pages.first(where: { $0.id == pId })?.title
         }
 
-        return HStack(alignment: .top, spacing: 6) {
-            // Left Gutter: 6-dots handle visible on hover (identical to BlockListView)
+        return HStack(spacing: 6) {
+            // Gutter: 6-dots handle visible on hover (identical to BlockRowView)
             Image(systemName: "circle.grid.2x3.fill")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
-                .frame(width: 14, height: 26)
-                .opacity(isHovered ? 0.7 : 0.0)
-                .animation(.easeInOut(duration: 0.12), value: isHovered)
+                .frame(width: 14, height: 20)
+                .opacity(isHovered ? 0.6 : 0.0)
 
-            // Block Content Body
-            VStack(alignment: .leading, spacing: 4) {
-                // Header line: Icon, Title, Subpage badge, Category tag, Timestamp, and Actions
-                HStack(alignment: .center, spacing: 8) {
-                    // Document Icon
-                    if !page.icon.isEmpty {
-                        Text(page.icon)
-                            .font(.system(size: 15))
-                            .frame(width: 18)
-                    } else {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 18)
-                    }
+            // Subpage Link Block Body (Identical to SubpageBlockView)
+            HStack(spacing: 8) {
+                // Document Icon
+                if !page.icon.isEmpty {
+                    Text(page.icon)
+                        .font(.system(size: 15))
+                        .frame(width: 20)
+                } else {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 20)
+                }
 
-                    // Title
-                    Text(page.title.isEmpty ? "Untitled Note" : page.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                // Page Title
+                Text(page.title.isEmpty ? "Untitled Note" : page.title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .underline(isHovered, color: .primary.opacity(0.45))
+                    .lineLimit(1)
 
-                    // Subpage badge
-                    if let parent = parentTitle {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.turn.down.right")
-                                .font(.system(size: 8.5))
-                            Text("Subpage of \(parent)")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-
-                    // Category tag
+                // Subpage parent badge (if nested)
+                if let parent = parentTitle {
                     HStack(spacing: 3) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 8.5))
-                        Text(categoryName)
-                            .font(.system(size: 10.5))
+                        Image(systemName: "arrow.turn.down.right")
+                            .font(.system(size: 8))
+                        Text("Subpage of \(parent)")
+                            .font(.caption2.weight(.medium))
                     }
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
-                    .background(Color.primary.opacity(0.04))
+                    .background(Color.secondary.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
 
-                    // Relative deletion time
-                    Text("Deleted \(relativeTimeString(from: page.lastModified))")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
+                // Category folder label
+                Text(categoryName)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
 
-                    Spacer()
+                // Time ago
+                Text("•  \(relativeTimeString(from: page.lastModified))")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
 
-                    // Right-aligned Actions (Quick look, Restore, Delete)
+                Spacer()
+
+                // Actions visible on hover (or subtle preview button)
+                if isHovered {
                     HStack(spacing: 6) {
                         // Preview Button
-                        Button(action: {
-                            inspectingPage = page
-                        }) {
+                        Button(action: { inspectingPage = page }) {
                             Image(systemName: "eye")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 24, height: 24)
-                                .background(Color.primary.opacity(0.04))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                .padding(4)
                         }
                         .buttonStyle(.plain)
-                        .help("Quick preview note content")
+                        .help("Preview note content")
 
-                        // Restore Menu
-                        Menu {
-                            Button(action: {
-                                handleRestore(page: page, andOpen: false)
-                            }) {
-                                Label("Restore to \(categoryName)", systemImage: "arrow.uturn.backward")
-                            }
-
-                            Button(action: {
-                                handleRestore(page: page, andOpen: true)
-                            }) {
-                                Label("Restore and Open Note", systemImage: "arrow.up.forward.app")
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
+                        // Restore Action
+                        Button(action: { handleRestore(page: page, andOpen: false) }) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "arrow.uturn.backward")
-                                    .font(.system(size: 10, weight: .semibold))
+                                    .font(.system(size: 10))
                                 Text("Restore")
                                     .font(.system(size: 11.5, weight: .medium))
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.12))
                             .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("Restore document back to active notes")
+                        .buttonStyle(.plain)
+                        .help("Restore back to original folder")
 
-                        // Permanent Delete Button
-                        Button(action: {
-                            pageToDeletePermanently = page
-                        }) {
+                        // Delete Permanently Action
+                        Button(action: { pageToDeletePermanently = page }) {
                             Image(systemName: "trash")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(Color.red.opacity(0.85))
-                                .frame(width: 24, height: 24)
-                                .background(Color.red.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                .padding(4)
                         }
                         .buttonStyle(.plain)
-                        .help("Permanently delete from disk")
+                        .help("Delete permanently")
                     }
-                    .opacity(isHovered ? 1.0 : 0.75)
-                }
-
-                // Snippet line (Clean 1-line text preview)
-                let snippet = plainTextSnippet(from: page.rawContent)
-                if !snippet.isEmpty {
-                    Text(snippet)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .padding(.leading, 26)
+                    .transition(.opacity)
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(isHovered ? Color.secondary.opacity(0.18) : Color.clear, lineWidth: 1)
             )
             .contentShape(Rectangle())
@@ -679,6 +586,8 @@ struct TrashPageView: View {
                 inspectingPage = page
             }
         }
+        .padding(.leading, 28)
+        .contentShape(Rectangle())
         .onHover { h in
             hoveredBlockId = h ? page.id : nil
         }
@@ -703,105 +612,114 @@ struct TrashPageView: View {
         }
     }
 
-    private func plainTextSnippet(from content: String) -> String {
-        let lines = content.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix("---") || trimmed.hasPrefix("![") {
-                continue
-            }
-            let cleaned = trimmed
-                .replacingOccurrences(of: "**", with: "")
-                .replacingOccurrences(of: "*", with: "")
-                .replacingOccurrences(of: "`", with: "")
-                .replacingOccurrences(of: "> ", with: "")
-                .replacingOccurrences(of: "- ", with: "")
-            if !cleaned.isEmpty {
-                return String(cleaned.prefix(110))
-            }
-        }
-        return ""
-    }
-
-    // MARK: - Empty State Callout Blocks
+    // MARK: - Empty State Callout Blocks (Clean & Minimalist)
 
     private var emptyTrashCalloutBlock: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 10) {
             Text("✨")
-                .font(.system(size: 24))
+                .font(.system(size: 18))
+                .frame(width: 22, alignment: .top)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Tempat Sampah Kosong")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Text("Tidak ada dokumen atau catatan di `.trash/`. Ketika Anda menghapus sebuah catatan dari sidebar atau menu dokumen, catatan tersebut akan muncul di sini.")
-                    .font(.system(size: 13.5))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tempat sampah kosong. Tidak ada catatan yang dihapus.")
+                    .font(.system(size: 15))
                     .foregroundStyle(.secondary)
-                    .lineSpacing(3)
-
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        store.addNewPage()
-                    }
-                }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Create New Document")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-        )
-    }
-
-    private var emptyFilterResultCalloutBlock: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.system(size: 24))
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Tidak Ada Catatan yang Cocok")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Text("Tidak ditemukan catatan terhapus yang cocok dengan kata kunci \"\(searchText)\".")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-
-                Button("Clear Search") {
-                    searchText = ""
-                    selectedCategoryFilter = nil
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .padding(.top, 2)
-            }
-        }
-        .padding(16)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    private var emptyFilterResultCalloutBlock: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 18))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, alignment: .top)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tidak ditemukan catatan yang cocok dengan \"\(searchText)\".")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+
+                Button("Clear filter") {
+                    searchText = ""
+                    selectedCategoryFilter = nil
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Floating Glassmorphic Trash Island (Identical to DocumentCanvasView)
+
+    private var floatingTrashIsland: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(store.trashPages.isEmpty ? Color.secondary : Color.red.opacity(0.85))
+
+                Text("\(store.trashPages.count) items in Trash")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+            }
+
+            Divider()
+                .frame(height: 14)
+
+            Button(action: { store.revealTrashInFinder() }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                    Text("Reveal in Finder")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Open .trash/ folder in Finder")
+
+            if !store.trashPages.isEmpty {
+                Divider()
+                    .frame(height: 14)
+
+                Button(action: { isConfirmingEmptyTrash = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                        Text("Empty Trash...")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(.red.opacity(0.9))
+                }
+                .buttonStyle(.plain)
+                .help("Permanently empty all items")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.16), radius: 14, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
     }
 
