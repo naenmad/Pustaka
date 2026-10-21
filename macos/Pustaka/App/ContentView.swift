@@ -190,6 +190,7 @@ struct ContentView: View {
                     window.titleVisibility = .hidden
                     window.titlebarAppearsTransparent = true
                     window.toolbar = nil
+                    window.tabbingMode = .disallowed
                 }
             }
             return view
@@ -200,6 +201,7 @@ struct ContentView: View {
                 window.titleVisibility = .hidden
                 window.titlebarAppearsTransparent = true
                 window.toolbar = nil
+                window.tabbingMode = .disallowed
             }
         }
     }

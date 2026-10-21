@@ -7,5 +7,8 @@ struct PustakaApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
     }
 }

@@ -193,6 +193,8 @@ final class BlockEditorTextView: NSTextView {
     var onCommit: (() -> Void)?
     var onDeleteEmpty: (() -> Void)?
     var onSlashCommit: (() -> Bool)?
+    var onSlashArrowDown: (() -> Bool)?
+    var onSlashArrowUp: (() -> Bool)?
     var onEscape: (() -> Bool)?
     var onSelectAllBlocks: (() -> Void)?
     var onFocus: (() -> Void)?
@@ -290,6 +292,20 @@ final class BlockEditorTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // Down Arrow Key (keyCode 125): navigate slash menu if open
+        if event.keyCode == 125 {
+            if let downHandler = onSlashArrowDown, downHandler() {
+                return
+            }
+        }
+
+        // Up Arrow Key (keyCode 126): navigate slash menu if open
+        if event.keyCode == 126 {
+            if let upHandler = onSlashArrowUp, upHandler() {
+                return
+            }
+        }
+
         // Return / Enter Key (keyCode 36)
         if event.keyCode == 36 {
             if event.modifierFlags.contains(.shift) {
@@ -304,6 +320,13 @@ final class BlockEditorTextView: NSTextView {
             }
             onCommit?()
             return
+        }
+
+        // Tab Key (keyCode 48): can commit active slash command if open
+        if event.keyCode == 48 {
+            if let slashHandler = onSlashCommit, slashHandler() {
+                return
+            }
         }
 
         // Escape Key (keyCode 53)
@@ -411,6 +434,8 @@ struct BlockEditorField: NSViewRepresentable {
     var onCommit: () -> Void
     var onDeleteEmpty: () -> Void
     var onSlashCommit: (() -> Bool)? = nil
+    var onSlashArrowDown: (() -> Bool)? = nil
+    var onSlashArrowUp: (() -> Bool)? = nil
     var onEscape: (() -> Bool)? = nil
     var onTextChanged: ((String) -> Void)? = nil
     var onFocus: (() -> Void)? = nil
@@ -439,6 +464,8 @@ struct BlockEditorField: NSViewRepresentable {
         tv.onCommit = onCommit
         tv.onDeleteEmpty = onDeleteEmpty
         tv.onSlashCommit = onSlashCommit
+        tv.onSlashArrowDown = onSlashArrowDown
+        tv.onSlashArrowUp = onSlashArrowUp
         tv.onEscape = onEscape
         tv.onSelectAllBlocks = onSelectAllBlocks
         tv.onFocus = onFocus
@@ -481,6 +508,8 @@ struct BlockEditorField: NSViewRepresentable {
         nsView.onCommit = onCommit
         nsView.onDeleteEmpty = onDeleteEmpty
         nsView.onSlashCommit = onSlashCommit
+        nsView.onSlashArrowDown = onSlashArrowDown
+        nsView.onSlashArrowUp = onSlashArrowUp
         nsView.onEscape = onEscape
         nsView.onSelectAllBlocks = onSelectAllBlocks
         nsView.onFocus = onFocus
@@ -1482,6 +1511,7 @@ struct BlockRowView: View {
     @State private var textBuffer: String = ""
     @State private var dynamicHeight: CGFloat = 26
     @State private var isSlashCommandOpen: Bool = false
+    @State private var selectedSlashIndex: Int = 0
 
     var slashQuery: String {
         if textBuffer.hasPrefix("/") {
@@ -1543,6 +1573,9 @@ struct BlockRowView: View {
             if block.text != newVal {
                 onUpdateText(newVal)
             }
+        }
+        .onChange(of: slashQuery) { _, _ in
+            selectedSlashIndex = 0
         }
     }
 
@@ -1613,6 +1646,8 @@ struct BlockRowView: View {
                 },
                 onDeleteEmpty: onDeleteEmpty,
                 onSlashCommit: handleSlashCommit,
+                onSlashArrowDown: handleSlashArrowDown,
+                onSlashArrowUp: handleSlashArrowUp,
                 onEscape: { isSlashCommandOpen = false; return true },
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
@@ -1635,6 +1670,8 @@ struct BlockRowView: View {
                 },
                 onDeleteEmpty: onDeleteEmpty,
                 onSlashCommit: handleSlashCommit,
+                onSlashArrowDown: handleSlashArrowDown,
+                onSlashArrowUp: handleSlashArrowUp,
                 onEscape: { isSlashCommandOpen = false; return true },
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
@@ -1669,6 +1706,8 @@ struct BlockRowView: View {
                         onTransformKind(.paragraph)
                     },
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
@@ -1704,6 +1743,8 @@ struct BlockRowView: View {
                         onTransformKind(.paragraph)
                     },
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
@@ -1738,6 +1779,8 @@ struct BlockRowView: View {
                         },
                         onDeleteEmpty: onDeleteEmpty,
                         onSlashCommit: handleSlashCommit,
+                        onSlashArrowDown: handleSlashArrowDown,
+                        onSlashArrowUp: handleSlashArrowUp,
                         onEscape: { isSlashCommandOpen = false; return true },
                         onTextChanged: checkSlashCommand,
                         onFocus: onFocus,
@@ -1776,6 +1819,8 @@ struct BlockRowView: View {
                     },
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
@@ -1835,6 +1880,8 @@ struct BlockRowView: View {
                         onTransformKind(.paragraph)
                     },
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
@@ -1878,6 +1925,8 @@ struct BlockRowView: View {
                     },
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
@@ -2122,6 +2171,8 @@ struct BlockRowView: View {
                     },
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: { newCap in
                         onTransformKind(.image(url: url, caption: newCap))
@@ -2173,6 +2224,8 @@ struct BlockRowView: View {
                     },
                     onDeleteEmpty: onDeleteEmpty,
                     onSlashCommit: handleSlashCommit,
+                    onSlashArrowDown: handleSlashArrowDown,
+                    onSlashArrowUp: handleSlashArrowUp,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: { newExpr in
                         onTransformKind(.math(expression: newExpr))
@@ -2287,9 +2340,13 @@ struct BlockRowView: View {
 
     private func checkSlashCommand(_ text: String) {
         if text.hasPrefix("/") {
-            isSlashCommandOpen = true
+            if !isSlashCommandOpen {
+                isSlashCommandOpen = true
+                selectedSlashIndex = 0
+            }
         } else {
             isSlashCommandOpen = false
+            selectedSlashIndex = 0
         }
 
         // Markdown auto-formatting shortcuts on plain text
@@ -2333,77 +2390,119 @@ struct BlockRowView: View {
         }
     }
 
-    private func handleSlashCommit() -> Bool {
-        if isSlashCommandOpen && !filteredSlashCommands.isEmpty {
-            applySlashCommand(filteredSlashCommands.first!.kind)
-            return true
+    private func handleSlashArrowDown() -> Bool {
+        guard isSlashCommandOpen && !filteredSlashCommands.isEmpty else { return false }
+        if selectedSlashIndex < filteredSlashCommands.count - 1 {
+            selectedSlashIndex += 1
+        } else {
+            selectedSlashIndex = 0
         }
-        return false
+        return true
+    }
+
+    private func handleSlashArrowUp() -> Bool {
+        guard isSlashCommandOpen && !filteredSlashCommands.isEmpty else { return false }
+        if selectedSlashIndex > 0 {
+            selectedSlashIndex -= 1
+        } else {
+            selectedSlashIndex = max(0, filteredSlashCommands.count - 1)
+        }
+        return true
+    }
+
+    private func handleSlashCommit() -> Bool {
+        guard isSlashCommandOpen && !filteredSlashCommands.isEmpty else { return false }
+        let validIndex = min(max(0, selectedSlashIndex), filteredSlashCommands.count - 1)
+        applySlashCommand(filteredSlashCommands[validIndex].kind)
+        return true
     }
 
     // MARK: - Filtered Notion Slash Command Palette View
 
     private var slashCommandPaletteView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 3) {
-                if filteredSlashCommands.isEmpty {
-                    Text("No commands found for '/\(slashQuery)'")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(12)
-                } else {
-                    Text("COMMANDS (\(filteredSlashCommands.count))")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 8)
-                        .padding(.top, 4)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 3) {
+                    if filteredSlashCommands.isEmpty {
+                        Text("No commands found for '/\(slashQuery)'")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                    } else {
+                        Text("COMMANDS (\(filteredSlashCommands.count))")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.top, 4)
 
-                    ForEach(Array(filteredSlashCommands.enumerated()), id: \.element.id) { cmdIdx, cmd in
-                        Button(action: {
-                            applySlashCommand(cmd.kind)
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: cmd.icon)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.tint)
-                                    .frame(width: 20)
+                        ForEach(Array(filteredSlashCommands.enumerated()), id: \.element.id) { cmdIdx, cmd in
+                            let isHighlighted = (cmdIdx == selectedSlashIndex)
 
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(cmd.title)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.primary)
+                            Button(action: {
+                                selectedSlashIndex = cmdIdx
+                                applySlashCommand(cmd.kind)
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: cmd.icon)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(isHighlighted ? Color.accentColor : .secondary)
+                                        .frame(width: 20)
 
-                                    Text(cmd.desc)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(cmd.title)
+                                            .font(.system(size: 12, weight: isHighlighted ? .semibold : .medium))
+                                            .foregroundStyle(.primary)
+
+                                        Text(cmd.desc)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    Spacer()
+
+                                    if isHighlighted {
+                                        Text("↵ Enter")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(Color.accentColor)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 2)
+                                            .background(Color.accentColor.opacity(0.12))
+                                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    }
                                 }
-
-                                Spacer()
-
-                                if cmdIdx == 0 {
-                                    Text("↵ Enter")
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.primary.opacity(0.06))
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(isHighlighted ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .id(cmd.id)
+                            .onHover { isHovered in
+                                if isHovered {
+                                    selectedSlashIndex = cmdIdx
                                 }
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(cmdIdx == 0 ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(6)
+            }
+            .onChange(of: selectedSlashIndex) { _, newIdx in
+                if newIdx >= 0 && newIdx < filteredSlashCommands.count {
+                    let targetId = filteredSlashCommands[newIdx].id
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        proxy.scrollTo(targetId, anchor: .center)
                     }
                 }
             }
-            .padding(6)
         }
-        .frame(width: 310, height: min(CGFloat(max(1, filteredSlashCommands.count)) * 44 + 30, 320))
+        .frame(width: 310, height: min(CGFloat(max(1, filteredSlashCommands.count)) * 44 + 36, 320))
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .shadow(color: Color.black.opacity(0.18), radius: 12, y: 5)
