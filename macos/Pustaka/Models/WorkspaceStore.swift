@@ -8,16 +8,25 @@ struct WorkspaceStorageData: Codable {
     var categories: [SidebarCategory]
     var pages: [DocumentPage]
     var selectedPageId: String?
+    var openTabIds: [String]?
 }
 
 class WorkspaceStore: ObservableObject {
     @Published var categories: [SidebarCategory] = []
     @Published var pages: [DocumentPage] = []
     @Published var selectedPageId: String? = nil
+    @Published var openTabIds: [String] = []
     @Published var isPreviewDrawerPresented: Bool = false
     @Published var engineInfo: String = "Ready"
     @Published var currentRon: String = ""
     @Published var currentSvg: String = ""
+
+    /// Active document pages currently open in tabs
+    var openTabs: [DocumentPage] {
+        openTabIds.compactMap { id in
+            pages.first(where: { $0.id == id && !$0.isDeleted })
+        }
+    }
 
     init() {
         loadFromDisk()
@@ -111,16 +120,32 @@ class WorkspaceStore: ObservableObject {
             self.categories.removeAll { $0.id == "cat_fav" }
 
             let nonDeleted = self.pages.filter { !$0.isDeleted }
-            if let sel = decoded.selectedPageId, nonDeleted.contains(where: { $0.id == sel }) {
+            let nonDeletedIds = Set(nonDeleted.map(\.id))
+
+            // Restore and sanitize open tabs from disk
+            var restoredTabs = (decoded.openTabIds ?? []).filter { nonDeletedIds.contains($0) }
+
+            if let sel = decoded.selectedPageId, nonDeletedIds.contains(sel) {
                 self.selectedPageId = sel
+                if !restoredTabs.contains(sel) {
+                    restoredTabs.insert(sel, at: 0)
+                }
             } else {
-                self.selectedPageId = nonDeleted.first?.id
+                self.selectedPageId = restoredTabs.first ?? nonDeleted.first?.id
+                if let sel = self.selectedPageId, !restoredTabs.contains(sel) {
+                    restoredTabs.append(sel)
+                }
             }
+            self.openTabIds = restoredTabs
         } else {
             // Seed initial defaults
             self.categories = WorkspaceStore.defaultCategories
             self.pages = WorkspaceStore.defaultPages
-            self.selectedPageId = pages.first?.id
+            let firstId = pages.first?.id
+            self.selectedPageId = firstId
+            if let firstId = firstId {
+                self.openTabIds = [firstId]
+            }
         }
 
         // Save immediately to ensure ~/Documents/Pustaka and all .md files are written
@@ -131,7 +156,8 @@ class WorkspaceStore: ObservableObject {
         let storage = WorkspaceStorageData(
             categories: self.categories,
             pages: self.pages,
-            selectedPageId: self.selectedPageId
+            selectedPageId: self.selectedPageId,
+            openTabIds: self.openTabIds
         )
         do {
             let encoder = JSONEncoder()
@@ -297,9 +323,82 @@ class WorkspaceStore: ObservableObject {
     }
 
     func selectPage(id: String) {
+        guard pages.contains(where: { $0.id == id && !$0.isDeleted }) else { return }
         self.selectedPageId = id
+        if !openTabIds.contains(id) {
+            openTabIds.append(id)
+        }
         saveToDisk()
         recompileCurrentPage()
+    }
+
+    // MARK: - Tab Management (Tabbed Document Interface)
+
+    /// Opens a document in a tab (or focuses its existing tab)
+    func openTab(pageId: String) {
+        selectPage(id: pageId)
+    }
+
+    /// Closes the specified document tab and smartly selects an adjacent tab
+    func closeTab(pageId: String) {
+        guard let index = openTabIds.firstIndex(of: pageId) else { return }
+        openTabIds.remove(at: index)
+
+        if selectedPageId == pageId {
+            if openTabIds.indices.contains(index) {
+                selectPage(id: openTabIds[index])
+            } else if index > 0 && openTabIds.indices.contains(index - 1) {
+                selectPage(id: openTabIds[index - 1])
+            } else {
+                selectedPageId = nil
+                saveToDisk()
+            }
+        } else {
+            saveToDisk()
+        }
+    }
+
+    /// Closes all tabs except the specified one
+    func closeOtherTabs(keepPageId: String) {
+        guard openTabIds.contains(keepPageId) else { return }
+        openTabIds = [keepPageId]
+        selectPage(id: keepPageId)
+    }
+
+    /// Closes all tabs located to the right of the specified tab
+    func closeTabsToRight(pageId: String) {
+        guard let index = openTabIds.firstIndex(of: pageId) else { return }
+        openTabIds = Array(openTabIds.prefix(through: index))
+        if let sel = selectedPageId, !openTabIds.contains(sel) {
+            selectPage(id: pageId)
+        } else {
+            saveToDisk()
+        }
+    }
+
+    /// Closes all open tabs
+    func closeAllTabs() {
+        openTabIds.removeAll()
+        selectedPageId = nil
+        saveToDisk()
+    }
+
+    /// Cycles forward to the next tab (⌃Tab or ⌘⇧])
+    func selectNextTab() {
+        guard openTabIds.count > 1,
+              let currentId = selectedPageId,
+              let idx = openTabIds.firstIndex(of: currentId) else { return }
+        let nextIdx = (idx + 1) % openTabIds.count
+        selectPage(id: openTabIds[nextIdx])
+    }
+
+    /// Cycles backward to the previous tab (⌃⇧Tab or ⌘⇧[)
+    func selectPreviousTab() {
+        guard openTabIds.count > 1,
+              let currentId = selectedPageId,
+              let idx = openTabIds.firstIndex(of: currentId) else { return }
+        let prevIdx = (idx - 1 + openTabIds.count) % openTabIds.count
+        selectPage(id: openTabIds[prevIdx])
     }
 
     func page(id: String?) -> DocumentPage? {
@@ -356,10 +455,10 @@ class WorkspaceStore: ObservableObject {
             pages.append(subpage)
         }
         if switchToPage {
-            self.selectedPageId = newId
-            recompileCurrentPage()
+            selectPage(id: newId)
+        } else {
+            saveToDisk()
         }
-        saveToDisk()
         return subpage
     }
 
@@ -507,9 +606,7 @@ class WorkspaceStore: ObservableObject {
             boardTasks: []
         )
         pages.append(newPage)
-        self.selectedPageId = newId
-        saveToDisk()
-        recompileCurrentPage()
+        selectPage(id: newId)
     }
 
     func duplicatePage(id: String) {
@@ -532,9 +629,7 @@ class WorkspaceStore: ObservableObject {
         } else {
             pages.append(copy)
         }
-        self.selectedPageId = newId
-        saveToDisk()
-        recompileCurrentPage()
+        selectPage(id: newId)
     }
 
     // MARK: - Soft-Delete, Trash & Organization (Obsidian .trash/ compatible)
@@ -561,10 +656,20 @@ class WorkspaceStore: ObservableObject {
             }
         }
 
-        // If the active document was trashed, switch selection to next available note
+        // Remove trashed pages from openTabIds
+        openTabIds.removeAll { toTrashIds.contains($0) }
+
+        // If the active document was trashed, switch selection to next available open tab or note
         if let sel = selectedPageId, toTrashIds.contains(sel) {
-            selectedPageId = activePages.first?.id
-            recompileCurrentPage()
+            if let nextTabId = openTabIds.first {
+                selectPage(id: nextTabId)
+            } else {
+                selectedPageId = activePages.first?.id
+                if let newSel = selectedPageId {
+                    openTabIds.append(newSel)
+                }
+                recompileCurrentPage()
+            }
         }
 
         saveToDisk()
@@ -620,11 +725,21 @@ class WorkspaceStore: ObservableObject {
             }
         }
 
+        // Remove permanently deleted pages from open tabs
+        openTabIds.removeAll { toDeleteIds.contains($0) }
+
         objectWillChange.send()
         pages.removeAll { toDeleteIds.contains($0.id) }
         if let sel = selectedPageId, toDeleteIds.contains(sel) {
-            selectedPageId = activePages.first?.id
-            recompileCurrentPage()
+            if let nextTabId = openTabIds.first {
+                selectPage(id: nextTabId)
+            } else {
+                selectedPageId = activePages.first?.id
+                if let newSel = selectedPageId {
+                    openTabIds.append(newSel)
+                }
+                recompileCurrentPage()
+            }
         }
         saveToDisk()
     }
@@ -632,6 +747,9 @@ class WorkspaceStore: ObservableObject {
     /// Empties the entire trash, permanently deleting all soft-deleted files
     func emptyTrash() {
         let deleted = trashPages
+        let deletedIds = Set(deleted.map(\.id))
+        openTabIds.removeAll { deletedIds.contains($0) }
+
         for page in deleted {
             let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
             let trashFileURL = trashURL.appendingPathComponent(safeFileName(for: page))

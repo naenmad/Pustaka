@@ -78,14 +78,7 @@ struct SidebarView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 1. Vault Identity Header positioned right at the top
-                vaultHeaderView
-
-                Divider()
-                    .padding(.horizontal, 10)
-                    .opacity(0.35)
-
-                // 2. Minimalist Search Bar (Shortcut: ⌘K)
+                // 1. Minimalist Search Bar (Shortcut: ⌘K)
                 searchBarView
                     .padding(.horizontal, 10)
                     .padding(.top, 8)
@@ -111,8 +104,8 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
             }
-            .ignoresSafeArea(.container, edges: .top)
         }
+        .background(TitlebarVaultHeaderAccessor(store: store))
         .sheet(item: $categoryToCustomize) { cat in
             CustomizeCategorySheet(
                 store: store,
@@ -134,72 +127,120 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Vault Header at Top of Sidebar (No Appbar Gap, No Sidebar Toggle Button)
+    // MARK: - Native Window Titlebar Identity (Positioned Beside Traffic Lights)
 
-    private var vaultHeaderView: some View {
-        HStack(spacing: 8) {
-            // Vault Badge Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+    struct TitlebarVaultIdentityView: View {
+        @ObservedObject var store: WorkspaceStore
+
+        var body: some View {
+            HStack(spacing: 7) {
+                // Vault Badge Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 24, height: 24)
-                    .shadow(color: Color.accentColor.opacity(0.2), radius: 1.5, y: 0.5)
+                        .frame(width: 18, height: 18)
+                        .shadow(color: Color.accentColor.opacity(0.2), radius: 1, y: 0.5)
 
-                Image(systemName: "books.vertical.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-            }
+                    Image(systemName: "books.vertical.fill")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(.white)
+                }
 
-            VStack(alignment: .leading, spacing: 0.5) {
-                Text("Pustaka Vault")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Pustaka Vault")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
+                    Button(action: {
+                        store.revealInFinder()
+                    }) {
+                        HStack(spacing: 2) {
+                            Text("~/Documents/Pustaka")
+                                .font(.system(size: 9, weight: .regular))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Image(systemName: "arrow.up.forward.square")
+                                .font(.system(size: 7))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help("Reveal ~/Documents/Pustaka in Finder (⇧⌘R)")
+                }
+
+                // Quick Reveal in Finder Button
                 Button(action: {
                     store.revealInFinder()
                 }) {
-                    HStack(spacing: 2.5) {
-                        Text("~/Documents/Pustaka")
-                            .font(.system(size: 9.5, weight: .regular))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-
-                        Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 7.5))
-                            .foregroundStyle(.tertiary)
-                    }
+                    Image(systemName: "folder")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
-                .help("Reveal ~/Documents/Pustaka in Finder (⇧⌘R)")
+                .help("Reveal in Finder (⇧⌘R)")
             }
-
-            Spacer()
-
-            // Quick Reveal in Finder Button
-            Button(action: {
-                store.revealInFinder()
-            }) {
-                Image(systemName: "folder")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
-            .help("Reveal in Finder (⇧⌘R)")
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
+    }
+
+    struct TitlebarVaultHeaderAccessor: NSViewRepresentable {
+        @ObservedObject var store: WorkspaceStore
+
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            DispatchQueue.main.async {
+                setupHeader(from: view)
+            }
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {
+            DispatchQueue.main.async {
+                setupHeader(from: nsView)
+            }
+        }
+
+        private func setupHeader(from view: NSView) {
+            guard let window = view.window,
+                  let titlebarView = window.standardWindowButton(.closeButton)?.superview else {
+                return
+            }
+
+            let headerId = NSUserInterfaceItemIdentifier("PustakaVaultTitlebarHeader")
+            if titlebarView.subviews.contains(where: { $0.identifier == headerId }) {
+                return
+            }
+
+            let hostingView = NSHostingView(rootView: TitlebarVaultIdentityView(store: store))
+            hostingView.identifier = headerId
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+            titlebarView.addSubview(hostingView)
+
+            if let zoomButton = window.standardWindowButton(.zoomButton) {
+                NSLayoutConstraint.activate([
+                    hostingView.leadingAnchor.constraint(equalTo: zoomButton.trailingAnchor, constant: 10),
+                    hostingView.centerYAnchor.constraint(equalTo: zoomButton.centerYAnchor),
+                    hostingView.heightAnchor.constraint(equalToConstant: 26)
+                ])
+            } else {
+                NSLayoutConstraint.activate([
+                    hostingView.leadingAnchor.constraint(equalTo: titlebarView.leadingAnchor, constant: 75),
+                    hostingView.centerYAnchor.constraint(equalTo: titlebarView.centerYAnchor),
+                    hostingView.heightAnchor.constraint(equalToConstant: 26)
+                ])
+            }
+        }
     }
 
     // MARK: - Minimal Search Bar

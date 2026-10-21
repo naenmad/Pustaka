@@ -191,14 +191,7 @@ struct DocumentCanvasView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                // Top Page Header Bar (Sidebar Toggle on LEFT, Share & 3-Dots on RIGHT)
-                topPageNavBar
-
-                Divider().opacity(0.3)
-
-                documentCanvasBody
-            }
+            documentCanvasBody
 
             // Floating Action Toolbar (Notion & Bear style glassmorphic island)
             if !selectedBlockIds.isEmpty {
@@ -292,145 +285,8 @@ struct DocumentCanvasView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenCoverPicker"))) { _ in
             self.isCoverPickerOpen = true
         }
-    }
-
-    // MARK: - Top Page Navigation Bar (Leading Sidebar Toggle, Trailing Share & Page Options)
-
-    private var topPageNavBar: some View {
-        HStack(spacing: 12) {
-            // Button to toggle/show/hide sidebar (on the LEFT / leading side of the page)
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
-                }
-            }) {
-                Image(systemName: "sidebar.leading")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
-            .help("Toggle Sidebar (⌃⌘S)")
-
-            Spacer()
-
-            // Page Actions (on the FAR RIGHT / trailing side of the page)
-            HStack(spacing: 6) {
-                // 1. Share & Export Menu
-                Menu {
-                    Button(action: { exportDocument(format: "md") }) {
-                        Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
-                    }
-                    Button(action: { exportDocument(format: "typ") }) {
-                        Label("Export as Typst (.typ)", systemImage: "arrow.down.doc.fill")
-                    }
-                    Divider()
-                    Button(action: {
-                        NSPasteboard.general.clearContents()
-                        let md = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
-                        NSPasteboard.general.setString(md, forType: .string)
-                    }) {
-                        Label("Copy Full Markdown", systemImage: "doc.on.doc")
-                    }
-                    if !store.currentSvg.isEmpty {
-                        Button(action: {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(store.currentSvg, forType: .string)
-                        }) {
-                            Label("Copy Typst SVG Vector", systemImage: "sparkle.magnifyingglass")
-                        }
-                    }
-                    Divider()
-                    Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Export & Share Document")
-
-                // 2. Page Options Menu (Three Dots ...)
-                Menu {
-                    Button(action: { store.addNewSubpage(parentPageId: currentPage.id) }) {
-                        Label("Add Subpage", systemImage: "doc.badge.plus")
-                    }
-                    Divider()
-                    Button(action: { isCoverPickerOpen = true }) {
-                        Label(currentPage.coverUrl.isEmpty ? "Add Cover" : "Change Cover", systemImage: "photo")
-                    }
-                    Button(action: { isIconPickerOpen = true }) {
-                        Label(currentPage.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
-                    }
-                    Divider()
-                    Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-                    Divider()
-                    Button(action: { store.duplicatePage(id: currentPage.id) }) {
-                        Label("Duplicate Page", systemImage: "plus.square.on.square")
-                    }
-                    Button(action: { store.toggleFavorite(id: currentPage.id) }) {
-                        Label(
-                            currentPage.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                            systemImage: currentPage.isFavorite ? "star.fill" : "star"
-                        )
-                    }
-                    Button(action: {
-                        NSPasteboard.general.clearContents()
-                        let md = currentPage.title.isEmpty ? "Untitled" : currentPage.title
-                        NSPasteboard.general.setString(md, forType: .string)
-                    }) {
-                        Label("Copy Page Title", systemImage: "text.quote")
-                    }
-                    Divider()
-                    Button(role: .destructive, action: { store.deletePage(id: currentPage.id) }) {
-                        Label("Move to Trash", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Page Options")
-            }
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 44)
-    }
-
-    // MARK: - Export Action
-
-    private func exportDocument(format: String) {
-        let panel = NSSavePanel()
-        panel.title = "Export Document"
-        let safeTitle = currentPage.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Untitled" : currentPage.title
-        panel.nameFieldStringValue = "\(safeTitle).\(format)"
-        panel.allowedContentTypes = [UTType(filenameExtension: format) ?? .plainText]
-        panel.canCreateDirectories = true
-
-        let content: String
-        if format == "typ" {
-            content = "= \(currentPage.title)\n\n\(currentPage.rawContent)"
-        } else {
-            content = "# \(currentPage.title)\n\n\(currentPage.rawContent)"
-        }
-
-        if panel.runModal() == .OK, let url = panel.url {
-            try? content.write(to: url, atomically: true, encoding: .utf8)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenIconPicker"))) { _ in
+            self.isIconPickerOpen = true
         }
     }
 

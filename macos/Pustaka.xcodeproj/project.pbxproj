@@ -21,6 +21,7 @@
 		927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF00 /* TheMetService.swift */; };
 		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
+		E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
 		AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pustaka_ffi.swift; sourceTree = "<group>"; };
 		B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCanvasView.swift; sourceTree = "<group>"; };
+		E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabBarView.swift; sourceTree = "<group>"; };
 		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
 		F4745E229503AC532D20FF00 /* TheMetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheMetService.swift; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
@@ -69,6 +71,7 @@
 			children = (
 				3A75D6E66F74E96C369E4F2E /* BlockListView.swift */,
 				B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */,
+				E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */,
 			);
 			path = Canvas;
 			sourceTree = "<group>";
@@ -263,6 +266,7 @@
 				2F7011EBF695835398C48874 /* ContentView.swift in Sources */,
 				0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */,
 				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
+				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
 				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,
