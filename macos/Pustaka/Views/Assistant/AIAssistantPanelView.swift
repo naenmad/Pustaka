@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - AI Assistant Side Panel View (Zed ACP & Multi-Provider Architecture)
+// MARK: - AI Assistant Side Panel View (Dedicated Antigravity ACP)
 
 struct AIAssistantPanelView: View {
     @ObservedObject var store: WorkspaceStore
@@ -22,8 +22,8 @@ struct AIAssistantPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1. Assistant Header & Agent/Model Bar
-            assistantHeader
+            // 1. Clean Top Header
+            cleanHeader
 
             Divider().opacity(0.3)
 
@@ -32,7 +32,7 @@ struct AIAssistantPanelView: View {
 
             Divider().opacity(0.2)
 
-            // 3. Conversation ScrollView OR Onboarding Card
+            // 3. Messages ScrollView OR Onboarding Card
             if !agentService.isAgentAvailable && agentService.messages.isEmpty {
                 providerOnboardingView
             } else if agentService.messages.isEmpty {
@@ -43,8 +43,8 @@ struct AIAssistantPanelView: View {
 
             Divider().opacity(0.3)
 
-            // 4. Prompt Input & Dispatch Area
-            promptInputArea
+            // 4. Bottom Prompt Input Area with Model & Effort Pickers at the BOTTOM
+            bottomInputArea
         }
         .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -73,7 +73,7 @@ struct AIAssistantPanelView: View {
             Text("This will replace the content of '\(activePage?.title ?? "Document")' with the AI response. You can undo this later via document history.")
         }
         .alert("Custom Model ID", isPresented: $showCustomModelDialog) {
-            TextField("e.g. mistral-large, qwen-2.5-coder", text: $customModelInput)
+            TextField("e.g. gemini-3.8-flash-high, claude-sonnet-4-6", text: $customModelInput)
             Button("Cancel", role: .cancel) { }
             Button("Set Model") {
                 let trimmed = customModelInput.trimmingCharacters(in: .whitespaces)
@@ -82,265 +82,77 @@ struct AIAssistantPanelView: View {
                 }
             }
         } message: {
-            Text("Enter the exact model identifier supported by \(agentService.currentProvider.shortName).")
+            Text("Enter model identifier for the Antigravity ACP session.")
         }
     }
 
-    // MARK: - Header & Agent / Model Bar
+    // MARK: - Clean Header (Top)
 
-    private var assistantHeader: some View {
-        VStack(spacing: 7) {
-            // Top Row: Agent Provider, Status & Actions
-            HStack(spacing: 8) {
-                providerSelectorMenu
+    private var cleanHeader: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 22, height: 22)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+            }
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 0) {
+                Text(agentService.currentProvider.shortName)
+                    .font(.system(size: 12, weight: .bold))
 
-                // Status Indicator
                 HStack(spacing: 4) {
                     Circle()
                         .fill(agentService.isAgentAvailable ? Color.green : Color.orange)
-                        .frame(width: 5.5, height: 5.5)
+                        .frame(width: 5, height: 5)
                     Text(agentService.statusMessage)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                // Settings Gear Button
-                Button(action: { isSettingsOpen = true }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .padding(3)
-                }
-                .buttonStyle(.plain)
-                .help("AI & ACP Settings (⌘,)")
-
-                if !agentService.messages.isEmpty {
-                    Button(action: { agentService.clearHistory() }) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .padding(3)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear Chat History")
-                }
-
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        isPresented = false
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 18, height: 18)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Close Assistant (⌘J)")
-            }
-
-            // Second Row: Model Picker, Effort (if Antigravity), Protocol Badge
-            HStack(spacing: 6) {
-                modelSelectorMenu
-
-                if agentService.currentProvider == .antigravity {
-                    effortSelectorMenu
-                }
-
-                Spacer()
-
-                Text(agentService.currentProvider.isLocalAcp ? "ACP stdio" : "REST SSE")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - Provider Selector Menu
-
-    private var providerSelectorMenu: some View {
-        Menu {
-            Section("Local ACP Coding Agents (Zed Protocol)") {
-                Button(action: { agentService.currentProvider = .antigravity }) {
-                    Label("Antigravity CLI (Zed ACP)", systemImage: "sparkles")
-                }
-                Button(action: { agentService.currentProvider = .claudeCode }) {
-                    Label("Claude Code CLI", systemImage: "terminal.fill")
-                }
-                Button(action: { agentService.currentProvider = .geminiCli }) {
-                    Label("Gemini CLI", systemImage: "bolt.fill")
-                }
-                Button(action: { agentService.currentProvider = .customAcp }) {
-                    Label("Custom ACP Server", systemImage: "gearshape.2.fill")
                 }
             }
 
-            Section("Direct Cloud & Local LLM APIs") {
-                Button(action: { agentService.currentProvider = .geminiApi }) {
-                    Label("Google Gemini API", systemImage: "wand.and.stars")
-                }
-                Button(action: { agentService.currentProvider = .openai }) {
-                    Label("OpenAI / OpenRouter / DeepSeek", systemImage: "cpu")
-                }
-                Button(action: { agentService.currentProvider = .claudeApi }) {
-                    Label("Anthropic Claude API", systemImage: "brain")
-                }
-            }
+            Spacer()
 
-            Divider()
-
+            // Settings Gear Button
             Button(action: { isSettingsOpen = true }) {
-                Label("Configure in Settings... (⌘,)", systemImage: "gearshape")
-            }
-        } label: {
-            HStack(spacing: 5) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 18, height: 18)
-                    Image(systemName: agentService.currentProvider.icon)
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-
-                Text(agentService.currentProvider.shortName)
-                    .font(.system(size: 11.5, weight: .bold))
-                    .foregroundStyle(.primary)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 7.5, weight: .bold))
+                Image(systemName: "gearshape")
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
+                    .padding(4)
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-    }
+            .buttonStyle(.plain)
+            .help("AI Settings (⌘,)")
 
-    // MARK: - Model Selector Menu
-
-    private var modelSelectorMenu: some View {
-        let models = AIModelRegistry.models(for: agentService.currentProvider)
-        let currentName = AIModelRegistry.displayName(for: agentService.currentModel, in: agentService.currentProvider)
-
-        return Menu {
-            ForEach(models) { m in
-                Button(action: {
-                    agentService.currentModel = m.id
-                }) {
-                    HStack {
-                        Text(m.name)
-                        if let badge = m.badge {
-                            Text("[\(badge)]")
-                        }
-                        if agentService.currentModel == m.id {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+            if !agentService.messages.isEmpty {
+                Button(action: { agentService.clearHistory() }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(4)
                 }
+                .buttonStyle(.plain)
+                .help("Clear Chat History")
             }
-
-            Divider()
 
             Button(action: {
-                customModelInput = agentService.currentModel
-                showCustomModelDialog = true
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isPresented = false
+                }
             }) {
-                Label("Custom Model...", systemImage: "pencil")
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color.accentColor)
-
-                Text(currentName)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 7, weight: .bold))
+                Image(systemName: "xmark")
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(Circle())
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2.5)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .buttonStyle(.plain)
+            .help("Close Assistant (⌘J)")
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-    }
-
-    // MARK: - Reasoning Effort Menu (Antigravity CLI)
-
-    private var effortSelectorMenu: some View {
-        Menu {
-            Button(action: { agentService.currentEffort = "default" }) {
-                HStack {
-                    Text("Auto / Default")
-                    if agentService.currentEffort == "default" { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: { agentService.currentEffort = "low" }) {
-                HStack {
-                    Text("Low (Fastest)")
-                    if agentService.currentEffort == "low" { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: { agentService.currentEffort = "medium" }) {
-                HStack {
-                    Text("Medium (Balanced)")
-                    if agentService.currentEffort == "medium" { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: { agentService.currentEffort = "high" }) {
-                HStack {
-                    Text("High (Deep Thinking)")
-                    if agentService.currentEffort == "high" { Image(systemName: "checkmark") }
-                }
-            }
-            Button(action: { agentService.currentEffort = "max" }) {
-                HStack {
-                    Text("Max (Maximum Intelligence)")
-                    if agentService.currentEffort == "max" { Image(systemName: "checkmark") }
-                }
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "brain")
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(Color.purple)
-
-                Text("Effort: \(agentService.currentEffort.capitalized)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 6.5, weight: .bold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2.5)
-            .background(Color.purple.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+        .padding(.horizontal, 12)
+        .frame(height: 42)
     }
 
     // MARK: - Context Badge Bar
@@ -367,10 +179,13 @@ struct AIAssistantPanelView: View {
 
             Spacer()
 
-            Text(AIModelRegistry.displayName(for: agentService.currentModel, in: agentService.currentProvider))
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            Text("ACP Mode")
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
@@ -382,21 +197,21 @@ struct AIAssistantPanelView: View {
     private var providerOnboardingView: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 14) {
-                Spacer().frame(height: 8)
+                Spacer().frame(height: 12)
 
                 ZStack {
                     Circle()
                         .fill(Color.orange.opacity(0.12))
                         .frame(width: 44, height: 44)
-                    Image(systemName: agentService.currentProvider.icon)
+                    Image(systemName: "sparkles")
                         .font(.system(size: 20))
                         .foregroundStyle(Color.orange)
                 }
 
                 VStack(spacing: 4) {
-                    Text("\(agentService.currentProvider.shortName) Configuration Required")
+                    Text("Antigravity CLI Required")
                         .font(.system(size: 13, weight: .bold))
-                    Text("The selected agent needs setup or credentials before it can answer.")
+                    Text("Pustaka communicates with your local Antigravity agent (`agy`) via standard Zed ACP protocol.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -404,67 +219,35 @@ struct AIAssistantPanelView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    if agentService.currentProvider.isLocalAcp {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: "terminal")
-                                    .font(.system(size: 11))
-                                Text("Local CLI Not Found")
-                                    .font(.system(size: 11.5, weight: .semibold))
-                            }
-                            Text("Make sure the executable is in your PATH or configure the exact path in Settings.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-
-                            Button(action: { isSettingsOpen = true }) {
-                                HStack {
-                                    Text("Open AI & ACP Settings (⌘,)")
-                                    Spacer()
-                                    Image(systemName: "arrow.right")
-                                }
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor.opacity(0.1))
-                                .foregroundStyle(Color.accentColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
-                            }
-                            .buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "terminal")
+                                .font(.system(size: 11))
+                            Text("Antigravity CLI (Recommended)")
+                                .font(.system(size: 11.5, weight: .semibold))
                         }
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } else {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: "key")
-                                    .font(.system(size: 11))
-                                Text("API Key Missing")
-                                    .font(.system(size: 11.5, weight: .semibold))
-                            }
-                            Text("Add your API credentials to connect directly to the model.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        Text("Free, unlimited AI assistant logged into your Google account on macOS.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
 
-                            Button(action: { isSettingsOpen = true }) {
-                                HStack {
-                                    Text("Enter API Key in Settings")
-                                    Spacer()
-                                    Image(systemName: "arrow.right")
-                                }
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.accentColor.opacity(0.1))
-                                .foregroundStyle(Color.accentColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                        Button(action: { isSettingsOpen = true }) {
+                            HStack {
+                                Text("Configure in Settings (⌘,)")
+                                Spacer()
+                                Image(systemName: "arrow.right")
                             }
-                            .buttonStyle(.plain)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor.opacity(0.1))
+                            .foregroundStyle(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .buttonStyle(.plain)
                     }
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .padding(.horizontal, 12)
             }
@@ -562,10 +345,10 @@ struct AIAssistantPanelView: View {
         VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 4) {
             HStack(spacing: 5) {
                 if msg.role == .assistant {
-                    Image(systemName: agentService.currentProvider.icon)
+                    Image(systemName: "sparkles")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.accentColor)
-                    Text("\(agentService.currentProvider.shortName)")
+                    Text("Antigravity")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                 } else {
@@ -680,54 +463,76 @@ struct AIAssistantPanelView: View {
         }
     }
 
-    // MARK: - Prompt Input Area
+    // MARK: - Bottom Prompt Input Area (Model & Effort Pickers at the BOTTOM)
 
-    private var promptInputArea: some View {
+    private var bottomInputArea: some View {
         VStack(spacing: 6) {
-            HStack(alignment: .bottom, spacing: 8) {
+            // Main Input Container
+            VStack(spacing: 0) {
+                // Multi-line Text Editor
                 TextEditor(text: $inputPrompt)
-                    .font(.system(size: 12))
-                    .frame(minHeight: 36, maxHeight: 100)
+                    .font(.system(size: 12.5))
+                    .frame(minHeight: 40, maxHeight: 110)
                     .focused($isInputFocused)
                     .scrollContentBackground(.hidden)
-                    .padding(6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
+                    .padding(8)
 
-                if agentService.isStreaming {
-                    Button(action: {
-                        agentService.cancelCurrentStream()
-                    }) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 32, height: 32)
-                            .background(Color.red)
-                            .clipShape(Circle())
+                Divider().opacity(0.15)
+
+                // Bottom Controls Row: Model Picker, Effort Picker, Send Button
+                HStack(spacing: 6) {
+                    // 1. Model Selector at BOTTOM
+                    bottomModelSelectorMenu
+
+                    // 2. Effort Selector at BOTTOM
+                    if agentService.currentProvider == .antigravity {
+                        bottomEffortSelectorMenu
                     }
-                    .buttonStyle(.plain)
-                    .help("Stop Generation")
-                } else {
-                    Button(action: dispatchPrompt) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 32, height: 32)
-                            .background(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.4) : Color.accentColor)
-                            .clipShape(Circle())
+
+                    Spacer()
+
+                    // Send or Stop Button
+                    if agentService.isStreaming {
+                        Button(action: {
+                            agentService.cancelCurrentStream()
+                        }) {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Stop Generation")
+                    } else {
+                        Button(action: dispatchPrompt) {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.3) : Color.accentColor)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .help("Send Prompt")
                     }
-                    .buttonStyle(.plain)
-                    .disabled(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .help("Send Prompt")
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.primary.opacity(0.015))
             }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+            )
 
+            // Hint Text
             HStack {
-                Text(activePage != nil ? "Note attached as context" : "Global vault context")
+                Text(activePage != nil ? "Note context attached" : "Global vault context")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
 
@@ -740,6 +545,118 @@ struct AIAssistantPanelView: View {
             .padding(.horizontal, 2)
         }
         .padding(10)
+    }
+
+    // MARK: - Bottom Model Selector Menu
+
+    private var bottomModelSelectorMenu: some View {
+        let models = AIModelRegistry.models(for: agentService.currentProvider)
+        let currentName = AIModelRegistry.displayName(for: agentService.currentModel, in: agentService.currentProvider)
+
+        return Menu {
+            ForEach(models) { m in
+                Button(action: {
+                    agentService.currentModel = m.id
+                }) {
+                    HStack {
+                        Text(m.name)
+                        if let badge = m.badge {
+                            Text("[\(badge)]")
+                        }
+                        if agentService.currentModel == m.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button(action: {
+                customModelInput = agentService.currentModel
+                showCustomModelDialog = true
+            }) {
+                Label("Custom Model...", systemImage: "pencil")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.accentColor)
+
+                Text(currentName)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3.5)
+            .background(Color.primary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Bottom Reasoning Effort Menu
+
+    private var bottomEffortSelectorMenu: some View {
+        Menu {
+            Button(action: { agentService.currentEffort = "default" }) {
+                HStack {
+                    Text("Auto / Default")
+                    if agentService.currentEffort == "default" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "low" }) {
+                HStack {
+                    Text("Low (Fastest)")
+                    if agentService.currentEffort == "low" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "medium" }) {
+                HStack {
+                    Text("Medium (Balanced)")
+                    if agentService.currentEffort == "medium" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "high" }) {
+                HStack {
+                    Text("High (Deep Thinking)")
+                    if agentService.currentEffort == "high" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { agentService.currentEffort = "max" }) {
+                HStack {
+                    Text("Max (Maximum Intelligence)")
+                    if agentService.currentEffort == "max" { Image(systemName: "checkmark") }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "brain")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Color.purple)
+
+                Text("Effort: \(agentService.currentEffort.capitalized)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 6.5, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3.5)
+            .background(Color.purple.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     // MARK: - Document Actions

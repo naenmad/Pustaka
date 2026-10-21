@@ -262,6 +262,16 @@ final class BlockEditorTextView: NSTextView {
         return NSSize(width: NSView.noIntrinsicMetric, height: h)
     }
 
+    override var firstBaselineOffsetFromTop: CGFloat {
+        let f = font ?? NSFont.systemFont(ofSize: 15)
+        return textContainerInset.height + f.ascender
+    }
+
+    override var baselineOffsetFromBottom: CGFloat {
+        let f = font ?? NSFont.systemFont(ofSize: 15)
+        return bounds.height - (textContainerInset.height + f.ascender)
+    }
+
     func recalculateHeight() {
         guard let lm = layoutManager, let tc = textContainer else { return }
         lm.ensureLayout(for: tc)
@@ -1861,11 +1871,12 @@ struct BlockRowView: View {
 
         // 3. Bulleted List
         case .bullet:
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
                 Text("•")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 10)
+                    .frame(width: 14, alignment: .trailing)
+                    .padding(.top, 2)
 
                 BlockEditorField(
                     text: $textBuffer,
@@ -1901,11 +1912,12 @@ struct BlockRowView: View {
 
         // 4. Numbered List
         case .numbered(let idx):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
                 Text("\(idx).")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
-                    .frame(width: 18, alignment: .trailing)
+                    .frame(minWidth: 20, alignment: .trailing)
+                    .padding(.top, 2)
 
                 BlockEditorField(
                     text: $textBuffer,
@@ -1942,7 +1954,7 @@ struct BlockRowView: View {
         // 5. Toggle List
         case .toggle(let isExpanded):
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
                     Button(action: onToggleExpand) {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 11, weight: .bold))
@@ -2044,14 +2056,15 @@ struct BlockRowView: View {
 
         // 8. To-do Checkbox
         case .todo(let checked):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Button(action: onToggleTodo) {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                         .foregroundStyle(checked ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(checked ? "Completed task" : "Incomplete task")
+                .padding(.top, 2)
 
                 BlockEditorField(
                     text: $textBuffer,
@@ -3277,17 +3290,16 @@ struct ModernTableView: View {
     @ViewBuilder
     private func headerCell(colIdx: Int, title: String) -> some View {
         HStack(spacing: 4) {
-            TextField("Column \(colIdx + 1)", text: Binding(
-                get: { title },
-                set: { newTitle in
+            ModernTableCellView(
+                text: title,
+                placeholder: "Column \(colIdx + 1)",
+                isHeader: true,
+                onCommit: { newTitle in
                     var h = headers
                     h[colIdx] = newTitle
                     onUpdateTable(h, rows)
                 }
-            ))
-            .textFieldStyle(.plain)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.primary)
+            )
 
             if headers.count > 1 && hoveredColIdx == colIdx {
                 Button(action: { deleteColumn(at: colIdx) }) {
@@ -3316,17 +3328,17 @@ struct ModernTableView: View {
     @ViewBuilder
     private func dataCell(rowIdx: Int, colIdx: Int, rowCells: [String]) -> some View {
         let val = colIdx < rowCells.count ? rowCells[colIdx] : ""
-        TextField("Empty", text: Binding(
-            get: { val },
-            set: { newVal in
+        ModernTableCellView(
+            text: val,
+            placeholder: "Empty",
+            isHeader: false,
+            onCommit: { newVal in
                 var r = rows
                 while r[rowIdx].count <= colIdx { r[rowIdx].append("") }
                 r[rowIdx][colIdx] = newVal
                 onUpdateTable(headers, r)
             }
-        ))
-        .textFieldStyle(.plain)
-        .font(.system(size: 13))
+        )
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: cellHeight)
@@ -3370,5 +3382,68 @@ struct ModernTableView: View {
     private func clearCells() {
         let cleared = rows.map { _ in Array(repeating: "", count: headers.count) }
         onUpdateTable(headers, cleared)
+    }
+}
+
+// MARK: - Formatted Markdown Table Cell (Supports **Bold**, *Italics*, etc. on Click-to-Edit)
+
+struct ModernTableCellView: View {
+    let text: String
+    let placeholder: String
+    var isHeader: Bool = false
+    let onCommit: (String) -> Void
+
+    @State private var isEditing: Bool = false
+    @State private var editText: String = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            if isEditing {
+                TextField(placeholder, text: $editText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                    .focused($isFocused)
+                    .onSubmit {
+                        finishEditing()
+                    }
+                    .onChange(of: isFocused) { _, focused in
+                        if !focused {
+                            finishEditing()
+                        }
+                    }
+            } else {
+                HStack(spacing: 0) {
+                    let trimmed = text.trimmingCharacters(in: .whitespaces)
+                    if trimmed.isEmpty {
+                        Text(placeholder)
+                            .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Text(LocalizedStringKey(trimmed))
+                            .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                            .foregroundStyle(isHeader ? Color.primary : Color.primary.opacity(0.95))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    editText = text
+                    isEditing = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isFocused = true
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func finishEditing() {
+        isEditing = false
+        if editText != text {
+            onCommit(editText)
+        }
     }
 }
