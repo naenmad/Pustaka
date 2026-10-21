@@ -60,29 +60,35 @@ struct CustomizeCategorySheet: View {
                 }
             }
 
-            // Emoji Icon Picker
+            // Emoji Icon Picker with Native macOS Character Palette
             VStack(alignment: .leading, spacing: 8) {
-                Text("Pick Icon Emoji")
+                Text("Icon Emoji")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
 
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(34), spacing: 8), count: 8), spacing: 8) {
-                    ForEach(availableEmojis, id: \.self) { emoji in
-                        Button(action: {
-                            iconBuffer = emoji
-                        }) {
-                            Text(emoji)
-                                .font(.system(size: 18))
-                                .frame(width: 32, height: 32)
-                                .background(iconBuffer == emoji ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(iconBuffer == emoji ? Color.accentColor : Color.clear, lineWidth: 1.5)
-                                )
+                HStack(spacing: 8) {
+                    TextField("Emoji...", text: $iconBuffer)
+                        .textFieldStyle(.plain)
+                        .font(.title2)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 48, height: 38)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+
+                    Button(action: {
+                        NSApp.orderFrontCharacterPalette(nil)
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "face.smiling")
+                            Text("Open macOS Emoji Palette...")
                         }
-                        .buttonStyle(.plain)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                 }
             }
 

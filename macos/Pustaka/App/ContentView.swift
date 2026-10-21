@@ -3,10 +3,19 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var store = WorkspaceStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @AppStorage("appAppearance") private var appAppearance: String = "system"
+
+    private var preferredScheme: ColorScheme? {
+        switch appAppearance {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(store: store)
+            SidebarView(store: store, columnVisibility: $columnVisibility)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
                 .background(Color(nsColor: .windowBackgroundColor))
         } detail: {
@@ -43,6 +52,7 @@ struct ContentView: View {
             }
         }
         .navigationTitle("")
+        .preferredColorScheme(preferredScheme)
     }
 }
 

@@ -244,15 +244,15 @@ class WorkspaceStore: ObservableObject {
                 id: "doc_welcome",
                 title: "Welcome to Pustaka",
                 icon: "👋",
-                coverUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80",
+                coverUrl: "https://images.metmuseum.org/CRDImages/ep/original/DP130999.jpg",
                 categoryId: "cat_notes",
                 rawContent: """
                 . Welcome to Pustaka
                 A minimal, ultra-fast local workspace for your thoughts and documents.
 
-                :info Everything here is saved locally. Zero cloud lock-in. Powered by Typst for vector typesetting.
+                :info Everything here is saved locally in standard Markdown. Zero cloud lock-in. Powered by Typst for vector typesetting.
 
-                Hover on the left of any block to add new blocks or drag to reorder.
+                Hover on the left of any block to drag and reorder, or type '/' for commands.
                 """,
                 isFavorite: true,
                 isDeleted: false,
@@ -332,19 +332,21 @@ class WorkspaceStore: ObservableObject {
     }
 
     @discardableResult
-    func addNewSubpage(parentPageId: String, title: String = "") -> DocumentPage {
+    func addNewSubpage(parentPageId: String, title: String = "", switchToPage: Bool = false) -> DocumentPage {
         let parent = page(id: parentPageId)
         let catId = parent?.categoryId ?? "cat_notes"
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
+        let cleanTitle = title.isEmpty ? "Untitled Subpage" : title
         let subpage = DocumentPage(
             id: newId,
-            title: title,
+            title: cleanTitle,
             icon: "📄",
             coverUrl: "",
             categoryId: catId,
             parentPageId: parentPageId,
             rawContent: "",
             isFavorite: false,
+            isDeleted: false,
             lastModified: Date(),
             boardTasks: []
         )
@@ -353,9 +355,11 @@ class WorkspaceStore: ObservableObject {
         } else {
             pages.append(subpage)
         }
-        self.selectedPageId = newId
+        if switchToPage {
+            self.selectedPageId = newId
+            recompileCurrentPage()
+        }
         saveToDisk()
-        recompileCurrentPage()
         return subpage
     }
 

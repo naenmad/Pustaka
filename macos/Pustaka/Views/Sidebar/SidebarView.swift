@@ -53,6 +53,7 @@ struct SidebarTreeContainer<Content: View>: View {
 
 struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
+    @Binding var columnVisibility: NavigationSplitViewVisibility
     @State private var searchText: String = ""
     @FocusState private var isSearchFocused: Bool
     @State private var categoryToCustomize: SidebarCategory? = nil
@@ -65,6 +66,11 @@ struct SidebarView: View {
     @State private var isTrashSheetPresented: Bool = false
     @State private var isSettingsSheetPresented: Bool = false
 
+    init(store: WorkspaceStore, columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all)) {
+        self.store = store
+        self._columnVisibility = columnVisibility
+    }
+
     var body: some View {
         ZStack {
             // Solid, elegant neutral macOS gray background (never tints blue in fullscreen)
@@ -72,7 +78,14 @@ struct SidebarView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 1. Minimalist Search Bar (Shortcut: ⌘K)
+                // 1. Vault Identity Header aligned parallel with detail App Bar (Height: 52)
+                vaultHeaderView
+
+                Divider()
+                    .padding(.horizontal, 10)
+                    .opacity(0.35)
+
+                // 2. Minimalist Search Bar (Shortcut: ⌘K)
                 searchBarView
                     .padding(.horizontal, 10)
                     .padding(.top, 8)
@@ -82,7 +95,7 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .opacity(0.35)
 
-                // 2. Main Content: Search Results OR Categorized Vault Tree
+                // 3. Main Content: Search Results OR Categorized Vault Tree
                 if !searchText.isEmpty {
                     searchResultsView
                 } else {
@@ -93,16 +106,10 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .opacity(0.35)
 
-                // 3. Bottom Action Bar (New Document, Settings, New Folder)
+                // 4. Bottom Action Bar (New Document, Settings, New Folder)
                 bottomActionBar
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
-            }
-        }
-        // App Bar Alignment: Vault Identity placed directly in the window titlebar toolbar
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                vaultToolbarItem
             }
         }
         .sheet(item: $categoryToCustomize) { cat in
@@ -126,13 +133,34 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Vault Identity in Titlebar (Aligned with App Bar)
+    // MARK: - Vault Header in Sidebar (Height: 52, Aligned Parallel with App Bar)
 
-    private var vaultToolbarItem: some View {
+    private var vaultHeaderView: some View {
         HStack(spacing: 7) {
+            // Sidebar Toggle Button ("icon besar kecilin sidebar")
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if columnVisibility == .all {
+                        columnVisibility = .detailOnly
+                    } else {
+                        columnVisibility = .all
+                    }
+                }
+                NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+            }) {
+                Image(systemName: "sidebar.leading")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Sidebar (⌃⌘S)")
+
             // Vault Badge Icon
             ZStack {
-                RoundedRectangle(cornerRadius: 5.5, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
@@ -140,15 +168,15 @@ struct SidebarView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 22, height: 22)
+                    .frame(width: 24, height: 24)
                     .shadow(color: Color.accentColor.opacity(0.2), radius: 1.5, y: 0.5)
 
                 Image(systemName: "books.vertical.fill")
-                    .font(.system(size: 10.5, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
             }
 
-            VStack(alignment: .leading, spacing: 0.5) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Pustaka Vault")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
@@ -157,7 +185,7 @@ struct SidebarView: View {
                 Button(action: {
                     store.revealInFinder()
                 }) {
-                    HStack(spacing: 2.5) {
+                    HStack(spacing: 2) {
                         Text("~/Documents/Pustaka")
                             .font(.system(size: 9.5, weight: .regular))
                             .foregroundStyle(.secondary)
@@ -173,21 +201,24 @@ struct SidebarView: View {
                 .help("Reveal ~/Documents/Pustaka in Finder (⇧⌘R)")
             }
 
+            Spacer()
+
             // Quick Reveal in Finder Button
             Button(action: {
                 store.revealInFinder()
             }) {
                 Image(systemName: "folder")
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .padding(4)
+                    .frame(width: 24, height: 24)
                     .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
             .help("Reveal in Finder (⇧⌘R)")
         }
-        .padding(.leading, 2)
+        .padding(.horizontal, 10)
+        .frame(height: 52)
     }
 
     // MARK: - Minimal Search Bar
@@ -762,7 +793,7 @@ struct CategorySectionView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(isHovered ? Color.primary : Color.clear)
                         .padding(3)
@@ -914,7 +945,7 @@ struct SidebarDocumentItemRow: View {
                             Menu {
                                 documentContextMenuContent
                             } label: {
-                                Image(systemName: "ellipsis")
+                                Image(systemName: "slider.horizontal.3")
                                     .font(.system(size: 9.5))
                                     .foregroundStyle(.secondary)
                             }
@@ -942,13 +973,13 @@ struct SidebarDocumentItemRow: View {
                 documentContextMenuContent
             }
             .popover(isPresented: $isIconPickerPresented, arrowEdge: .trailing) {
-                EmojiPickerPopover(
-                    currentIcon: page.icon,
-                    onSelectEmoji: { emoji in
+                NativeEmojiPickerPopover(
+                    currentEmoji: page.icon,
+                    onEmojiSelected: { emoji in
                         store.updatePageIcon(pageId: page.id, newIcon: emoji)
                         isIconPickerPresented = false
                     },
-                    onRemoveIcon: {
+                    onRemove: {
                         store.updatePageIcon(pageId: page.id, newIcon: "")
                         isIconPickerPresented = false
                     }
@@ -1179,52 +1210,82 @@ struct SearchResultItemRow: View {
     }
 }
 
-// MARK: - Emoji Picker Popover
+// MARK: - Native macOS Emoji Picker Popover
 
-struct EmojiPickerPopover: View {
-    let currentIcon: String
-    let onSelectEmoji: (String) -> Void
-    let onRemoveIcon: () -> Void
+struct NativeEmojiPickerPopover: View {
+    let currentEmoji: String
+    let onEmojiSelected: (String) -> Void
+    let onRemove: (() -> Void)?
 
-    private let emojis = [
-        "⭐️", "💡", "📝", "🚀", "🔥", "✨", "🎯", "⚡️",
-        "📁", "📚", "🎨", "🧩", "💼", "💻", "🏷️", "☕️",
-        "📄", "🌲", "🌻", "🍎", "🏖️", "⚽️", "🎹", "📖",
-        "💡", "🔍", "📌", "⚙️", "🛠️", "💬", "❤️", "🎉"
-    ]
+    @State private var text: String = ""
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Select Icon")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if !currentIcon.isEmpty {
-                    Button("Remove", action: onRemoveIcon)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.red)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("Emoji...", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 26))
+                    .multilineTextAlignment(.center)
+                    .frame(width: 46, height: 44)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+                    .focused($isFieldFocused)
+                    .onChange(of: text) { _, newText in
+                        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let lastChar = trimmed.last {
+                            let emoji = String(lastChar)
+                            onEmojiSelected(emoji)
+                        }
+                    }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Button(action: {
+                        isFieldFocused = true
+                        DispatchQueue.main.async {
+                            NSApp.orderFrontCharacterPalette(nil)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "face.smiling")
+                            Text("macOS Emoji Palette")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Text("Press ⌃⌘Space or pick an emoji")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
                 }
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 6), count: 8), spacing: 6) {
-                ForEach(emojis, id: \.self) { emoji in
-                    Button(action: {
-                        onSelectEmoji(emoji)
-                    }) {
-                        Text(emoji)
-                            .font(.system(size: 16))
-                            .frame(width: 28, height: 28)
-                            .background(currentIcon == emoji ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
+            if let onRemove = onRemove, !currentEmoji.isEmpty {
+                Divider()
+                Button(role: .destructive, action: onRemove) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                        Text("Remove Icon")
                     }
-                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(10)
-        .frame(width: 270)
+        .frame(width: 250)
+        .onAppear {
+            isFieldFocused = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                NSApp.orderFrontCharacterPalette(nil)
+            }
+        }
     }
 }
 
@@ -1440,26 +1501,29 @@ struct TrashManagerSheet: View {
     }
 }
 
-// MARK: - Settings & Vault Preferences Sheet
+// MARK: - Settings & Workspace Preferences Sheet
 
 struct SettingsSheet: View {
     @ObservedObject var store: WorkspaceStore
     let onDismiss: () -> Void
 
-    @State private var selectedTab: SettingsTab = .vault
+    @AppStorage("appAppearance") private var appAppearance: String = "system"
+    @State private var selectedTab: SettingsTab = .appearance
 
     enum SettingsTab: String, CaseIterable, Identifiable {
+        case appearance = "Appearance"
         case vault = "Vault & Storage"
         case shortcuts = "Shortcuts"
-        case engine = "Engine & About"
+        case about = "About"
 
         var id: String { rawValue }
 
         var icon: String {
             switch self {
+            case .appearance: return "circle.lefthalf.filled"
             case .vault: return "folder.badge.gearshape"
             case .shortcuts: return "command"
-            case .engine: return "sparkles"
+            case .about: return "info.circle"
             }
         }
     }
@@ -1480,7 +1544,7 @@ struct SettingsSheet: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Settings & Preferences")
                         .font(.headline.weight(.semibold))
-                    Text("Pustaka Local Workspace")
+                    Text("Pustaka Workspace Configuration")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1515,18 +1579,75 @@ struct SettingsSheet: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     switch selectedTab {
+                    case .appearance:
+                        appearanceSettingsSection
                     case .vault:
                         vaultSettingsSection
                     case .shortcuts:
                         shortcutsSettingsSection
-                    case .engine:
-                        engineSettingsSection
+                    case .about:
+                        aboutSettingsSection
                     }
                 }
                 .padding(16)
             }
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 520, height: 440)
+    }
+
+    private var appearanceSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("THEME & INTERFACE")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            HStack(spacing: 12) {
+                themeChoiceCard(title: "System", mode: "system", icon: "circle.lefthalf.filled")
+                themeChoiceCard(title: "Light", mode: "light", icon: "sun.max.fill")
+                themeChoiceCard(title: "Dark", mode: "dark", icon: "moon.fill")
+            }
+
+            Text("Choose your preferred visual theme for the Pustaka workspace. System matches your macOS Appearance settings automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+        }
+    }
+
+    private func themeChoiceCard(title: String, mode: String, icon: String) -> some View {
+        let isSelected = appAppearance == mode
+        return Button(action: {
+            appAppearance = mode
+        }) {
+            VStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+
+                Text(title)
+                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.accentColor)
+                } else {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        .frame(width: 12, height: 12)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var vaultSettingsSection: some View {
@@ -1541,7 +1662,7 @@ struct SettingsSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("~/Documents/Pustaka")
                             .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                        Text("Obsidian-compatible Markdown vault with YAML frontmatter")
+                        Text("Standard local Markdown vault with YAML frontmatter")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -1627,10 +1748,10 @@ struct SettingsSheet: View {
             shortcutRow(key: "⇧⌘R", description: "Reveal vault in Finder")
             shortcutRow(key: "⌘,", description: "Open Settings")
             shortcutRow(key: "⌘B / ⌘I", description: "Format Bold / Italic")
-            shortcutRow(key: "⌘P", description: "Toggle Typst preview")
             shortcutRow(key: "⌘D", description: "Duplicate selected block or note")
             shortcutRow(key: "/subpage", description: "Insert inline subpage block")
             shortcutRow(key: "/table", description: "Insert 2D grid table")
+            shortcutRow(key: "1. / -", description: "Auto format numbered or bullet list")
         }
     }
 
@@ -1649,21 +1770,21 @@ struct SettingsSheet: View {
         .padding(.vertical, 2)
     }
 
-    private var engineSettingsSection: some View {
+    private var aboutSettingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("TYPESETTING ENGINE")
+            Text("APPLICATION")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.tertiary)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Rust UniFFI + Typst Compiler")
-                    .font(.subheadline.bold())
-                Text("Sub-millisecond compilation running in-memory without background daemon processes.")
+                Text("Pustaka for macOS")
+                    .font(.headline.bold())
+                Text("Version 1.0 (Build 2026.10)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Status: \(store.engineInfo)")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.tint)
+                Text("Zero cloud lock-in. 100% private and offline.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1673,14 +1794,11 @@ struct SettingsSheet: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Pustaka for macOS")
+                Text("Local-First Architecture")
                     .font(.subheadline.bold())
-                Text("Version 1.0 (Build 2026.10)")
+                Text("Native Swift + AppKit desktop application. Fast, lightweight, and fully offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Zero cloud lock-in. 100% private and offline.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
             }
         }
     }

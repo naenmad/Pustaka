@@ -11,17 +11,20 @@
 		1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75D6E66F74E96C369E4F2E /* BlockListView.swift */; };
 		2F7011EBF695835398C48874 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453BE2BFC9AC54F9709DB879 /* ContentView.swift */; };
 		3B9EAF4488CDE35C6A5D6C4A /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4026F43001111E7A205A7A56 /* VisualEffectView.swift */; };
+		4043214E17E928D42CD32AC4 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */; };
 		44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B77260BF368417A5E852534 /* TypstPreviewView.swift */; };
 		5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */; };
 		5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */; };
 		773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */; };
 		7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8275816DA33CAC37606CF1 /* SidebarView.swift */; };
 		8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508C85AAC360F0814E117474 /* KanbanBoardView.swift */; };
+		927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF00 /* TheMetService.swift */; };
 		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		176EC69F5B6BE4AE64CC37BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24F64070562EB2504B1772B5 /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
 		3A75D6E66F74E96C369E4F2E /* BlockListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockListView.swift; sourceTree = "<group>"; };
@@ -39,6 +42,7 @@
 		AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pustaka_ffi.swift; sourceTree = "<group>"; };
 		B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCanvasView.swift; sourceTree = "<group>"; };
 		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
+		F4745E229503AC532D20FF00 /* TheMetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheMetService.swift; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -67,6 +71,14 @@
 				B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */,
 			);
 			path = Canvas;
+			sourceTree = "<group>";
+		};
+		544D6D64B29C5EC2DA4B14D9 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F4745E229503AC532D20FF00 /* TheMetService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		66315969544D29720622AAB1 /* Common */ = {
@@ -107,12 +119,14 @@
 		BBABF7D2E6B68BCA15D5E337 /* Pustaka */ = {
 			isa = PBXGroup;
 			children = (
+				0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */,
 				176EC69F5B6BE4AE64CC37BA /* Info.plist */,
 				EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */,
 				67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */,
 				CB4AD995BE39ECE621859A96 /* App */,
 				9EDC0C358FC104AD2B93381D /* Generated */,
 				8C619F854E12EFA1B5E316C0 /* Models */,
+				544D6D64B29C5EC2DA4B14D9 /* Services */,
 				DC83FE2B60159C31607FB256 /* Views */,
 			);
 			path = Pustaka;
@@ -164,6 +178,7 @@
 			buildPhases = (
 				D85F74F89B05F69970B4F448 /* Build Rust UniFFI Library */,
 				1247B07AC693F99996471F2A /* Sources */,
+				D50AC8040A1C5B63B1B3136B /* Resources */,
 			);
 			buildRules = (
 			);
@@ -206,6 +221,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		D50AC8040A1C5B63B1B3136B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4043214E17E928D42CD32AC4 /* AppIcon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXShellScriptBuildPhase section */
 		D85F74F89B05F69970B4F448 /* Build Rust UniFFI Library */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -240,6 +266,7 @@
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
 				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,
+				927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */,
 				44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */,
 				3B9EAF4488CDE35C6A5D6C4A /* VisualEffectView.swift in Sources */,
 				5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */,

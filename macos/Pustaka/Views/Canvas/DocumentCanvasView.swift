@@ -157,6 +157,10 @@ struct DocumentCanvasView: View {
     @State private var isHeaderHovered: Bool = false
     @State private var customEmojiInput: String = ""
     @State private var customCoverUrlInput: String = ""
+    @State private var metSearchText: String = ""
+    @State private var metSearchResults: [MetArtwork] = []
+    @State private var isMetSearching: Bool = false
+    @State private var coverPickerTab: Int = 0
 
     var currentPage: DocumentPage {
         store.pages.first(where: { $0.id == page.id }) ?? page
@@ -184,23 +188,7 @@ struct DocumentCanvasView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ZStack(alignment: .trailing) {
-                documentCanvasBody
-
-                if store.isPreviewDrawerPresented {
-                    HStack(spacing: 0) {
-                        Divider()
-                        TypstPreviewView(
-                            svgString: store.currentSvg,
-                            onClose: { store.isPreviewDrawerPresented = false }
-                        )
-                        .frame(width: 440)
-                        .background(Color(nsColor: .windowBackgroundColor))
-                        .shadow(color: Color.black.opacity(0.12), radius: 8, x: -4)
-                    }
-                    .transition(.move(edge: .trailing))
-                }
-            }
+            documentCanvasBody
 
             // Floating Action Toolbar (Notion & Bear style glassmorphic island)
             if !selectedBlockIds.isEmpty {
@@ -311,7 +299,7 @@ struct DocumentCanvasView: View {
                     }
                     Divider()
                     Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
-                        Label("Reveal in Finder (Obsidian Vault)", systemImage: "folder")
+                        Label("Reveal in Finder", systemImage: "folder")
                     }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
@@ -333,15 +321,8 @@ struct DocumentCanvasView: View {
                         Label(currentPage.icon.isEmpty ? "Add Icon" : "Change Icon", systemImage: "face.smiling")
                     }
                     Divider()
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            store.isPreviewDrawerPresented.toggle()
-                        }
-                    }) {
-                        Label(store.isPreviewDrawerPresented ? "Hide Typst Preview" : "Show Typst Preview (⌘P)", systemImage: "sparkles")
-                    }
                     Button(action: { store.revealInFinder(pageId: currentPage.id) }) {
-                        Label("Reveal in Finder (Obsidian Vault)", systemImage: "folder")
+                        Label("Reveal in Finder", systemImage: "folder")
                     }
                     Divider()
                     Button(action: { store.duplicatePage(id: currentPage.id) }) {
@@ -893,143 +874,30 @@ struct DocumentCanvasView: View {
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
         .popover(isPresented: $isIconPickerOpen) {
-            iconPickerPopover
+            NativeEmojiPickerPopover(
+                currentEmoji: currentPage.icon,
+                onEmojiSelected: { emoji in
+                    store.updatePageIcon(pageId: currentPage.id, newIcon: emoji)
+                    isIconPickerOpen = false
+                },
+                onRemove: {
+                    store.updatePageIcon(pageId: currentPage.id, newIcon: "")
+                    isIconPickerOpen = false
+                }
+            )
         }
         .popover(isPresented: $isCoverPickerOpen) {
             coverPickerPopover
         }
     }
 
-    // MARK: - Icon Picker Popover
-
-    private var iconPickerPopover: some View {
-        let curatedEmojis = [
-            "📄", "📝", "💡", "🚀", "🎯", "⚡️", "💻", "🔥",
-            "✨", "📌", "🎨", "🧩", "📚", "☕️", "🛠️", "📦",
-            "⭐️", "🤖", "🌿", "🌊", "🏔️", "🔍", "📊", "🧠",
-            "❤️", "☀️", "🌙", "🎵", "🏆", "🔒", "💬", "✅"
-        ]
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Select Icon")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                if !currentPage.icon.isEmpty {
-                    Button(action: {
-                        store.updatePageIcon(pageId: currentPage.id, newIcon: "")
-                        isIconPickerOpen = false
-                    }) {
-                        Text("Remove")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(32), spacing: 6), count: 8), spacing: 6) {
-                ForEach(curatedEmojis, id: \.self) { emoji in
-                    Button(action: {
-                        store.updatePageIcon(pageId: currentPage.id, newIcon: emoji)
-                        isIconPickerOpen = false
-                    }) {
-                        Text(emoji)
-                            .font(.system(size: 20))
-                            .frame(width: 32, height: 32)
-                            .background(currentPage.icon == emoji ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    TextField("Paste or type emoji...", text: $customEmojiInput)
-                        .textFieldStyle(.plain)
-                        .font(.subheadline)
-                        .padding(6)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                        .onSubmit {
-                            let trimmed = customEmojiInput.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty {
-                                store.updatePageIcon(pageId: currentPage.id, newIcon: trimmed)
-                                customEmojiInput = ""
-                                isIconPickerOpen = false
-                            }
-                        }
-
-                    Button("Set") {
-                        let trimmed = customEmojiInput.trimmingCharacters(in: .whitespaces)
-                        if !trimmed.isEmpty {
-                            store.updatePageIcon(pageId: currentPage.id, newIcon: trimmed)
-                            customEmojiInput = ""
-                            isIconPickerOpen = false
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-
-                    Button("Random") {
-                        if let random = curatedEmojis.randomElement() {
-                            store.updatePageIcon(pageId: currentPage.id, newIcon: random)
-                            isIconPickerOpen = false
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                Button(action: {
-                    isIconPickerOpen = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        NSApplication.shared.orderFrontCharacterPalette(nil)
-                    }
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "macwindow")
-                            .font(.caption)
-                        Text("Open Full macOS Emoji & Symbols (Ctrl+Cmd+Space)...")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.tint)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .frame(width: 320)
-    }
-
-    // MARK: - Cover Picker Popover
+    // MARK: - Cover Picker Popover (The Met Collection Masterworks)
 
     private var coverPickerPopover: some View {
-        let unsplashPhotos = [
-            ("Forest", "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1400&q=80"),
-            ("Night Stars", "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1400&q=80"),
-            ("Ocean Waves", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1400&q=80"),
-            ("Minimal Waves", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1400&q=80"),
-            ("Architecture", "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1400&q=80"),
-            ("Workspace", "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1400&q=80")
-        ]
-
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
             HStack {
-                Text("Select Page Cover")
+                Text("Select Cover Image")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
 
@@ -1048,134 +916,221 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            Text("Vibrant Gradients")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
-                ForEach(PresetGradientCover.allCases) { preset in
-                    Button(action: {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: preset.rawValue)
-                        isCoverPickerOpen = false
-                    }) {
-                        ZStack(alignment: .bottomLeading) {
-                            LinearGradient(
-                                colors: preset.colors,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            .frame(height: 48)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                            Text(preset.title)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(5)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+            // Tabs
+            Picker("", selection: $coverPickerTab) {
+                Text("The Met Masterpieces").tag(0)
+                Text("Gradients").tag(1)
+                Text("Upload & URL").tag(2)
             }
+            .pickerStyle(.segmented)
+            .padding(.bottom, 2)
 
-            Text("Unsplash Photography")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
+            if coverPickerTab == 0 {
+                // The Met Collection
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-                ForEach(unsplashPhotos, id: \.1) { name, url in
-                    Button(action: {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: url)
-                        isCoverPickerOpen = false
-                    }) {
-                        ZStack(alignment: .bottomLeading) {
-                            AsyncImage(url: URL(string: url)) { phase in
-                                if let img = phase.image {
-                                    img.resizable().scaledToFill()
-                                } else {
-                                    Color.secondary.opacity(0.15)
-                                }
+                        TextField("Search The Met (e.g. Monet, Japan, Landscape)...", text: $metSearchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11.5))
+                            .onSubmit {
+                                searchTheMet()
                             }
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
 
-                            Text(name)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .shadow(radius: 2)
-                                .padding(5)
+                        if isMetSearching {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else if !metSearchText.isEmpty {
+                            Button(action: {
+                                metSearchText = ""
+                                metSearchResults = []
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Divider()
-
-            HStack(spacing: 6) {
-                TextField("Paste image URL...", text: $customCoverUrlInput)
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-                    .padding(6)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
                             .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                     )
-                    .onSubmit {
-                        let trimmed = customCoverUrlInput.trimmingCharacters(in: .whitespaces)
-                        if !trimmed.isEmpty {
-                            store.updatePageCover(pageId: currentPage.id, newCoverUrl: trimmed)
-                            customCoverUrlInput = ""
+
+                    let artworksToShow = metSearchResults.isEmpty ? TheMetService.shared.curatedArtworks : metSearchResults
+
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                            ForEach(artworksToShow) { art in
+                                Button(action: {
+                                    store.updatePageCover(pageId: currentPage.id, newCoverUrl: art.imageUrl)
+                                    isCoverPickerOpen = false
+                                }) {
+                                    ZStack(alignment: .bottomLeading) {
+                                        AsyncImage(url: URL(string: art.imageUrl)) { phase in
+                                            if let img = phase.image {
+                                                img.resizable().scaledToFill()
+                                            } else {
+                                                Color.secondary.opacity(0.12)
+                                            }
+                                        }
+                                        .frame(height: 72)
+                                        .frame(maxWidth: .infinity)
+                                        .clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                                        // Dark gradient overlay for text readability
+                                        LinearGradient(
+                                            colors: [Color.clear, Color.black.opacity(0.8)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(art.title)
+                                                .font(.system(size: 9.5, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .lineLimit(1)
+                                            Text(art.artist)
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.white.opacity(0.85))
+                                                .lineLimit(1)
+                                        }
+                                        .padding(5)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("\(art.title) by \(art.artist) (\(art.year))")
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(height: 220)
+                }
+            } else if coverPickerTab == 1 {
+                // Vibrant Gradients
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                    ForEach(PresetGradientCover.allCases) { preset in
+                        Button(action: {
+                            store.updatePageCover(pageId: currentPage.id, newCoverUrl: preset.rawValue)
+                            isCoverPickerOpen = false
+                        }) {
+                            ZStack(alignment: .bottomLeading) {
+                                LinearGradient(
+                                    colors: preset.colors,
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                .frame(height: 52)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                                Text(preset.title)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(5)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(height: 140)
+            } else {
+                // Upload & Custom URL
+                VStack(alignment: .leading, spacing: 10) {
+                    Button(action: {
+                        if let localAsset = store.importLocalImageToVault() {
+                            store.updatePageCover(pageId: currentPage.id, newCoverUrl: localAsset)
                             isCoverPickerOpen = false
                         }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.doc.fill")
+                                .font(.system(size: 13))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Upload from Mac")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("PNG, JPG, WebP, GIF from your computer")
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
+                    .buttonStyle(.plain)
 
-                Button("Set") {
-                    let trimmed = customCoverUrlInput.trimmingCharacters(in: .whitespaces)
-                    if !trimmed.isEmpty {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: trimmed)
-                        customCoverUrlInput = ""
-                        isCoverPickerOpen = false
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Paste Image URL")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 6) {
+                            TextField("https://...", text: $customCoverUrlInput)
+                                .textFieldStyle(.plain)
+                                .font(.caption)
+                                .padding(6)
+                                .background(Color(nsColor: .controlBackgroundColor))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                                .onSubmit {
+                                    applyCustomCoverUrl()
+                                }
+
+                            Button("Set") {
+                                applyCustomCoverUrl()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-
-                Button(action: {
-                    if let localAsset = store.importLocalImageToVault() {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: localAsset)
-                        isCoverPickerOpen = false
-                    }
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.up.doc")
-                            .font(.system(size: 9, weight: .bold))
-                        Text("Upload")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Upload an image from your computer as cover")
-
-                Button("Random") {
-                    let allOptions = PresetGradientCover.allCases.map(\.rawValue) + unsplashPhotos.map(\.1)
-                    if let rand = allOptions.randomElement() {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: rand)
-                        isCoverPickerOpen = false
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .frame(height: 140)
             }
         }
-        .padding(14)
-        .frame(width: 340)
+        .padding(12)
+        .frame(width: 360)
+    }
+
+    private func searchTheMet() {
+        let trimmed = metSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            metSearchResults = []
+            return
+        }
+        isMetSearching = true
+        Task {
+            let results = await TheMetService.shared.search(query: trimmed)
+            await MainActor.run {
+                self.metSearchResults = results
+                self.isMetSearching = false
+            }
+        }
+    }
+
+    private func applyCustomCoverUrl() {
+        let trimmed = customCoverUrlInput.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            store.updatePageCover(pageId: currentPage.id, newCoverUrl: trimmed)
+            customCoverUrlInput = ""
+            isCoverPickerOpen = false
+        }
     }
 
     // MARK: - Floating Selection Toolbar

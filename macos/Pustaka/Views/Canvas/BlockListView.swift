@@ -992,7 +992,7 @@ struct BlockListView: View {
                     hoveredBlockId = nil
                 }
             }
-            .onDrop(of: [UTType(importedAs: "com.pustaka.block-drag")], delegate: BlockDropDelegate(
+            .onDrop(of: [.text], delegate: BlockDropDelegate(
                 item: block,
                 blocks: $blocks,
                 draggedItem: $draggedBlock,
@@ -1008,7 +1008,7 @@ struct BlockListView: View {
                     insertBlock(at: index + 1, kind: kind)
                 },
                 onInsertSubpage: {
-                    let sub = store.addNewSubpage(parentPageId: page.id)
+                    let sub = store.addNewSubpage(parentPageId: page.id, title: "Untitled Subpage", switchToPage: false)
                     insertBlock(at: index + 1, kind: .subpage(pageId: sub.id))
                 }
             )
@@ -1388,63 +1388,66 @@ struct SubpageBlockView: View {
 
     @State private var isHovered: Bool = false
 
-    private var page: DocumentPage? {
+    private var subpage: DocumentPage? {
         store.page(id: pageId)
     }
 
     var body: some View {
-        Button(action: {
-            store.selectPage(id: pageId)
-        }) {
-            HStack(spacing: 8) {
-                // Page Icon
-                if let p = page, !p.icon.isEmpty {
-                    Text(p.icon)
-                        .font(.system(size: 15))
-                        .frame(width: 20)
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 20)
-                }
-
-                // Page Title
-                Text((page?.title.isEmpty ?? true) ? "Untitled" : (page?.title ?? "Untitled"))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .underline(isHovered, color: .primary.opacity(0.45))
-                    .lineLimit(1)
-
-                Spacer()
-
-                if isHovered {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-
-                        Button(role: .destructive, action: onDelete) {
-                            Image(systemName: "trash")
-                                .font(.caption2)
-                                .foregroundStyle(.red.opacity(0.8))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete subpage link")
+        HStack(spacing: 8) {
+            Button(action: {
+                store.selectPage(id: pageId)
+            }) {
+                HStack(spacing: 8) {
+                    // Page Icon
+                    if let p = subpage, !p.icon.isEmpty {
+                        Text(p.icon)
+                            .font(.system(size: 15))
+                            .frame(width: 20)
+                    } else {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 20)
                     }
+
+                    // Page Title
+                    Text((subpage?.title.isEmpty ?? true) ? "Untitled Subpage" : (subpage?.title ?? "Untitled Subpage"))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .underline(isHovered, color: .primary.opacity(0.45))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .opacity(isHovered ? 1.0 : 0.0)
                 }
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isHovered ? Color.secondary.opacity(0.18) : Color.clear, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            if isHovered {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.caption2)
+                        .foregroundStyle(.red.opacity(0.8))
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+                .help("Delete subpage link")
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isHovered ? Color.secondary.opacity(0.18) : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
     }
 }
@@ -1584,12 +1587,7 @@ struct BlockRowView: View {
         }
         .onDrag {
             onStartDrag()
-            let provider = NSItemProvider()
-            provider.registerDataRepresentation(forTypeIdentifier: "com.pustaka.block-drag", visibility: .all) { completion in
-                completion(Data(block.id.utf8), nil)
-                return nil
-            }
-            return provider
+            return NSItemProvider(object: block.id as NSString)
         }
         .frame(width: 14)
         .opacity((isHovered || isSelected) ? 1.0 : 0.0)
@@ -1661,9 +1659,15 @@ struct BlockRowView: View {
                     textColor: .labelColor,
                     isFocused: isFocused,
                     onCommit: {
-                        onInsertBelow(.bullet, "")
+                        if textBuffer.trimmingCharacters(in: .whitespaces).isEmpty {
+                            onTransformKind(.paragraph)
+                        } else {
+                            onInsertBelow(.bullet, "")
+                        }
                     },
-                    onDeleteEmpty: onDeleteEmpty,
+                    onDeleteEmpty: {
+                        onTransformKind(.paragraph)
+                    },
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
@@ -1690,9 +1694,15 @@ struct BlockRowView: View {
                     textColor: .labelColor,
                     isFocused: isFocused,
                     onCommit: {
-                        onInsertBelow(.numbered(index: idx + 1), "")
+                        if textBuffer.trimmingCharacters(in: .whitespaces).isEmpty {
+                            onTransformKind(.paragraph)
+                        } else {
+                            onInsertBelow(.numbered(index: idx + 1), "")
+                        }
                     },
-                    onDeleteEmpty: onDeleteEmpty,
+                    onDeleteEmpty: {
+                        onTransformKind(.paragraph)
+                    },
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
@@ -1815,9 +1825,15 @@ struct BlockRowView: View {
                     textColor: checked ? .secondaryLabelColor : .labelColor,
                     isFocused: isFocused,
                     onCommit: {
-                        onInsertBelow(.todo(checked: false), "")
+                        if textBuffer.trimmingCharacters(in: .whitespaces).isEmpty {
+                            onTransformKind(.paragraph)
+                        } else {
+                            onInsertBelow(.todo(checked: false), "")
+                        }
                     },
-                    onDeleteEmpty: onDeleteEmpty,
+                    onDeleteEmpty: {
+                        onTransformKind(.paragraph)
+                    },
                     onSlashCommit: handleSlashCommit,
                     onEscape: { isSlashCommandOpen = false; return true },
                     onTextChanged: checkSlashCommand,
@@ -2275,6 +2291,46 @@ struct BlockRowView: View {
         } else {
             isSlashCommandOpen = false
         }
+
+        // Markdown auto-formatting shortcuts on plain text
+        if case .paragraph = block.kind {
+            if text.hasPrefix("1. ") || text.hasPrefix("1) ") {
+                let rest = String(text.dropFirst(3))
+                self.textBuffer = rest
+                onTransformKind(.numbered(index: 1))
+                onUpdateText(rest)
+            } else if text.hasPrefix("- ") || text.hasPrefix("* ") {
+                let rest = String(text.dropFirst(2))
+                self.textBuffer = rest
+                onTransformKind(.bullet)
+                onUpdateText(rest)
+            } else if text.hasPrefix("[] ") || text.hasPrefix("[ ] ") {
+                let rest = text.hasPrefix("[ ] ") ? String(text.dropFirst(4)) : String(text.dropFirst(3))
+                self.textBuffer = rest
+                onTransformKind(.todo(checked: false))
+                onUpdateText(rest)
+            } else if text.hasPrefix("> ") {
+                let rest = String(text.dropFirst(2))
+                self.textBuffer = rest
+                onTransformKind(.quote)
+                onUpdateText(rest)
+            } else if text.hasPrefix("### ") {
+                let rest = String(text.dropFirst(4))
+                self.textBuffer = rest
+                onTransformKind(.heading(level: 3))
+                onUpdateText(rest)
+            } else if text.hasPrefix("## ") {
+                let rest = String(text.dropFirst(3))
+                self.textBuffer = rest
+                onTransformKind(.heading(level: 2))
+                onUpdateText(rest)
+            } else if text.hasPrefix("# ") {
+                let rest = String(text.dropFirst(2))
+                self.textBuffer = rest
+                onTransformKind(.heading(level: 1))
+                onUpdateText(rest)
+            }
+        }
     }
 
     private func handleSlashCommit() -> Bool {
@@ -2361,7 +2417,7 @@ struct BlockRowView: View {
         self.textBuffer = ""
         self.isSlashCommandOpen = false
         if case .subpage = kind {
-            let newSub = store.addNewSubpage(parentPageId: currentPageId)
+            let newSub = store.addNewSubpage(parentPageId: currentPageId, title: "Untitled Subpage", switchToPage: false)
             onTransformKind(.subpage(pageId: newSub.id))
         } else {
             onTransformKind(kind)
@@ -2379,7 +2435,7 @@ struct BlockRowView: View {
             Button("Heading 2") { onInsertBelow(.heading(level: 2), "") }
             Button("Heading 3") { onInsertBelow(.heading(level: 3), "") }
             Button("Subpage (📄)") {
-                let newSub = store.addNewSubpage(parentPageId: currentPageId)
+                let newSub = store.addNewSubpage(parentPageId: currentPageId, title: "Untitled Subpage", switchToPage: false)
                 onInsertBelow(.subpage(pageId: newSub.id), "")
             }
             Button("To-do List") { onInsertBelow(.todo(checked: false), "") }
