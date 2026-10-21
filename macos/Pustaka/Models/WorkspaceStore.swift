@@ -22,10 +22,33 @@ class WorkspaceStore: ObservableObject {
     @Published var currentRon: String = ""
     @Published var currentSvg: String = ""
 
-    /// Active document pages currently open in tabs
+    static let trashPageId: String = "__trash__"
+
+    /// Virtual DocumentPage representing the Trash tab
+    var trashPage: DocumentPage {
+        DocumentPage(
+            id: Self.trashPageId,
+            title: "Trash",
+            icon: "🗑️",
+            coverUrl: "gradient:midnight",
+            coverOffsetY: 0.5,
+            categoryId: "",
+            parentPageId: nil,
+            rawContent: "",
+            isFavorite: false,
+            isDeleted: false,
+            lastModified: Date(),
+            boardTasks: []
+        )
+    }
+
+    /// Active document pages currently open in tabs (including Trash if open)
     var openTabs: [DocumentPage] {
         openTabIds.compactMap { id in
-            pages.first(where: { $0.id == id && !$0.isDeleted })
+            if id == Self.trashPageId {
+                return trashPage
+            }
+            return pages.first(where: { $0.id == id && !$0.isDeleted })
         }
     }
 
@@ -121,18 +144,21 @@ class WorkspaceStore: ObservableObject {
             self.categories.removeAll { $0.id == "cat_fav" }
 
             let nonDeleted = self.pages.filter { !$0.isDeleted }
-            let nonDeletedIds = Set(nonDeleted.map(\.id))
+            var nonDeletedIds = Set(nonDeleted.map(\.id))
+            nonDeletedIds.insert(WorkspaceStore.trashPageId)
 
             // Restore and sanitize open tabs from disk
             var restoredTabs = (decoded.openTabIds ?? []).filter { nonDeletedIds.contains($0) }
 
             if let sel = decoded.selectedPageId, nonDeletedIds.contains(sel) {
                 self.selectedPageId = sel
+                self.isShowingTrash = (sel == WorkspaceStore.trashPageId)
                 if !restoredTabs.contains(sel) {
                     restoredTabs.insert(sel, at: 0)
                 }
             } else {
                 self.selectedPageId = restoredTabs.first ?? nonDeleted.first?.id
+                self.isShowingTrash = (self.selectedPageId == WorkspaceStore.trashPageId)
                 if let sel = self.selectedPageId, !restoredTabs.contains(sel) {
                     restoredTabs.append(sel)
                 }
@@ -363,7 +389,10 @@ class WorkspaceStore: ObservableObject {
 
     var selectedPage: DocumentPage? {
         get {
-            pages.first { $0.id == selectedPageId && !$0.isDeleted } ?? pages.first { $0.id == selectedPageId }
+            if selectedPageId == Self.trashPageId {
+                return trashPage
+            }
+            return pages.first { $0.id == selectedPageId && !$0.isDeleted } ?? pages.first { $0.id == selectedPageId }
         }
         set {
             if let newValue = newValue,
@@ -375,14 +404,33 @@ class WorkspaceStore: ObservableObject {
     }
 
     func openTrash() {
+        if !openTabIds.contains(Self.trashPageId) {
+            openTabIds.append(Self.trashPageId)
+        }
+        self.selectedPageId = Self.trashPageId
         self.isShowingTrash = true
+        saveToDisk()
     }
 
     func closeTrash() {
-        self.isShowingTrash = false
+        closeTab(pageId: Self.trashPageId)
+    }
+
+    func revealTrashInFinder() {
+        let trashDir = trashURL
+        NSWorkspace.shared.activateFileViewerSelecting([trashDir])
     }
 
     func selectPage(id: String) {
+        if id == Self.trashPageId {
+            self.selectedPageId = id
+            self.isShowingTrash = true
+            if !openTabIds.contains(id) {
+                openTabIds.append(id)
+            }
+            saveToDisk()
+            return
+        }
         guard pages.contains(where: { $0.id == id && !$0.isDeleted }) else { return }
         self.isShowingTrash = false
         self.selectedPageId = id
@@ -412,6 +460,7 @@ class WorkspaceStore: ObservableObject {
                 selectPage(id: openTabIds[index - 1])
             } else {
                 selectedPageId = nil
+                isShowingTrash = false
                 saveToDisk()
             }
         } else {
@@ -874,11 +923,11 @@ class WorkspaceStore: ObservableObject {
             }
         }
 
-        self.selectedPageId = id
         if andOpen {
-            self.isShowingTrash = false
+            self.selectPage(id: id)
+        } else {
+            saveToDisk()
         }
-        saveToDisk()
         recompileCurrentPage()
     }
 

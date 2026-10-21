@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Dedicated Full-Page Trash View (Obsidian .trash/ Compatible)
+// MARK: - Dedicated Block-First Full-Page Trash View (Multi-Tab & Obsidian .trash/ Compatible)
 
 struct TrashPageView: View {
     @ObservedObject var store: WorkspaceStore
@@ -14,12 +14,16 @@ struct TrashPageView: View {
     @State private var inspectingPage: DocumentPage? = nil
     @State private var lastRestoredInfo: (title: String, category: String, id: String)? = nil
     @State private var showRestoreToast: Bool = false
+    @State private var hoveredBlockId: String? = nil
+    @State private var currentCoverUrl: String = "gradient:midnight"
+    @State private var isCoverHovered: Bool = false
+    @State private var isCoverPickerOpen: Bool = false
 
     enum TrashSortOption: String, CaseIterable {
         case newestDeleted = "Recently Deleted"
         case oldestDeleted = "Oldest Deleted"
-        case titleAsc = "Title (A-Z)"
-        case titleDesc = "Title (Z-A)"
+        case titleAsc = "Title (A–Z)"
+        case titleDesc = "Title (Z–A)"
     }
 
     private var filteredTrashPages: [DocumentPage] {
@@ -30,7 +34,7 @@ struct TrashPageView: View {
             list = list.filter { $0.categoryId == catId }
         }
 
-        // 2. Search Text
+        // 2. Search Text Filter
         if !searchText.isEmpty {
             list = list.filter { page in
                 page.title.localizedCaseInsensitiveContains(searchText) ||
@@ -61,31 +65,49 @@ struct TrashPageView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Header Banner
-                headerBanner
-                    .padding(.top, 28)
-                    .padding(.bottom, 24)
-
-                if !store.trashPages.isEmpty {
-                    // Search and Filter Bar
-                    filterAndSortBar
-                        .padding(.bottom, 18)
-
-                    // Trash Item Cards List
-                    if filteredTrashPages.isEmpty {
-                        emptyFilterResultView
-                    } else {
-                        itemsListView
-                    }
-                } else {
-                    // Completely Empty State
-                    emptyTrashStateView
+            VStack(spacing: 0) {
+                // 1. Page Cover Banner (Matches DocumentCanvasView Notion Header)
+                if !currentCoverUrl.isEmpty {
+                    pageCoverBannerView
                 }
+
+                // 2. Main Canvas Body Composed of Document Blocks
+                VStack(alignment: .leading, spacing: 18) {
+                    // Notion Document Page Header Block
+                    notionPageHeaderBlock
+
+                    // Block 1: Callout Block (Vault Info & Fast Actions)
+                    vaultInfoCalloutBlock
+
+                    // Block 2: Horizontal Divider Block
+                    Divider().opacity(0.35)
+
+                    // Block 3: Database Filter & Search Block
+                    if !store.trashPages.isEmpty {
+                        filterAndSortControlsBlock
+                    }
+
+                    // Block 4: Section Heading Block
+                    sectionHeadingBlock
+
+                    // Block 5: Deleted Notes Rendered as Blocks
+                    if store.trashPages.isEmpty {
+                        emptyTrashCalloutBlock
+                    } else if filteredTrashPages.isEmpty {
+                        emptyFilterResultCalloutBlock
+                    } else {
+                        deletedNotesBlockList
+                    }
+
+                    // Bottom Canvas Padding
+                    Spacer(minLength: 120)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 28)
+                .padding(.top, currentCoverUrl.isEmpty ? 24 : 14)
+                .frame(maxWidth: 880)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: 820)
-            .padding(.horizontal, 40)
-            .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottom) {
@@ -151,129 +173,232 @@ struct TrashPageView: View {
                 }
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerEmptyTrash"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PromptEmptyTrash"))) { _ in
             isConfirmingEmptyTrash = true
         }
     }
 
-    // MARK: - Header Banner
+    // MARK: - Notion Cover Banner View (Identical to DocumentCanvasView)
 
-    private var headerBanner: some View {
-        HStack(alignment: .top, spacing: 18) {
-            ZStack {
-                Circle()
-                    .fill(Color.red.opacity(0.12))
-                    .frame(width: 54, height: 54)
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.red)
-            }
+    private var pageCoverBannerView: some View {
+        ZStack(alignment: .bottomTrailing) {
+            coverBannerImageContent
+                .frame(height: 200)
+                .clipped()
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text("Trash")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(Color.primary)
-
-                    if !store.trashPages.isEmpty {
-                        Text("\(store.trashPages.count)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.red.opacity(0.85)))
-                    }
-                }
-
-                Text("Deleted documents are safely preserved in ~/Documents/Pustaka/.trash/ until permanently cleared.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.secondary)
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                // Reveal in Finder
-                Button(action: {
-                    let trashDir = store.trashURL
-                    NSWorkspace.shared.activateFileViewerSelecting([trashDir])
-                }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 11))
-                        Text("Reveal in Finder")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .foregroundStyle(Color.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .help("Open .trash folder in macOS Finder")
-
-                // Empty Trash Button
-                if !store.trashPages.isEmpty {
-                    Button(action: {
-                        isConfirmingEmptyTrash = true
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11))
-                            Text("Empty Trash...")
-                                .font(.system(size: 12, weight: .semibold))
+            // Normal Hover Action Buttons (Change Cover, Remove Cover)
+            HStack(spacing: 6) {
+                Menu {
+                    Section("Preset Gradients") {
+                        ForEach(PresetGradientCover.allCases) { preset in
+                            Button(preset.title) {
+                                currentCoverUrl = preset.rawValue
+                            }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.red.opacity(0.12))
-                        .foregroundStyle(Color.red)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.red.opacity(0.25), lineWidth: 1)
-                        )
                     }
-                    .buttonStyle(.plain)
-                    .help("Permanently delete all items")
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "photo")
+                            .font(.caption)
+                        Text("Change cover")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
 
-                // Done / Back Button
                 Button(action: {
-                    store.closeTrash()
+                    currentCoverUrl = ""
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                        Text("Done")
-                            .font(.system(size: 12, weight: .medium))
+                        Image(systemName: "trash")
+                            .font(.caption)
+                        Text("Remove")
+                            .font(.caption.weight(.medium))
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.primary.opacity(0.06))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Return to documents")
             }
+            .padding(14)
+            .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+        }
+        .contentShape(Rectangle())
+        .onHover { isCoverHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var coverBannerImageContent: some View {
+        if currentCoverUrl.hasPrefix("gradient:") {
+            LinearGradient(
+                colors: PresetGradientCover.colors(for: currentCoverUrl),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            LinearGradient(
+                colors: [Color(red: 0.12, green: 0.12, blue: 0.28), Color(red: 0.38, green: 0.18, blue: 0.52)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 
-    // MARK: - Filter and Sort Bar
+    // MARK: - Notion Page Header Block
 
-    private var filterAndSortBar: some View {
+    private var notionPageHeaderBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Breadcrumbs
+            HStack(spacing: 4) {
+                Text("Vault")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                Text("/")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
+                Text("🗑️ Trash")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .padding(.bottom, 2)
+
+            // Add cover button if cover was removed
+            if currentCoverUrl.isEmpty {
+                Button(action: {
+                    currentCoverUrl = "gradient:midnight"
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "photo")
+                            .font(.caption)
+                        Text("Add cover")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Big Emoji Icon (Font size 44, matching DocumentCanvasView)
+            Text("🗑️")
+                .font(.system(size: 44))
+                .padding(.vertical, 2)
+
+            // Document Title (Font size 34 bold, matching TitleEditorField)
+            Text("Trash")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(.primary)
+
+            // Description Paragraph Block
+            Text("Catatan yang dihapus disimpan di folder `.trash` vault Anda. Item di sini dapat dipulihkan kapan saja ke foldernya masing-masing atau dibersihkan secara permanen.")
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .lineSpacing(4)
+        }
+    }
+
+    // MARK: - Block 1: Callout Block (Vault Info & Fast Actions)
+
+    private var vaultInfoCalloutBlock: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("💡")
+                .font(.system(size: 20))
+                .frame(width: 24, alignment: .top)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("**Vault Trash (`~/.trash/`)** — Catatan dan subpage yang dihapus tersimpan aman di direktori lokal. Merestore catatan akan mengembalikannya beserta seluruh struktur subpage.")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.primary)
+                    .lineSpacing(3)
+
+                HStack(spacing: 8) {
+                    // Reveal in Finder Button
+                    Button(action: {
+                        store.revealTrashInFinder()
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 11))
+                            Text("Reveal .trash in Finder")
+                                .font(.system(size: 11.5, weight: .medium))
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .foregroundStyle(.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open .trash directory in macOS Finder")
+
+                    // Empty Trash Button
+                    if !store.trashPages.isEmpty {
+                        Button(action: {
+                            isConfirmingEmptyTrash = true
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                Text("Empty Trash (\(store.trashPages.count) items)...")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.1))
+                            .foregroundStyle(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Permanently delete all items from disk")
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Block 3: Database Filter & Search Block
+
+    private var filterAndSortControlsBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                // Search Input
+                // Search Input Field
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.secondary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
 
                     TextField("Filter deleted notes by title or content...", text: $searchText)
                         .textFieldStyle(.plain)
@@ -282,19 +407,19 @@ struct TrashPageView: View {
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color.secondary)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
                 .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
                 )
 
                 // Sort Dropdown
@@ -317,22 +442,22 @@ struct TrashPageView: View {
                             .font(.system(size: 12, weight: .medium))
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 6)
                     .background(Color(nsColor: .controlBackgroundColor))
-                    .foregroundStyle(Color.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
                     )
                 }
                 .menuStyle(.borderlessButton)
             }
 
-            // Category Filter Chips
+            // Category Filter Pills
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    filterChip(title: "All Folders", isSelected: selectedCategoryFilter == nil) {
+                    filterChip(title: "All Folders (\(store.trashPages.count))", isSelected: selectedCategoryFilter == nil) {
                         selectedCategoryFilter = nil
                     }
 
@@ -363,173 +488,199 @@ struct TrashPageView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Items List View
+    // MARK: - Block 4: Section Heading Block
 
-    private var itemsListView: some View {
-        VStack(spacing: 8) {
+    private var sectionHeadingBlock: some View {
+        HStack(spacing: 8) {
+            Text("Deleted Pages")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(.primary)
+
+            if !store.trashPages.isEmpty {
+                Text("\(filteredTrashPages.count)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.06)))
+            }
+
+            Spacer()
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: - Block 5: Deleted Notes Rendered as Native Pustaka Blocks
+
+    private var deletedNotesBlockList: some View {
+        VStack(spacing: 6) {
             ForEach(filteredTrashPages) { page in
-                trashCardItem(page: page)
+                deletedNoteBlockRow(page: page)
             }
         }
     }
 
-    private func trashCardItem(page: DocumentPage) -> some View {
+    private func deletedNoteBlockRow(page: DocumentPage) -> some View {
+        let isHovered = (hoveredBlockId == page.id)
         let categoryName = store.categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
         let parentTitle = page.parentPageId.flatMap { pId in
             store.pages.first(where: { $0.id == pId })?.title
         }
 
-        return HStack(alignment: .center, spacing: 14) {
-            // Document Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.primary.opacity(0.04))
-                    .frame(width: 38, height: 38)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                    )
+        return HStack(alignment: .top, spacing: 6) {
+            // Left Gutter: 6-dots handle visible on hover (identical to BlockListView)
+            Image(systemName: "circle.grid.2x3.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, height: 26)
+                .opacity(isHovered ? 0.7 : 0.0)
+                .animation(.easeInOut(duration: 0.12), value: isHovered)
 
-                if !page.icon.isEmpty {
-                    Text(page.icon)
-                        .font(.system(size: 18))
-                } else {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.secondary)
-                }
-            }
+            // Block Content Body
+            VStack(alignment: .leading, spacing: 4) {
+                // Header line: Icon, Title, Subpage badge, Category tag, Timestamp, and Actions
+                HStack(alignment: .center, spacing: 8) {
+                    // Document Icon
+                    if !page.icon.isEmpty {
+                        Text(page.icon)
+                            .font(.system(size: 15))
+                            .frame(width: 18)
+                    } else {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 18)
+                    }
 
-            // Note Details
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                    // Title
                     Text(page.title.isEmpty ? "Untitled Note" : page.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
 
+                    // Subpage badge
                     if let parent = parentTitle {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.turn.down.right")
-                                .font(.system(size: 9))
+                                .font(.system(size: 8.5))
                             Text("Subpage of \(parent)")
                                 .font(.system(size: 10, weight: .medium))
                         }
-                        .foregroundStyle(Color.secondary)
-                        .padding(.horizontal, 6)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
+
+                    // Category tag
+                    HStack(spacing: 3) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 8.5))
+                        Text(categoryName)
+                            .font(.system(size: 10.5))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                    // Relative deletion time
+                    Text("Deleted \(relativeTimeString(from: page.lastModified))")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+
+                    Spacer()
+
+                    // Right-aligned Actions (Quick look, Restore, Delete)
+                    HStack(spacing: 6) {
+                        // Preview Button
+                        Button(action: {
+                            inspectingPage = page
+                        }) {
+                            Image(systemName: "eye")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, height: 24)
+                                .background(Color.primary.opacity(0.04))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Quick preview note content")
+
+                        // Restore Menu
+                        Menu {
+                            Button(action: {
+                                handleRestore(page: page, andOpen: false)
+                            }) {
+                                Label("Restore to \(categoryName)", systemImage: "arrow.uturn.backward")
+                            }
+
+                            Button(action: {
+                                handleRestore(page: page, andOpen: true)
+                            }) {
+                                Label("Restore and Open Note", systemImage: "arrow.up.forward.app")
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Restore")
+                                    .font(.system(size: 11.5, weight: .medium))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.12))
+                            .foregroundStyle(Color.accentColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .help("Restore document back to active notes")
+
+                        // Permanent Delete Button
+                        Button(action: {
+                            pageToDeletePermanently = page
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(Color.red.opacity(0.85))
+                                .frame(width: 24, height: 24)
+                                .background(Color.red.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Permanently delete from disk")
+                    }
+                    .opacity(isHovered ? 1.0 : 0.75)
                 }
 
-                // Snippet preview
+                // Snippet line (Clean 1-line text preview)
                 let snippet = plainTextSnippet(from: page.rawContent)
                 if !snippet.isEmpty {
                     Text(snippet)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.secondary)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                }
-
-                // Metadata Row
-                HStack(spacing: 10) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 9.5))
-                        Text(categoryName)
-                            .font(.system(size: 11))
-                    }
-                    .foregroundStyle(Color.secondary)
-
-                    Text("•")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-
-                    HStack(spacing: 3) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 9.5))
-                        Text("Deleted \(relativeTimeString(from: page.lastModified))")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundStyle(Color.secondary)
+                        .padding(.leading, 26)
                 }
             }
-
-            Spacer()
-
-            // Action Buttons
-            HStack(spacing: 8) {
-                // Quick Preview Button
-                Button(action: {
-                    inspectingPage = page
-                }) {
-                    Image(systemName: "eye")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.secondary)
-                        .padding(6)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Preview note content")
-
-                // Restore Button (with menu option to open directly)
-                Menu {
-                    Button(action: {
-                        handleRestore(page: page, andOpen: false)
-                    }) {
-                        Label("Restore to \(categoryName)", systemImage: "arrow.uturn.backward")
-                    }
-
-                    Button(action: {
-                        handleRestore(page: page, andOpen: true)
-                    }) {
-                        Label("Restore and Open Note", systemImage: "arrow.up.forward.app")
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Restore")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.accentColor.opacity(0.12))
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .help("Restore document back to active notes")
-
-                // Permanent Delete Button
-                Button(action: {
-                    pageToDeletePermanently = page
-                }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.red.opacity(0.85))
-                        .padding(6)
-                        .background(Color.red.opacity(0.08))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Delete permanently from disk")
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(isHovered ? Color.secondary.opacity(0.18) : Color.clear, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                inspectingPage = page
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            inspectingPage = page
+        .onHover { h in
+            hoveredBlockId = h ? page.id : nil
         }
     }
 
@@ -572,80 +723,86 @@ struct TrashPageView: View {
         return ""
     }
 
-    // MARK: - Empty Filter Result State
+    // MARK: - Empty State Callout Blocks
 
-    private var emptyFilterResultView: some View {
-        VStack(spacing: 12) {
-            Spacer().frame(height: 36)
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.system(size: 34))
-                .foregroundStyle(Color.secondary.opacity(0.5))
+    private var emptyTrashCalloutBlock: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Text("✨")
+                .font(.system(size: 24))
 
-            Text("No deleted notes matching \"\(searchText)\"")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Tempat Sampah Kosong")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
 
-            Button("Clear Search") {
-                searchText = ""
-                selectedCategoryFilter = nil
+                Text("Tidak ada dokumen atau catatan di `.trash/`. Ketika Anda menghapus sebuah catatan dari sidebar atau menu dokumen, catatan tersebut akan muncul di sini.")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(3)
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        store.addNewPage()
+                    }
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Create New Document")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            Spacer().frame(height: 36)
         }
-        .frame(maxWidth: .infinity)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        )
     }
 
-    // MARK: - Completely Empty State
+    private var emptyFilterResultCalloutBlock: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 24))
+                .foregroundStyle(.secondary)
 
-    private var emptyTrashStateView: some View {
-        VStack(spacing: 16) {
-            Spacer().frame(height: 48)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Tidak Ada Catatan yang Cocok")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.primary)
 
-            ZStack {
-                Circle()
-                    .fill(Color.secondary.opacity(0.08))
-                    .frame(width: 80, height: 80)
-
-                Image(systemName: "trash")
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.secondary.opacity(0.6))
-            }
-
-            VStack(spacing: 6) {
-                Text("Trash is Empty")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.primary)
-
-                Text("Documents you delete will appear here before being permanently removed from your vault.\nYou can restore any document back to its original folder at any time.")
+                Text("Tidak ditemukan catatan terhapus yang cocok dengan kata kunci \"\(searchText)\".")
                     .font(.system(size: 13))
-                    .foregroundStyle(Color.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 440)
-            }
+                    .foregroundStyle(.secondary)
 
-            Button(action: {
-                store.closeTrash()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Back to Notes")
-                        .font(.system(size: 13, weight: .medium))
+                Button("Clear Search") {
+                    searchText = ""
+                    selectedCategoryFilter = nil
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, 2)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
-
-            Spacer().frame(height: 60)
         }
-        .frame(maxWidth: .infinity)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
     }
 
     // MARK: - Restore Toast View

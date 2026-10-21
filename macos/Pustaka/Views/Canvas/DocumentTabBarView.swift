@@ -16,7 +16,11 @@ struct DocumentTabItemView: View {
     var body: some View {
         HStack(spacing: 6) {
             // Document Icon (Emoji or SF Symbol)
-            if !page.icon.isEmpty {
+            if page.id == WorkspaceStore.trashPageId {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isSelected ? Color.red.opacity(0.9) : Color.secondary)
+            } else if !page.icon.isEmpty {
                 Text(page.icon)
                     .font(.system(size: 13))
             } else {
@@ -75,19 +79,32 @@ struct DocumentTabItemView: View {
                 Label("Close Tabs to the Right", systemImage: "arrow.right.to.line")
             }
             Divider()
-            Button(action: { store.duplicatePage(id: page.id) }) {
-                Label("Duplicate Tab", systemImage: "plus.square.on.square")
-            }
-            Divider()
-            Button(action: {
-                NSPasteboard.general.clearContents()
-                let title = page.title.isEmpty ? "Untitled" : page.title
-                NSPasteboard.general.setString(title, forType: .string)
-            }) {
-                Label("Copy Document Title", systemImage: "text.quote")
-            }
-            Button(action: { store.revealInFinder(pageId: page.id) }) {
-                Label("Reveal in Finder", systemImage: "folder")
+            if page.id == WorkspaceStore.trashPageId {
+                Button(action: { store.revealTrashInFinder() }) {
+                    Label("Reveal .trash in Finder", systemImage: "folder")
+                }
+                if !store.trashPages.isEmpty {
+                    Button(role: .destructive, action: {
+                        NotificationCenter.default.post(name: NSNotification.Name("PromptEmptyTrash"), object: nil)
+                    }) {
+                        Label("Empty Trash...", systemImage: "trash")
+                    }
+                }
+            } else {
+                Button(action: { store.duplicatePage(id: page.id) }) {
+                    Label("Duplicate Tab", systemImage: "plus.square.on.square")
+                }
+                Divider()
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    let title = page.title.isEmpty ? "Untitled" : page.title
+                    NSPasteboard.general.setString(title, forType: .string)
+                }) {
+                    Label("Copy Document Title", systemImage: "text.quote")
+                }
+                Button(action: { store.revealInFinder(pageId: page.id) }) {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
             }
         }
     }

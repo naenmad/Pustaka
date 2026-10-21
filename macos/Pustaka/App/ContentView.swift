@@ -74,53 +74,45 @@ struct ContentView: View {
                 .frame(height: 18)
                 .opacity(0.3)
 
-            // 2. Browser-Style Horizontal Document Tab Bar OR Trash Header
-            if store.isShowingTrash {
-                HStack(spacing: 8) {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.red.opacity(0.85))
-
-                    Text("Trash")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.primary)
-
-                    if !store.trashPages.isEmpty {
-                        Text("\(store.trashPages.count) items")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1.5)
-                            .background(Capsule().fill(Color.primary.opacity(0.06)))
-                    }
-                }
+            // 2. Browser-Style Horizontal Document Tab Bar (Supports multiple tabs including Trash)
+            DocumentTabBarView(store: store)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 6)
-            } else {
-                DocumentTabBarView(store: store)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            // 3. Trailing Document Actions (Share & 3-Dots for Document, Done for Trash)
+            // 3. Trailing Document Actions (Share & 3-Dots for Document, Finder & Empty for Trash)
             if store.isShowingTrash {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Button(action: {
-                        store.closeTrash()
+                        store.revealTrashInFinder()
                     }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("Done")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(Color.primary.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        Image(systemName: "folder")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28, height: 28)
+                            .background(Color.primary.opacity(0.04))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
-                    .help("Return to documents")
+                    .help("Reveal .trash in Finder")
+
+                    if !store.trashPages.isEmpty {
+                        Button(action: {
+                            NotificationCenter.default.post(name: NSNotification.Name("PromptEmptyTrash"), object: nil)
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Empty...")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(.red.opacity(0.9))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Empty all items in Trash")
+                    }
                 }
             } else if let page = store.selectedPage {
                 HStack(spacing: 6) {
