@@ -3,6 +3,62 @@ import SwiftUI
 
 // MARK: - Customizable Sidebar Category / Folder
 
+// MARK: - Sidebar Sorting & Filtering Options
+
+enum SidebarSortOption: String, CaseIterable, Identifiable, Codable {
+    case modifiedDesc = "modified_desc"
+    case modifiedAsc = "modified_asc"
+    case titleAsc = "title_asc"
+    case titleDesc = "title_desc"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .modifiedDesc: return "Recently Modified"
+        case .modifiedAsc: return "Oldest Modified"
+        case .titleAsc: return "Title (A to Z)"
+        case .titleDesc: return "Title (Z to A)"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .modifiedDesc: return "clock.arrow.circlepath"
+        case .modifiedAsc: return "clock"
+        case .titleAsc: return "textformat.abc"
+        case .titleDesc: return "textformat.size"
+        }
+    }
+}
+
+enum SidebarFilterOption: String, CaseIterable, Identifiable, Codable {
+    case all = "all"
+    case favorites = "favorites"
+    case today = "today"
+    case thisWeek = "this_week"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All Notes"
+        case .favorites: return "Favorites Only"
+        case .today: return "Edited Today"
+        case .thisWeek: return "Edited This Week"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .all: return "tray.full"
+        case .favorites: return "star.fill"
+        case .today: return "sun.max"
+        case .thisWeek: return "calendar"
+        }
+    }
+}
+
 struct SidebarCategory: Identifiable, Hashable, Codable {
     let id: String
     var name: String

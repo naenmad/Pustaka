@@ -538,6 +538,67 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
+    // MARK: - Sidebar Sorting & Filtering Helpers
+
+    func sortPages(_ pages: [DocumentPage], by sortOption: SidebarSortOption) -> [DocumentPage] {
+        switch sortOption {
+        case .modifiedDesc:
+            return pages.sorted { $0.lastModified > $1.lastModified }
+        case .modifiedAsc:
+            return pages.sorted { $0.lastModified < $1.lastModified }
+        case .titleAsc:
+            return pages.sorted {
+                let t0 = $0.title.isEmpty ? "Untitled" : $0.title
+                let t1 = $1.title.isEmpty ? "Untitled" : $1.title
+                return t0.localizedCaseInsensitiveCompare(t1) == .orderedAscending
+            }
+        case .titleDesc:
+            return pages.sorted {
+                let t0 = $0.title.isEmpty ? "Untitled" : $0.title
+                let t1 = $1.title.isEmpty ? "Untitled" : $1.title
+                return t0.localizedCaseInsensitiveCompare(t1) == .orderedDescending
+            }
+        }
+    }
+
+    func pageMatchesFilter(_ page: DocumentPage, filter: SidebarFilterOption) -> Bool {
+        switch filter {
+        case .all:
+            return true
+        case .favorites:
+            if page.isFavorite { return true }
+            let children = subpages(of: page.id)
+            return children.contains { pageMatchesFilter($0, filter: filter) }
+        case .today:
+            let calendar = Calendar.current
+            if calendar.isDateInToday(page.lastModified) { return true }
+            let children = subpages(of: page.id)
+            return children.contains { pageMatchesFilter($0, filter: filter) }
+        case .thisWeek:
+            let calendar = Calendar.current
+            let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+            if page.lastModified >= weekAgo { return true }
+            let children = subpages(of: page.id)
+            return children.contains { pageMatchesFilter($0, filter: filter) }
+        }
+    }
+
+    func filteredAndSortedRootPages(in categoryId: String, sort: SidebarSortOption, filter: SidebarFilterOption) -> [DocumentPage] {
+        let roots = rootPages(in: categoryId)
+        let filtered = roots.filter { pageMatchesFilter($0, filter: filter) }
+        return sortPages(filtered, by: sort)
+    }
+
+    func filteredAndSortedSubpages(of parentPageId: String, sort: SidebarSortOption, filter: SidebarFilterOption) -> [DocumentPage] {
+        let children = subpages(of: parentPageId)
+        let filtered = children.filter { pageMatchesFilter($0, filter: filter) }
+        return sortPages(filtered, by: sort)
+    }
+
+    func sortedFavoritePages(by sortOption: SidebarSortOption) -> [DocumentPage] {
+        sortPages(favoritePages, by: sortOption)
+    }
+
     @discardableResult
     func addNewSubpage(parentPageId: String, title: String = "", switchToPage: Bool = false) -> DocumentPage {
         let parent = page(id: parentPageId)

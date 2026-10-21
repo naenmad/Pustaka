@@ -54,6 +54,10 @@ struct SidebarTreeContainer<Content: View>: View {
 struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
     @Binding var columnVisibility: NavigationSplitViewVisibility
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("appAppearance") private var appAppearance: String = "system"
+    @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
+    @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
     @State private var searchText: String = ""
     @FocusState private var isSearchFocused: Bool
     @State private var categoryToCustomize: SidebarCategory? = nil
@@ -200,36 +204,73 @@ struct SidebarView: View {
         .background(WindowDragView())
     }
 
-    // MARK: - Minimal Search Bar
+    // MARK: - Minimal Search & Order / Filter Bar
+
+    private var isFilterOrSortCustom: Bool {
+        sidebarSortOption != .modifiedDesc || sidebarFilterOption != .all
+    }
 
     private var searchBarView: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            TextField("Search notes... (⌘K)", text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .focused($isSearchFocused)
-
-            if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
+        VStack(spacing: 5) {
+            HStack(spacing: 5) {
+                // Main search input field
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+
+                    TextField("Search notes... (⌘K)", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .focused($isSearchFocused)
+
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSearchFocused ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                )
+
+                // Order By & Filter Menu
+                filterAndSortMenuButton
+            }
+
+            // Active Filter Chip (Visible only when filtering is active)
+            if sidebarFilterOption != .all {
+                HStack(spacing: 5) {
+                    Image(systemName: sidebarFilterOption.icon)
+                        .font(.system(size: 9))
+                    Text("Filter: \(sidebarFilterOption.label)")
+                        .font(.system(size: 10, weight: .medium))
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            sidebarFilterOption = .all
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isSearchFocused ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-        )
         .background(
             // Invisible button for ⌘K shortcut to focus search
             Button("") {
@@ -240,17 +281,81 @@ struct SidebarView: View {
         )
     }
 
+    private var filterAndSortMenuButton: some View {
+        Menu {
+            Section("Order By") {
+                ForEach(SidebarSortOption.allCases) { option in
+                    Button(action: {
+                        sidebarSortOption = option
+                    }) {
+                        HStack {
+                            Text(option.label)
+                            if sidebarSortOption == option {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Section("Filter") {
+                ForEach(SidebarFilterOption.allCases) { filter in
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            sidebarFilterOption = filter
+                        }
+                    }) {
+                        HStack {
+                            Label(filter.label, systemImage: filter.icon)
+                            if sidebarFilterOption == filter {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if isFilterOrSortCustom {
+                Divider()
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        sidebarSortOption = .modifiedDesc
+                        sidebarFilterOption = .all
+                    }
+                }) {
+                    Label("Reset Default", systemImage: "arrow.counterclockwise")
+                }
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: isFilterOrSortCustom ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isFilterOrSortCustom ? Color.accentColor : Color.secondary)
+                    .frame(width: 25, height: 25)
+                    .background(isFilterOrSortCustom ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 25, height: 25)
+        .help("Order By: \(sidebarSortOption.label)\(sidebarFilterOption != .all ? " • Filter: \(sidebarFilterOption.label)" : "")")
+    }
+
     // MARK: - Live Search Results View
 
     private var searchResultsView: some View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 3) {
                 let matching = store.activePages.filter { page in
-                    page.title.localizedCaseInsensitiveContains(searchText) ||
-                    page.rawContent.localizedCaseInsensitiveContains(searchText)
+                    (page.title.localizedCaseInsensitiveContains(searchText) ||
+                    page.rawContent.localizedCaseInsensitiveContains(searchText)) &&
+                    store.pageMatchesFilter(page, filter: sidebarFilterOption)
                 }
+                let sortedMatching = store.sortPages(matching, by: sidebarSortOption)
 
-                if matching.isEmpty {
+                if sortedMatching.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 20))
@@ -263,8 +368,8 @@ struct SidebarView: View {
                     .padding(.top, 40)
                 } else {
                     HStack {
-                        Text("\(matching.count) MATCH\(matching.count == 1 ? "" : "ES")")
-                            .font(.system(size: 9.5, weight: .bold))
+                        Text("\(sortedMatching.count) MATCH\(sortedMatching.count == 1 ? "" : "ES") • \(sidebarSortOption.label.uppercased())")
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.tertiary)
                         Spacer()
                     }
@@ -272,7 +377,7 @@ struct SidebarView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 2)
 
-                    ForEach(matching) { page in
+                    ForEach(sortedMatching) { page in
                         SearchResultItemRow(
                             store: store,
                             page: page,
@@ -364,7 +469,8 @@ struct SidebarView: View {
             .buttonStyle(.plain)
 
             if isFavoritesExpanded {
-                if store.favoritePages.isEmpty {
+                let favs = store.sortedFavoritePages(by: sidebarSortOption)
+                if favs.isEmpty {
                     Text("No favorites yet. Star notes to pin them here.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.tertiary)
@@ -373,12 +479,14 @@ struct SidebarView: View {
                         .padding(.vertical, 2)
                 } else {
                     SidebarTreeContainer {
-                        ForEach(store.favoritePages) { favPage in
+                        ForEach(favs) { favPage in
                             SidebarDocumentItemRow(
                                 store: store,
                                 pageId: favPage.id,
                                 isSelected: store.selectedPageId == favPage.id,
-                                depth: 0
+                                depth: 0,
+                                sortOption: sidebarSortOption,
+                                filterOption: sidebarFilterOption
                             )
                         }
                     }
@@ -521,6 +629,8 @@ struct SidebarView: View {
                     store: store,
                     category: category,
                     searchText: searchText,
+                    sortOption: sidebarSortOption,
+                    filterOption: sidebarFilterOption,
                     onCustomize: {
                         categoryToCustomize = category
                     }
@@ -569,7 +679,33 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Bottom Action Bar (New Document, Settings, New Folder)
+    // MARK: - Bottom Action Bar (New Document, Settings, Single Quick Theme Toggle)
+
+    private var isDarkModeActive: Bool {
+        if appAppearance == "dark" { return true }
+        if appAppearance == "light" { return false }
+        return colorScheme == .dark
+    }
+
+    private var themeToggleIcon: String {
+        isDarkModeActive ? "sun.max.fill" : "moon.fill"
+    }
+
+    private var themeToggleTooltip: String {
+        isDarkModeActive
+            ? "Switch to Light Mode (Right-click for options)"
+            : "Switch to Dark Mode (Right-click for options)"
+    }
+
+    private func toggleTheme() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if isDarkModeActive {
+                appAppearance = "light"
+            } else {
+                appAppearance = "dark"
+            }
+        }
+    }
 
     private var bottomActionBar: some View {
         VStack(spacing: 6) {
@@ -594,45 +730,72 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
 
-            // Secondary Action Row: Settings & New Folder
+            // Secondary Action Row: Settings (⌘,) & Exactly 1 Single Quick Theme Button
             HStack(spacing: 6) {
                 Button(action: {
                     isSettingsSheetPresented = true
                 }) {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Image(systemName: "gearshape")
                             .font(.system(size: 11))
                         Text("Settings")
                             .font(.system(size: 11.5, weight: .medium))
+                        Spacer()
+                        Text("⌘,")
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundStyle(.tertiary)
                     }
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(Color.primary.opacity(0.03))
+                    .background(Color.primary.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
                 .help("Settings & Vault Preferences (⌘,)")
                 .keyboardShortcut(",", modifiers: .command)
 
+                // Exactly ONE single button to change theme mode
                 Button(action: {
-                    isAddingCategory = true
+                    toggleTheme()
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 11))
-                        Text("Folder")
-                            .font(.system(size: 11.5, weight: .medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Color.primary.opacity(0.03))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Image(systemName: themeToggleIcon)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(isDarkModeActive ? Color.yellow.opacity(0.9) : Color.primary.opacity(0.75))
+                        .frame(width: 28, height: 25)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
-                .help("Create New Folder")
+                .help(themeToggleTooltip)
+                .contextMenu {
+                    Button(action: { appAppearance = "light" }) {
+                        HStack {
+                            Label("Light Mode", systemImage: "sun.max.fill")
+                            if appAppearance == "light" {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    Button(action: { appAppearance = "dark" }) {
+                        HStack {
+                            Label("Dark Mode", systemImage: "moon.fill")
+                            if appAppearance == "dark" {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    Divider()
+                    Button(action: { appAppearance = "system" }) {
+                        HStack {
+                            Label("System Default", systemImage: "circle.lefthalf.filled")
+                            if appAppearance == "system" {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -644,6 +807,8 @@ struct CategorySectionView: View {
     @ObservedObject var store: WorkspaceStore
     let category: SidebarCategory
     let searchText: String
+    var sortOption: SidebarSortOption = .modifiedDesc
+    var filterOption: SidebarFilterOption = .all
     let onCustomize: () -> Void
 
     @State private var isHovered: Bool = false
@@ -669,10 +834,10 @@ struct CategorySectionView: View {
 
             // Category Items with Vertical Tree Guide Lines
             if category.isExpanded {
-                let pagesToDisplay = store.rootPages(in: category.id)
+                let pagesToDisplay = store.filteredAndSortedRootPages(in: category.id, sort: sortOption, filter: filterOption)
 
                 if pagesToDisplay.isEmpty {
-                    Text("Empty folder. Drag notes here.")
+                    Text(filterOption == .all ? "Empty folder. Drag notes here." : "No matching notes in folder.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -685,7 +850,9 @@ struct CategorySectionView: View {
                                 store: store,
                                 pageId: page.id,
                                 isSelected: store.selectedPageId == page.id,
-                                depth: 0
+                                depth: 0,
+                                sortOption: sortOption,
+                                filterOption: filterOption
                             )
                         }
                     }
@@ -804,6 +971,8 @@ struct SidebarDocumentItemRow: View {
     let pageId: String
     let isSelected: Bool
     var depth: Int = 0
+    var sortOption: SidebarSortOption = .modifiedDesc
+    var filterOption: SidebarFilterOption = .all
 
     @State private var isHovered: Bool = false
     @State private var isSubpagesExpanded: Bool = true
@@ -829,7 +998,7 @@ struct SidebarDocumentItemRow: View {
     }
 
     private var subpages: [DocumentPage] {
-        store.subpages(of: page.id)
+        store.filteredAndSortedSubpages(of: page.id, sort: sortOption, filter: filterOption)
     }
 
     var body: some View {
@@ -974,7 +1143,9 @@ struct SidebarDocumentItemRow: View {
                             store: store,
                             pageId: child.id,
                             isSelected: store.selectedPageId == child.id,
-                            depth: depth + 1
+                            depth: depth + 1,
+                            sortOption: sortOption,
+                            filterOption: filterOption
                         )
                     }
                 }
@@ -1301,6 +1472,8 @@ struct SettingsSheet: View {
     let onDismiss: () -> Void
 
     @AppStorage("appAppearance") private var appAppearance: String = "system"
+    @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
+    @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
     @State private var selectedTab: SettingsTab = .appearance
 
     enum SettingsTab: String, CaseIterable, Identifiable {
@@ -1404,6 +1577,29 @@ struct SettingsSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
+
+            Divider().padding(.vertical, 4)
+
+            Text("SIDEBAR & NAVIGATION")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Default Note Order")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Order documents appear in sidebar categories")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Picker("", selection: $sidebarSortOption) {
+                    ForEach(SidebarSortOption.allCases) { opt in
+                        Text(opt.label).tag(opt)
+                    }
+                }
+                .frame(width: 170)
+            }
         }
     }
 
