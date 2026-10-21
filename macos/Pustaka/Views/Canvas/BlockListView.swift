@@ -200,6 +200,9 @@ final class BlockEditorTextView: NSTextView {
     var onFocus: (() -> Void)?
     var onFormattingStateChanged: ((EditorFormattingState) -> Void)?
     var onHeightChange: ((CGFloat) -> Void)?
+    var onPasteImage: ((String) -> Void)?
+    var checkPasteboardImage: ((NSPasteboard) -> String?)?
+    var hasPasteboardImage: ((NSPasteboard) -> Bool)?
 
     private var lastReportedHeight: CGFloat = 0
 
@@ -382,6 +385,19 @@ final class BlockEditorTextView: NSTextView {
         super.doCommand(by: selector)
     }
 
+    // MARK: - Pasteboard Interception (Direct Image Paste & Drop -> Vault Assets)
+
+    override func paste(_ sender: Any?) {
+        let pboard = NSPasteboard.general
+        if let checker = checkPasteboardImage,
+           let assetPath = checker(pboard),
+           let pasteImageHandler = onPasteImage {
+            pasteImageHandler(assetPath)
+            return
+        }
+        super.paste(sender)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         let pboard = sender.draggingPasteboard
         if let types = pboard.types, types.contains(NSPasteboard.PasteboardType("com.pustaka.block-drag")) {
@@ -389,6 +405,9 @@ final class BlockEditorTextView: NSTextView {
         }
         if let str = pboard.string(forType: .string), str.hasPrefix("blk_") {
             return []
+        }
+        if let hasImageChecker = hasPasteboardImage, hasImageChecker(pboard) {
+            return .copy
         }
         return super.draggingEntered(sender)
     }
@@ -400,6 +419,12 @@ final class BlockEditorTextView: NSTextView {
         }
         if let str = pboard.string(forType: .string), str.hasPrefix("blk_") {
             return false
+        }
+        if let checker = checkPasteboardImage,
+           let assetPath = checker(pboard),
+           let pasteImageHandler = onPasteImage {
+            pasteImageHandler(assetPath)
+            return true
         }
         return super.performDragOperation(sender)
     }
@@ -466,6 +491,9 @@ struct BlockEditorField: NSViewRepresentable {
     var onFocus: (() -> Void)? = nil
     var onSelectAllBlocks: (() -> Void)? = nil
     var onFormattingStateChanged: ((EditorFormattingState) -> Void)? = nil
+    var onPasteImage: ((String) -> Void)? = nil
+    var checkPasteboardImage: ((NSPasteboard) -> String?)? = nil
+    var hasPasteboardImage: ((NSPasteboard) -> Bool)? = nil
 
     func makeNSView(context: Context) -> BlockEditorTextView {
         let tv = BlockEditorTextView()
@@ -495,6 +523,9 @@ struct BlockEditorField: NSViewRepresentable {
         tv.onSelectAllBlocks = onSelectAllBlocks
         tv.onFocus = onFocus
         tv.onFormattingStateChanged = onFormattingStateChanged
+        tv.onPasteImage = onPasteImage
+        tv.checkPasteboardImage = checkPasteboardImage
+        tv.hasPasteboardImage = hasPasteboardImage
         tv.onHeightChange = { newH in
             if abs(dynamicHeight - newH) > 1 {
                 dynamicHeight = newH
@@ -540,6 +571,9 @@ struct BlockEditorField: NSViewRepresentable {
         nsView.onSelectAllBlocks = onSelectAllBlocks
         nsView.onFocus = onFocus
         nsView.onFormattingStateChanged = onFormattingStateChanged
+        nsView.onPasteImage = onPasteImage
+        nsView.checkPasteboardImage = checkPasteboardImage
+        nsView.hasPasteboardImage = hasPasteboardImage
         nsView.onHeightChange = { newH in
             if abs(dynamicHeight - newH) > 1 {
                 dynamicHeight = newH
@@ -806,7 +840,7 @@ let allSlashCommands: [SlashCommandItem] = [
     // 3. Media & Advanced
     SlashCommandItem(id: "code", title: "Code Block", desc: "Code snippet with syntax support.", icon: "curlybraces", keywords: ["code", "snippet", "pre", "syntax", "rust", "python", "js", "swift"], kind: .code(lang: "rust")),
     SlashCommandItem(id: "bookmark", title: "Web Bookmark", desc: "Save a web link as a visual preview card.", icon: "link", keywords: ["bookmark", "link", "url", "web", "card", "http"], kind: .bookmark(url: "https://")),
-    SlashCommandItem(id: "image", title: "Image", desc: "Insert an image with caption.", icon: "photo", keywords: ["image", "img", "photo", "picture", "figure"], kind: .image(url: "", caption: "")),
+    SlashCommandItem(id: "image", title: "Image", desc: "Upload, paste, or embed an image.", icon: "photo", keywords: ["image", "img", "photo", "picture", "upload", "paste", "screenshot"], kind: .image(url: "", caption: "")),
     SlashCommandItem(id: "math", title: "Math / Equation", desc: "TeX or Typst mathematical formula.", icon: "function", keywords: ["math", "equation", "formula", "latex", "tex"], kind: .math(expression: "")),
     SlashCommandItem(id: "table", title: "Table / Grid", desc: "Interactive data table with columns and rows.", icon: "tablecells", keywords: ["table", "grid", "column", "columns", "data"], kind: .grid(headers: ["Column 1", "Column 2", "Column 3"], rows: [["", "", ""], ["", "", ""]]))
 ]
@@ -841,6 +875,7 @@ struct BlockListView: View {
     @State private var lastClickedBlockId: String? = nil
     @State private var blockFrames: [String: CGRect] = [:]
     @State private var marqueeRect: CGRect? = nil
+    @State private var isBottomDropTargeted: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -848,19 +883,41 @@ struct BlockListView: View {
                 blockItemView(index: index, block: block)
             }
 
-
-            // Clickable bottom buffer to start writing at end or clear selection
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 140)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if !selectedBlockIds.isEmpty {
-                        selectedBlockIds.removeAll()
-                        return
+            // Clickable bottom buffer to start writing at end, clear selection, or drop images
+            ZStack {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 140)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !selectedBlockIds.isEmpty {
+                            selectedBlockIds.removeAll()
+                            return
+                        }
+                        insertBlock(at: blocks.count, kind: .paragraph)
                     }
-                    insertBlock(at: blocks.count, kind: .paragraph)
+
+                if isBottomDropTargeted {
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        .background(Color.accentColor.opacity(0.06))
+                        .overlay(
+                            HStack(spacing: 8) {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.title3)
+                                    .foregroundStyle(Color.accentColor)
+                                Text("Drop image to insert at bottom")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
                 }
+            }
+            .onDrop(of: [.fileURL, .image], isTargeted: $isBottomDropTargeted) { providers in
+                handleDropImageAt(providers: providers, targetIndex: blocks.count)
+            }
         }
         .coordinateSpace(name: "BlockCanvasSpace")
         .onPreferenceChange(BlockFramePreferenceKey.self) { items in
@@ -1091,6 +1148,40 @@ struct BlockListView: View {
         selectedBlockIds.removeAll()
         syncBackToStore()
         self.focusedBlockId = newId
+    }
+
+    private func handleDropImageAt(providers: [NSItemProvider], targetIndex: Int) -> Bool {
+        guard let provider = providers.first else { return false }
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                var fileURL: URL?
+                if let url = item as? URL {
+                    fileURL = url
+                } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    fileURL = url
+                }
+                if let fileURL = fileURL {
+                    DispatchQueue.main.async {
+                        if let asset = store.saveImageFileToVault(from: fileURL) {
+                            insertBlock(at: targetIndex, kind: .image(url: asset, caption: ""), initialText: "")
+                        }
+                    }
+                }
+            }
+            return true
+        } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                if let data = data {
+                    DispatchQueue.main.async {
+                        if let asset = store.saveImageToVault(data: data, originalExtension: "png") {
+                            insertBlock(at: targetIndex, kind: .image(url: asset, caption: ""), initialText: "")
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        return false
     }
 
     private func formatActiveBlock(marker: String) {
@@ -1538,6 +1629,10 @@ struct BlockRowView: View {
     @State private var dynamicHeight: CGFloat = 26
     @State private var isSlashCommandOpen: Bool = false
     @State private var selectedSlashIndex: Int = 0
+    @State private var isLinkSectionExpanded: Bool = false
+    @State private var linkUrlBuffer: String = ""
+    @State private var showPasteWarning: Bool = false
+    @State private var isImageDropTargeted: Bool = false
 
     var slashQuery: String {
         if textBuffer.hasPrefix("/") {
@@ -1603,6 +1698,52 @@ struct BlockRowView: View {
         .onChange(of: slashQuery) { _, _ in
             selectedSlashIndex = 0
         }
+    }
+
+    // MARK: - Direct Image Paste & Drop Handling
+
+    private func handlePasteImage(_ assetPath: String) {
+        if case .image(let currentUrl, let currentCap) = block.kind, currentUrl.isEmpty {
+            onTransformKind(.image(url: assetPath, caption: currentCap))
+        } else if textBuffer.trimmingCharacters(in: .whitespaces).isEmpty {
+            onTransformKind(.image(url: assetPath, caption: ""))
+        } else {
+            onInsertBelow(.image(url: assetPath, caption: ""), "")
+        }
+    }
+
+    private func handleDropImageToBlock(providers: [NSItemProvider], caption: String) -> Bool {
+        guard let provider = providers.first else { return false }
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                var fileURL: URL?
+                if let url = item as? URL {
+                    fileURL = url
+                } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    fileURL = url
+                }
+                if let fileURL = fileURL {
+                    DispatchQueue.main.async {
+                        if let asset = store.saveImageFileToVault(from: fileURL) {
+                            onTransformKind(.image(url: asset, caption: caption))
+                        }
+                    }
+                }
+            }
+            return true
+        } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                if let data = data {
+                    DispatchQueue.main.async {
+                        if let asset = store.saveImageToVault(data: data, originalExtension: "png") {
+                            onTransformKind(.image(url: asset, caption: caption))
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        return false
     }
 
     // MARK: - Left Gutter Handle: [::] (Width: 14pt)
@@ -1678,7 +1819,10 @@ struct BlockRowView: View {
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
                 onSelectAllBlocks: onSelectAllBlocks,
-                onFormattingStateChanged: { state in formattingState = state }
+                onFormattingStateChanged: { state in formattingState = state },
+                onPasteImage: handlePasteImage,
+                checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
             )
             .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
@@ -1702,7 +1846,10 @@ struct BlockRowView: View {
                 onTextChanged: checkSlashCommand,
                 onFocus: onFocus,
                 onSelectAllBlocks: onSelectAllBlocks,
-                onFormattingStateChanged: { state in formattingState = state }
+                onFormattingStateChanged: { state in formattingState = state },
+                onPasteImage: handlePasteImage,
+                checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
             )
             .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
@@ -1738,7 +1885,10 @@ struct BlockRowView: View {
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
@@ -1775,7 +1925,10 @@ struct BlockRowView: View {
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
@@ -1811,7 +1964,10 @@ struct BlockRowView: View {
                         onTextChanged: checkSlashCommand,
                         onFocus: onFocus,
                         onSelectAllBlocks: onSelectAllBlocks,
-                        onFormattingStateChanged: { state in formattingState = state }
+                        onFormattingStateChanged: { state in formattingState = state },
+                        onPasteImage: handlePasteImage,
+                        checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                        hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                     )
                     .frame(minHeight: dynamicHeight, alignment: .topLeading)
                 }
@@ -1851,7 +2007,10 @@ struct BlockRowView: View {
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
@@ -1912,7 +2071,10 @@ struct BlockRowView: View {
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
@@ -1957,7 +2119,10 @@ struct BlockRowView: View {
                     onTextChanged: checkSlashCommand,
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
@@ -2006,7 +2171,10 @@ struct BlockRowView: View {
                         onTextChanged: checkSlashCommand,
                         onFocus: onFocus,
                         onSelectAllBlocks: onSelectAllBlocks,
-                        onFormattingStateChanged: { state in formattingState = state }
+                        onFormattingStateChanged: { state in formattingState = state },
+                        onPasteImage: handlePasteImage,
+                        checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                        hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                     )
                     .frame(minHeight: dynamicHeight, alignment: .topLeading)
 
@@ -2067,148 +2235,381 @@ struct BlockRowView: View {
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
             )
 
-        // 11. Image Block (Preview, Online URL, Local File Upload, Caption & Delete)
+        // 11. Image Block (Local/Paste-First Dropzone, Scaled Preview, Hover Toolbar, and Caption)
         case .image(let url, let caption):
-            VStack(alignment: .leading, spacing: 6) {
-                if !url.isEmpty {
-                    if (url.hasPrefix("http://") || url.hasPrefix("https://")), let imgUrl = URL(string: url) {
-                        AsyncImage(url: imgUrl) { phase in
-                            switch phase {
-                            case .empty:
-                                HStack {
-                                    ProgressView().controlSize(.small)
-                                    Text("Loading image...")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                if url.isEmpty {
+                    // MARK: - Local-First & Paste-First Image Dropzone Card
+                    VStack(spacing: 14) {
+                        ZStack(alignment: .topTrailing) {
+                            HStack {
+                                Spacer()
+                                Button(role: .destructive, action: onDelete) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 15))
+                                        .foregroundStyle(Color.secondary.opacity(0.6))
                                 }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 120)
-                                .background(Color.secondary.opacity(0.05))
-                            case .success(let image):
-                                image
+                                .buttonStyle(.plain)
+                                .help("Remove image block")
+                                .accessibilityLabel("Remove image block")
+                            }
+
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.accentColor.opacity(0.12))
+                                        .frame(width: 48, height: 48)
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundStyle(Color.accentColor)
+                                }
+
+                                Text("Upload or paste an image")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.primary)
+
+                                Text("Drag & drop an image here, paste with ⌘V, or choose from Mac")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+
+                        // Primary Action Buttons
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                if let localAsset = store.importLocalImageToVault() {
+                                    onTransformKind(.image(url: localAsset, caption: caption))
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 13, weight: .bold))
+                                    Text("Choose from Mac")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(Color.accentColor)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Select an image file from your computer")
+
+                            Button(action: {
+                                if let asset = store.importImageFromPasteboard() {
+                                    onTransformKind(.image(url: asset, caption: caption))
+                                } else {
+                                    withAnimation {
+                                        showPasteWarning = true
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        withAnimation {
+                                            showPasteWarning = false
+                                        }
+                                    }
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.on.clipboard")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("Paste Clipboard")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(Color(nsColor: .controlBackgroundColor))
+                                .foregroundStyle(Color.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .help("Paste copied image or screenshot (⌘V)")
+                        }
+
+                        if showPasteWarning {
+                            Text("No image found on clipboard. Copy an image or screenshot first (⌘⌃⇧4).")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.orange)
+                                .transition(.opacity)
+                        }
+
+                        // Expandable Web Link Disclosure
+                        VStack(spacing: 6) {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.16)) {
+                                    isLinkSectionExpanded.toggle()
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: isLinkSectionExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 9, weight: .bold))
+                                    Text("Or embed via web link")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+
+                            if isLinkSectionExpanded {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "link")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+
+                                    TextField("https://example.com/image.png", text: $linkUrlBuffer)
+                                        .textFieldStyle(.plain)
+                                        .font(.system(size: 12))
+                                        .padding(6)
+                                        .background(Color(nsColor: .textBackgroundColor))
+                                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                                        )
+                                        .onSubmit {
+                                            let trimmed = linkUrlBuffer.trimmingCharacters(in: .whitespaces)
+                                            if !trimmed.isEmpty {
+                                                onTransformKind(.image(url: trimmed, caption: caption))
+                                            }
+                                        }
+
+                                    Button(action: {
+                                        let trimmed = linkUrlBuffer.trimmingCharacters(in: .whitespaces)
+                                        if !trimmed.isEmpty {
+                                            onTransformKind(.image(url: trimmed, caption: caption))
+                                        }
+                                    }) {
+                                        Text("Embed")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(Color.accentColor.opacity(0.15))
+                                            .foregroundStyle(Color.accentColor)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .frame(maxWidth: 420)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+                        }
+                    }
+                    .padding(.vertical, 20)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(isImageDropTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor).opacity(0.45))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(
+                                isImageDropTargeted ? Color.accentColor : Color.secondary.opacity(0.22),
+                                style: StrokeStyle(lineWidth: isImageDropTargeted ? 2 : 1, dash: [6, 4])
+                            )
+                    )
+                    .onDrop(of: [.fileURL, .image], isTargeted: $isImageDropTargeted) { providers in
+                        handleDropImageToBlock(providers: providers, caption: caption)
+                    }
+                    .focusable()
+                    .onKeyPress { press in
+                        if press.characters == "v" && press.modifiers.contains(.command) {
+                            if let asset = store.importImageFromPasteboard() {
+                                onTransformKind(.image(url: asset, caption: caption))
+                                return .handled
+                            }
+                        }
+                        return .ignored
+                    }
+                } else {
+                    // MARK: - Loaded Image Preview, Hover Toolbar & Caption
+                    ZStack(alignment: .topTrailing) {
+                        Group {
+                            if (url.hasPrefix("http://") || url.hasPrefix("https://")), let imgUrl = URL(string: url) {
+                                AsyncImage(url: imgUrl) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        HStack {
+                                            ProgressView().controlSize(.small)
+                                            Text("Loading image...")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 140)
+                                        .background(Color.secondary.opacity(0.05))
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(maxHeight: 480)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    case .failure:
+                                        VStack(spacing: 4) {
+                                            Image(systemName: "photo.badge.exclamationmark")
+                                                .font(.title3)
+                                                .foregroundStyle(.secondary)
+                                            Text("Could not load image from URL")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 90)
+                                        .background(Color.secondary.opacity(0.05))
+                                    @unknown default:
+                                        EmptyView()
+                                    }
+                                }
+                            } else if let localPath = store.resolveVaultImagePath(url),
+                                      let nsImg = NSImage(contentsOfFile: localPath) {
+                                Image(nsImage: nsImg)
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(maxHeight: 320)
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                            case .failure:
+                                    .frame(maxHeight: 480)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else if (url.hasPrefix("/") || url.hasPrefix("file://")),
+                                      let nsImg = NSImage(contentsOfFile: url.replacingOccurrences(of: "file://", with: "")) {
+                                Image(nsImage: nsImg)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 480)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else {
                                 VStack(spacing: 4) {
                                     Image(systemName: "photo.badge.exclamationmark")
                                         .font(.title3)
                                         .foregroundStyle(.secondary)
-                                    Text("Could not load image from URL")
+                                    Text("Could not find image: \(url)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 90)
                                 .background(Color.secondary.opacity(0.05))
-                            @unknown default:
-                                EmptyView()
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    } else if let localPath = store.resolveVaultImagePath(url),
-                              let nsImg = NSImage(contentsOfFile: localPath) {
-                        Image(nsImage: nsImg)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 320)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    } else if (url.hasPrefix("/") || url.hasPrefix("file://")),
-                              let nsImg = NSImage(contentsOfFile: url.replacingOccurrences(of: "file://", with: "")) {
-                        Image(nsImage: nsImg)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 320)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    } else {
-                        VStack(spacing: 4) {
-                            Image(systemName: "photo.badge.exclamationmark")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                            Text("Could not load image file: \(url)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            if let fullPath = store.resolveVaultImagePath(url) {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: fullPath))
+                            } else if let remoteUrl = URL(string: url), remoteUrl.scheme?.hasPrefix("http") == true {
+                                NSWorkspace.shared.open(remoteUrl)
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 90)
-                        .background(Color.secondary.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        // Floating Toolbar on Hover
+                        HStack(spacing: 6) {
+                            // Replace Menu
+                            Menu {
+                                Button(action: {
+                                    if let localAsset = store.importLocalImageToVault() {
+                                        onTransformKind(.image(url: localAsset, caption: caption))
+                                    }
+                                }) {
+                                    Label("Choose from Mac...", systemImage: "arrow.up.circle")
+                                }
+
+                                Button(action: {
+                                    if let asset = store.importImageFromPasteboard() {
+                                        onTransformKind(.image(url: asset, caption: caption))
+                                    }
+                                }) {
+                                    Label("Paste from Clipboard", systemImage: "doc.on.clipboard")
+                                }
+
+                                Divider()
+
+                                Button(action: {
+                                    onTransformKind(.image(url: "", caption: caption))
+                                }) {
+                                    Label("Edit Web Link / Re-upload", systemImage: "link")
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Replace")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                            }
+                            .menuStyle(.borderlessButton)
+
+                            // Reveal in Finder (for local assets)
+                            if let fullPath = store.resolveVaultImagePath(url) {
+                                Button(action: {
+                                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: fullPath)])
+                                }) {
+                                    Image(systemName: "folder")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .padding(5)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                                        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Reveal image in Finder")
+                            }
+
+                            // Delete Image Block
+                            Button(role: .destructive, action: onDelete) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.red)
+                                    .padding(5)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                                    .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete image block")
+                        }
+                        .padding(8)
+                        .opacity(isHovered ? 1.0 : 0.0)
+                        .animation(.easeInOut(duration: 0.15), value: isHovered)
                     }
+
+                    // Caption Field
+                    BlockEditorField(
+                        text: $textBuffer,
+                        dynamicHeight: $dynamicHeight,
+                        placeholder: (isFocused && textBuffer.isEmpty) ? "Add a caption (optional)..." : "",
+                        font: NSFont.systemFont(ofSize: 13),
+                        textColor: .secondaryLabelColor,
+                        isFocused: isFocused,
+                        onCommit: {
+                            onInsertBelow(.paragraph, "")
+                        },
+                        onDeleteEmpty: onDeleteEmpty,
+                        onSlashCommit: handleSlashCommit,
+                        onSlashArrowDown: handleSlashArrowDown,
+                        onSlashArrowUp: handleSlashArrowUp,
+                        onEscape: { isSlashCommandOpen = false; return true },
+                        onTextChanged: { newCap in
+                            onTransformKind(.image(url: url, caption: newCap))
+                            onUpdateText(newCap)
+                        },
+                        onFocus: onFocus,
+                        onSelectAllBlocks: onSelectAllBlocks,
+                        onFormattingStateChanged: { state in formattingState = state },
+                        onPasteImage: handlePasteImage,
+                        checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                        hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
+                    )
+                    .frame(minHeight: dynamicHeight, alignment: .topLeading)
                 }
-
-                HStack(spacing: 8) {
-                    Image(systemName: "photo")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextField("Image URL or local path...", text: Binding(
-                        get: { url },
-                        set: { newUrl in
-                            onTransformKind(.image(url: newUrl, caption: caption))
-                        }
-                    ))
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-                    .accessibilityLabel("Image URL or Path")
-
-                    // Upload Local Image File
-                    Button(action: {
-                        if let localAsset = store.importLocalImageToVault() {
-                            onTransformKind(.image(url: localAsset, caption: caption))
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.doc")
-                                .font(.system(size: 9, weight: .bold))
-                            Text("Upload File")
-                                .font(.caption.weight(.medium))
-                        }
-                        .foregroundStyle(Color.accentColor)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 5))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Upload image from your computer")
-
-                    Spacer()
-
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .foregroundStyle(.red.opacity(0.8))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete Image")
-                    .accessibilityLabel("Delete image")
-                }
-
-                BlockEditorField(
-                    text: $textBuffer,
-                    dynamicHeight: $dynamicHeight,
-                    placeholder: (isFocused && textBuffer.isEmpty) ? "Add a caption (optional)..." : "",
-                    font: NSFont.systemFont(ofSize: 13),
-                    textColor: .secondaryLabelColor,
-                    isFocused: isFocused,
-                    onCommit: {
-                        onInsertBelow(.paragraph, "")
-                    },
-                    onDeleteEmpty: onDeleteEmpty,
-                    onSlashCommit: handleSlashCommit,
-                    onSlashArrowDown: handleSlashArrowDown,
-                    onSlashArrowUp: handleSlashArrowUp,
-                    onEscape: { isSlashCommandOpen = false; return true },
-                    onTextChanged: { newCap in
-                        onTransformKind(.image(url: url, caption: newCap))
-                        onUpdateText(newCap)
-                    },
-                    onFocus: onFocus,
-                    onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
-                )
-                .frame(minHeight: dynamicHeight, alignment: .topLeading)
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -2259,7 +2660,10 @@ struct BlockRowView: View {
                     },
                     onFocus: onFocus,
                     onSelectAllBlocks: onSelectAllBlocks,
-                    onFormattingStateChanged: { state in formattingState = state }
+                    onFormattingStateChanged: { state in formattingState = state },
+                    onPasteImage: handlePasteImage,
+                    checkPasteboardImage: { pboard in store.importImageFromPasteboard(pboard) },
+                    hasPasteboardImage: { pboard in store.pasteboardContainsImage(pboard) }
                 )
                 .frame(minHeight: dynamicHeight, alignment: .topLeading)
 

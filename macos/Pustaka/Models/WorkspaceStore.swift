@@ -515,6 +515,58 @@ class WorkspaceStore: ObservableObject {
 
     // MARK: - Local Image & Asset Management
 
+    /// Ensures the assets directory exists under ~/Documents/Pustaka/assets/
+    var vaultAssetsDirectoryURL: URL {
+        let dir = vaultURL.appendingPathComponent("assets", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        }
+        return dir
+    }
+
+    /// Saves raw image data into ~/Documents/Pustaka/assets/img_<UUID>.<ext> and returns relative path "assets/img_<UUID>.<ext>"
+    @discardableResult
+    func saveImageToVault(data: Data, originalExtension: String? = "png") -> String? {
+        let rawExt = originalExtension?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) ?? "png"
+        let ext = rawExt.isEmpty ? "png" : rawExt
+        let assetsDir = vaultAssetsDirectoryURL
+        let destName = "img_\(UUID().uuidString.prefix(8)).\(ext)"
+        let destURL = assetsDir.appendingPathComponent(destName)
+        do {
+            try data.write(to: destURL)
+            return "assets/\(destName)"
+        } catch {
+            print("Failed to save image data to vault: \(error)")
+            return nil
+        }
+    }
+
+    /// Copies or reads an existing image file from disk into ~/Documents/Pustaka/assets/
+    @discardableResult
+    func saveImageFileToVault(from fileURL: URL) -> String? {
+        let assetsDir = vaultAssetsDirectoryURL
+        // If file is already inside vault assets directory, return relative path directly
+        if fileURL.path.hasPrefix(assetsDir.path) {
+            return "assets/\(fileURL.lastPathComponent)"
+        }
+
+        let rawExt = fileURL.pathExtension.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let ext = rawExt.isEmpty ? "png" : rawExt
+        let destName = "img_\(UUID().uuidString.prefix(8)).\(ext)"
+        let destURL = assetsDir.appendingPathComponent(destName)
+
+        do {
+            try FileManager.default.copyItem(at: fileURL, to: destURL)
+            return "assets/\(destName)"
+        } catch {
+            if let data = try? Data(contentsOf: fileURL) {
+                return saveImageToVault(data: data, originalExtension: ext)
+            }
+            print("Failed to copy image to vault: \(error)")
+            return nil
+        }
+    }
+
     /// Opens an NSOpenPanel to let user pick an image file from disk, copies it into ~/Documents/Pustaka/assets/, and returns the relative path "assets/filename.png"
     func importLocalImageToVault() -> String? {
         let panel = NSOpenPanel()
@@ -525,32 +577,96 @@ class WorkspaceStore: ObservableObject {
         panel.prompt = "Select Image"
         panel.message = "Choose an image to copy into your Pustaka vault"
         if panel.runModal() == .OK, let selectedUrl = panel.url {
-            let assetsDir = vaultURL.appendingPathComponent("assets", isDirectory: true)
-            try? FileManager.default.createDirectory(at: assetsDir, withIntermediateDirectories: true)
-            let ext = selectedUrl.pathExtension.isEmpty ? "png" : selectedUrl.pathExtension
-            let destName = "img_\(UUID().uuidString.prefix(8)).\(ext)"
-            let destURL = assetsDir.appendingPathComponent(destName)
-            try? FileManager.default.copyItem(at: selectedUrl, to: destURL)
-            return "assets/\(destName)"
+            return saveImageFileToVault(from: selectedUrl)
         }
+        return nil
+    }
+
+    /// Checks if NSPasteboard contains any image data or image file URLs without side effects
+    func pasteboardContainsImage(_ pboard: NSPasteboard = .general) -> Bool {
+        // 1. Check for file URLs with image extensions
+        if let urls = pboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let supportedExts = ["png", "jpg", "jpeg", "gif", "webp", "tiff", "heic", "bmp", "svg", "ico"]
+            if urls.contains(where: { supportedExts.contains($0.pathExtension.lowercased()) }) {
+                return true
+            }
+        }
+
+        // 2. Check for image types on pasteboard
+        let imageTypeIdentifiers = [
+            "public.png",
+            "public.jpeg",
+            "public.tiff",
+            "com.compuserve.gif",
+            "public.image"
+        ]
+        if let types = pboard.types {
+            for t in types {
+                if imageTypeIdentifiers.contains(t.rawValue) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// Checks NSPasteboard for images (file URLs, raw PNG/JPEG/GIF, or clipboard screenshot) and imports into ~/Documents/Pustaka/assets/
+    func importImageFromPasteboard(_ pboard: NSPasteboard = .general) -> String? {
+        // 1. Check if pasteboard contains a copied image file from Finder/Desktop
+        if let urls = pboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let supportedExts = ["png", "jpg", "jpeg", "gif", "webp", "tiff", "heic", "bmp", "svg", "ico"]
+            for url in urls {
+                let ext = url.pathExtension.lowercased()
+                if supportedExts.contains(ext) {
+                    if let saved = saveImageFileToVault(from: url) {
+                        return saved
+                    }
+                }
+            }
+        }
+
+        // 2. Check for animated GIF, PNG, or JPEG raw data
+        let gifType = NSPasteboard.PasteboardType("com.compuserve.gif")
+        if let gifData = pboard.data(forType: gifType) {
+            return saveImageToVault(data: gifData, originalExtension: "gif")
+        }
+        let pngType = NSPasteboard.PasteboardType("public.png")
+        if let pngData = pboard.data(forType: pngType) {
+            return saveImageToVault(data: pngData, originalExtension: "png")
+        }
+        let jpegType = NSPasteboard.PasteboardType("public.jpeg")
+        if let jpegData = pboard.data(forType: jpegType) {
+            return saveImageToVault(data: jpegData, originalExtension: "jpg")
+        }
+
+        // 3. Fallback: extract NSImage from pasteboard (works for macOS screenshot ⌘⌃⇧4, Safari "Copy Image", Figma, etc.)
+        if let image = NSImage(pasteboard: pboard) {
+            if let tiff = image.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let pngData = rep.representation(using: .png, properties: [:]) {
+                return saveImageToVault(data: pngData, originalExtension: "png")
+            }
+        }
+
         return nil
     }
 
     /// Resolves an image URL or vault-relative path to an absolute file path if existing on disk
     func resolveVaultImagePath(_ pathOrUrl: String) -> String? {
-        if pathOrUrl.hasPrefix("assets/") {
-            let full = vaultURL.appendingPathComponent(pathOrUrl).path
+        let normalized = pathOrUrl.replacingOccurrences(of: "../assets/", with: "assets/")
+        if normalized.hasPrefix("assets/") {
+            let full = vaultURL.appendingPathComponent(normalized).path
             if FileManager.default.fileExists(atPath: full) {
                 return full
             }
-        } else if pathOrUrl.hasPrefix("file://") {
-            let path = pathOrUrl.replacingOccurrences(of: "file://", with: "")
+        } else if normalized.hasPrefix("file://") {
+            let path = normalized.replacingOccurrences(of: "file://", with: "")
             if FileManager.default.fileExists(atPath: path) {
                 return path
             }
-        } else if pathOrUrl.hasPrefix("/") {
-            if FileManager.default.fileExists(atPath: pathOrUrl) {
-                return pathOrUrl
+        } else if normalized.hasPrefix("/") {
+            if FileManager.default.fileExists(atPath: normalized) {
+                return normalized
             }
         }
         return nil
@@ -1172,6 +1288,8 @@ class WorkspaceStore: ObservableObject {
                 let cap = caption.isEmpty ? text : caption
                 if !url.isEmpty {
                     lines.append("![\(cap)](\(url))")
+                } else {
+                    lines.append("![\(cap)]()")
                 }
             case .math(let expression):
                 let expr = expression.isEmpty ? text : expression
