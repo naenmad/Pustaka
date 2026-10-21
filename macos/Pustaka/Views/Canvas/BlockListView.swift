@@ -357,6 +357,31 @@ final class BlockEditorTextView: NSTextView {
         super.keyDown(with: event)
     }
 
+    override func doCommand(by selector: Selector) {
+        // Intercept standard AppKit navigation commands when slash menu is open
+        if selector == #selector(NSResponder.moveDown(_:)) {
+            if let downHandler = onSlashArrowDown, downHandler() {
+                return
+            }
+        }
+        if selector == #selector(NSResponder.moveUp(_:)) {
+            if let upHandler = onSlashArrowUp, upHandler() {
+                return
+            }
+        }
+        if selector == #selector(NSResponder.insertNewline(_:)) {
+            if let slashHandler = onSlashCommit, slashHandler() {
+                return
+            }
+        }
+        if selector == #selector(NSResponder.cancelOperation(_:)) {
+            if let escHandler = onEscape, escHandler() {
+                return
+            }
+        }
+        super.doCommand(by: selector)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         let pboard = sender.draggingPasteboard
         if let types = pboard.types, types.contains(NSPasteboard.PasteboardType("com.pustaka.block-drag")) {
@@ -502,6 +527,7 @@ struct BlockEditorField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: BlockEditorTextView, context: Context) {
+        context.coordinator.parent = self
         nsView.placeholderText = placeholder
         nsView.font = font
         nsView.textColor = textColor
@@ -611,7 +637,7 @@ struct BlockEditorField: NSViewRepresentable {
 
             let md = MarkdownStyler.attributedStringToMarkdown(tv.attributedString())
             parent.text = md
-            parent.onTextChanged?(md)
+            parent.onTextChanged?(rawStr)
             tv.updateFormattingState()
             tv.recalculateHeight()
             tv.needsDisplay = true

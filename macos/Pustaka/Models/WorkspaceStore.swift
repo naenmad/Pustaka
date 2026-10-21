@@ -172,10 +172,10 @@ class WorkspaceStore: ObservableObject {
         syncMarkdownVault()
     }
 
-    // MARK: - Obsidian Vault Markdown Sync
+    // MARK: - Obsidian Vault Markdown Sync (Hierarchical Subpages & Folders)
 
-    func safeFileName(for page: DocumentPage) -> String {
-        let trimmed = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    func sanitizedName(from title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitized = trimmed
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
@@ -186,11 +186,49 @@ class WorkspaceStore: ObservableObject {
             .replacingOccurrences(of: "<", with: "")
             .replacingOccurrences(of: ">", with: "")
             .replacingOccurrences(of: "|", with: "")
-        let base = sanitized.isEmpty ? "Untitled" : sanitized
+        return sanitized.isEmpty ? "Untitled" : sanitized
+    }
+
+    func safeFileName(for page: DocumentPage) -> String {
+        let base = sanitizedName(from: page.title)
         return "\(base).md"
     }
 
-    /// Synchronizes all document pages as standard Markdown files (.md) in ~/Documents/Pustaka/ or .trash/
+    /// Resolves the relative path of a document inside the vault.
+    /// Root documents: "Aksara.md"
+    /// Subpages: nested inside parent folder: "Aksara/Sansakerta.md", "Aksara/Sansakerta/DeepChild.md"
+    func relativeVaultPath(for page: DocumentPage) -> String {
+        var pathComponents: [String] = []
+        var visited = Set<String>()
+        var current: DocumentPage? = page
+
+        while let p = current, !visited.contains(p.id) {
+            visited.insert(p.id)
+            let name = sanitizedName(from: p.title)
+            if p.id == page.id {
+                pathComponents.insert("\(name).md", at: 0)
+            } else {
+                pathComponents.insert(name, at: 0)
+            }
+            if let parentId = p.parentPageId {
+                current = pages.first(where: { $0.id == parentId })
+            } else {
+                current = nil
+            }
+        }
+        return pathComponents.joined(separator: "/")
+    }
+
+    /// Returns the target URL for a page in active vault or trash storage
+    func fileURL(for page: DocumentPage, inTrash: Bool? = nil) -> URL {
+        let isTrash = inTrash ?? page.isDeleted
+        let baseURL = isTrash ? trashURL : vaultURL
+        let relPath = relativeVaultPath(for: page)
+        return baseURL.appendingPathComponent(relPath)
+    }
+
+    /// Synchronizes all document pages as standard Markdown files (.md) in ~/Documents/Pustaka/
+    /// Subpages are neatly organized inside parent folders (e.g. Aksara/Sansakerta.md)
     private func syncMarkdownVault() {
         let vault = vaultURL
         let trash = trashURL
@@ -198,17 +236,30 @@ class WorkspaceStore: ObservableObject {
         let fileManager = FileManager.default
 
         for page in pages {
-            let fileName = safeFileName(for: page)
-            let activeFileURL = vault.appendingPathComponent(fileName)
-            let trashFileURL = trash.appendingPathComponent(fileName)
+            let activeFileURL = fileURL(for: page, inTrash: false)
+            let trashFileURL = fileURL(for: page, inTrash: true)
 
             let targetURL = page.isDeleted ? trashFileURL : activeFileURL
             let staleURL = page.isDeleted ? activeFileURL : trashFileURL
 
-            // Clean up stale file from previous state if location changed
+            // Clean up stale file from active/trash toggle
             if fileManager.fileExists(atPath: staleURL.path) {
                 try? fileManager.removeItem(at: staleURL)
             }
+
+            // Clean up legacy flat file at root if migrated into subfolder
+            let legacyFlatActive = vault.appendingPathComponent(safeFileName(for: page))
+            let legacyFlatTrash = trash.appendingPathComponent(safeFileName(for: page))
+            if legacyFlatActive.path != targetURL.path && fileManager.fileExists(atPath: legacyFlatActive.path) {
+                try? fileManager.removeItem(at: legacyFlatActive)
+            }
+            if legacyFlatTrash.path != targetURL.path && fileManager.fileExists(atPath: legacyFlatTrash.path) {
+                try? fileManager.removeItem(at: legacyFlatTrash)
+            }
+
+            // Ensure parent directory exists (e.g. ~/Documents/Pustaka/Aksara/)
+            let parentDir = targetURL.deletingLastPathComponent()
+            try? fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
 
             let categoryName = categories.first(where: { $0.id == page.categoryId })?.name ?? "Documents"
             let isoDate = isoFormatter.string(from: page.lastModified)
@@ -247,7 +298,7 @@ class WorkspaceStore: ObservableObject {
         let targetId = pageId ?? selectedPageId
         if let targetId = targetId,
            let page = pages.first(where: { $0.id == targetId }) {
-            let targetURL = page.isDeleted ? trashURL.appendingPathComponent(safeFileName(for: page)) : vaultURL.appendingPathComponent(safeFileName(for: page))
+            let targetURL = fileURL(for: page)
             if FileManager.default.fileExists(atPath: targetURL.path) {
                 NSWorkspace.shared.activateFileViewerSelecting([targetURL])
                 return
@@ -718,10 +769,14 @@ class WorkspaceStore: ObservableObject {
 
         for delId in toDeleteIds {
             if let page = pages.first(where: { $0.id == delId }) {
-                let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
-                let trashFileURL = trashURL.appendingPathComponent(safeFileName(for: page))
+                let fileURL = self.fileURL(for: page, inTrash: false)
+                let trashFileURL = self.fileURL(for: page, inTrash: true)
+                let legacyFlat = vaultURL.appendingPathComponent(safeFileName(for: page))
+                let legacyTrash = trashURL.appendingPathComponent(safeFileName(for: page))
                 try? FileManager.default.removeItem(at: fileURL)
                 try? FileManager.default.removeItem(at: trashFileURL)
+                try? FileManager.default.removeItem(at: legacyFlat)
+                try? FileManager.default.removeItem(at: legacyTrash)
             }
         }
 
@@ -751,10 +806,14 @@ class WorkspaceStore: ObservableObject {
         openTabIds.removeAll { deletedIds.contains($0) }
 
         for page in deleted {
-            let fileURL = vaultURL.appendingPathComponent(safeFileName(for: page))
-            let trashFileURL = trashURL.appendingPathComponent(safeFileName(for: page))
+            let fileURL = self.fileURL(for: page, inTrash: false)
+            let trashFileURL = self.fileURL(for: page, inTrash: true)
+            let legacyFlat = vaultURL.appendingPathComponent(safeFileName(for: page))
+            let legacyTrash = trashURL.appendingPathComponent(safeFileName(for: page))
             try? FileManager.default.removeItem(at: fileURL)
             try? FileManager.default.removeItem(at: trashFileURL)
+            try? FileManager.default.removeItem(at: legacyFlat)
+            try? FileManager.default.removeItem(at: legacyTrash)
         }
 
         objectWillChange.send()
@@ -831,16 +890,23 @@ class WorkspaceStore: ObservableObject {
     func updatePageTitle(pageId: String, newTitle: String) {
         guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         let oldPage = pages[idx]
-        let oldFileName = safeFileName(for: oldPage)
-        let oldFileURL = vaultURL.appendingPathComponent(oldFileName)
+        let oldActiveURL = fileURL(for: oldPage, inTrash: false)
+        let oldTrashURL = fileURL(for: oldPage, inTrash: true)
+        let legacyFlatOld = vaultURL.appendingPathComponent(safeFileName(for: oldPage))
 
         objectWillChange.send()
         pages[idx].title = newTitle
         pages[idx].lastModified = Date()
 
-        let newFileName = safeFileName(for: pages[idx])
-        if oldFileName != newFileName && FileManager.default.fileExists(atPath: oldFileURL.path) {
-            try? FileManager.default.removeItem(at: oldFileURL)
+        let newActiveURL = fileURL(for: pages[idx], inTrash: false)
+        if oldActiveURL.path != newActiveURL.path && FileManager.default.fileExists(atPath: oldActiveURL.path) {
+            try? FileManager.default.removeItem(at: oldActiveURL)
+        }
+        if oldTrashURL.path != newActiveURL.path && FileManager.default.fileExists(atPath: oldTrashURL.path) {
+            try? FileManager.default.removeItem(at: oldTrashURL)
+        }
+        if legacyFlatOld.path != newActiveURL.path && FileManager.default.fileExists(atPath: legacyFlatOld.path) {
+            try? FileManager.default.removeItem(at: legacyFlatOld)
         }
 
         saveToDisk()
