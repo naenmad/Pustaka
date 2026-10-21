@@ -1,6 +1,8 @@
+import Foundation
 import SwiftUI
+import AppKit
 
-// MARK: - AI Assistant Side Panel View (Dedicated Antigravity ACP)
+// MARK: - AI Assistant Side Panel View (Universal Multi-Provider ACP & Agents)
 
 struct AIAssistantPanelView: View {
     @ObservedObject var store: WorkspaceStore
@@ -8,7 +10,6 @@ struct AIAssistantPanelView: View {
     @Binding var isPresented: Bool
 
     @State private var inputPrompt: String = ""
-    @FocusState private var isInputFocused: Bool
     @State private var copiedMessageId: UUID? = nil
     @State private var showReplaceConfirmation: Bool = false
     @State private var textToReplace: String = ""
@@ -18,6 +19,11 @@ struct AIAssistantPanelView: View {
 
     private var activePage: DocumentPage? {
         store.selectedPage
+    }
+
+    private var activePageURL: URL? {
+        guard let page = activePage else { return nil }
+        return store.fileURL(for: page)
     }
 
     var body: some View {
@@ -50,9 +56,6 @@ struct AIAssistantPanelView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             agentService.checkAgentAvailability()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isInputFocused = true
-            }
         }
         .sheet(isPresented: $isSettingsOpen) {
             SettingsSheet(
@@ -72,8 +75,8 @@ struct AIAssistantPanelView: View {
         } message: {
             Text("This will replace the content of '\(activePage?.title ?? "Document")' with the AI response. You can undo this later via document history.")
         }
-        .alert("Custom Model ID", isPresented: $showCustomModelDialog) {
-            TextField("e.g. gemini-3.8-flash-high, claude-sonnet-4-6", text: $customModelInput)
+        .alert("Custom Model Identifier", isPresented: $showCustomModelDialog) {
+            TextField("e.g. gemini-3.8-flash-high, claude-3-7-sonnet", text: $customModelInput)
             Button("Cancel", role: .cancel) { }
             Button("Set Model") {
                 let trimmed = customModelInput.trimmingCharacters(in: .whitespaces)
@@ -82,7 +85,7 @@ struct AIAssistantPanelView: View {
                 }
             }
         } message: {
-            Text("Enter model identifier for the Antigravity ACP session.")
+            Text("Enter a custom model identifier to send to \(agentService.currentProvider.shortName).")
         }
     }
 
@@ -94,7 +97,7 @@ struct AIAssistantPanelView: View {
                 Circle()
                     .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 22, height: 22)
-                Image(systemName: "sparkles")
+                Image(systemName: agentService.currentProvider.icon)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.white)
             }
@@ -123,7 +126,7 @@ struct AIAssistantPanelView: View {
                     .padding(4)
             }
             .buttonStyle(.plain)
-            .help("AI Settings (⌘,)")
+            .help("AI & ACP Settings (⌘,)")
 
             if !agentService.messages.isEmpty {
                 Button(action: { agentService.clearHistory() }) {
@@ -179,7 +182,7 @@ struct AIAssistantPanelView: View {
 
             Spacer()
 
-            Text("ACP Mode")
+            Text(agentService.currentProvider.isCliAgent ? "ACP Agent" : "API Direct")
                 .font(.system(size: 8.5, weight: .semibold))
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 5)
@@ -203,15 +206,15 @@ struct AIAssistantPanelView: View {
                     Circle()
                         .fill(Color.orange.opacity(0.12))
                         .frame(width: 44, height: 44)
-                    Image(systemName: "sparkles")
+                    Image(systemName: agentService.currentProvider.icon)
                         .font(.system(size: 20))
                         .foregroundStyle(Color.orange)
                 }
 
                 VStack(spacing: 4) {
-                    Text("Antigravity CLI Required")
+                    Text("\(agentService.currentProvider.shortName) Setup Needed")
                         .font(.system(size: 13, weight: .bold))
-                    Text("Pustaka communicates with your local Antigravity agent (`agy`) via standard Zed ACP protocol.")
+                    Text(onboardingDescription)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -219,39 +222,39 @@ struct AIAssistantPanelView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    Button(action: { isSettingsOpen = true }) {
                         HStack {
-                            Image(systemName: "terminal")
-                                .font(.system(size: 11))
-                            Text("Antigravity CLI (Recommended)")
-                                .font(.system(size: 11.5, weight: .semibold))
+                            Text("Configure in Settings (⌘,)")
+                            Spacer()
+                            Image(systemName: "arrow.right")
                         }
-                        Text("Free, unlimited AI assistant logged into your Google account on macOS.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
-                        Button(action: { isSettingsOpen = true }) {
-                            HStack {
-                                Text("Configure in Settings (⌘,)")
-                                Spacer()
-                                Image(systemName: "arrow.right")
-                            }
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor.opacity(0.1))
-                            .foregroundStyle(Color.accentColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.accentColor.opacity(0.1))
+                        .foregroundStyle(Color.accentColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
             }
             .padding(.vertical, 12)
+        }
+    }
+
+    private var onboardingDescription: String {
+        switch agentService.currentProvider {
+        case .antigravity:
+            return "Pustaka communicates with your local Antigravity agent (`agy`) directly via standard stdio ACP."
+        case .claudeCode:
+            return "Requires the `claude` CLI installed locally on your Mac (`npm install -g @anthropic-ai/claude-code`)."
+        case .geminiCli:
+            return "Requires the `gemini` CLI binary installed and available in your shell PATH."
+        case .customAcp:
+            return "Please define the command path and arguments for your custom agent in Settings."
+        case .geminiApi, .openai, .claudeApi:
+            return "Please configure your API credentials and endpoint in Settings."
         }
     }
 
@@ -275,7 +278,7 @@ struct AIAssistantPanelView: View {
                 VStack(spacing: 4) {
                     Text("How can I assist your writing?")
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Ask questions, generate ideas, fix tone, or transform blocks.")
+                    Text("Ask questions, generate ideas, edit notes, or format data tables.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -284,10 +287,10 @@ struct AIAssistantPanelView: View {
 
                 VStack(spacing: 6) {
                     suggestionChip(title: "⚡ Summarize this note", prompt: "Please summarize the key takeaways of this note in 3 concise bullet points.")
+                    suggestionChip(title: "📊 Generate structured table", prompt: "Organize the information in this note into an elegant Markdown table with 3-4 columns.")
                     suggestionChip(title: "✍️ Expand and elaborate", prompt: "Expand the ideas in this note with more depth, supporting arguments, and practical examples.")
-                    suggestionChip(title: "✨ Polish grammar & diction", prompt: "Review and refine the diction and phrasing in this note to sound more professional and engaging.")
-                    suggestionChip(title: "📐 Generate Typst math formula", prompt: "Show me an elegant mathematical formula written in Typst markup syntax for this topic.")
-                    suggestionChip(title: "📑 Suggest subpage outline", prompt: "Suggest 3-4 structured subpages that would naturally expand on this document.")
+                    suggestionChip(title: "✨ Polish grammar & tone", prompt: "Review and refine the diction in this note to sound clear, professional, and engaging.")
+                    suggestionChip(title: "📐 Generate Typst math formula", prompt: "Show me an elegant mathematical formula for this topic formatted as $$...$$.")
                 }
                 .padding(.horizontal, 12)
             }
@@ -345,10 +348,10 @@ struct AIAssistantPanelView: View {
         VStack(alignment: msg.role == .user ? .trailing : .leading, spacing: 4) {
             HStack(spacing: 5) {
                 if msg.role == .assistant {
-                    Image(systemName: "sparkles")
+                    Image(systemName: agentService.currentProvider.icon)
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.accentColor)
-                    Text("Antigravity")
+                    Text(agentService.currentProvider.shortName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                 } else {
@@ -361,85 +364,116 @@ struct AIAssistantPanelView: View {
 
             if msg.role == .assistant {
                 VStack(alignment: .leading, spacing: 8) {
-                    FormattedMarkdownMessageView(rawMarkdown: msg.content)
+                    // 1. Visible Agent Process Card (Tool executions, parameters, duration, thinking tokens)
+                    AgentProcessCard(
+                        steps: msg.processSteps,
+                        isStreaming: msg.isStreaming,
+                        thinkingTokens: msg.thinkingTokens,
+                        durationSeconds: msg.durationSeconds
+                    )
 
-                    if msg.isStreaming {
+                    // 2. Reusable Markdown Block Canvas Rendering
+                    if !msg.content.isEmpty {
+                        ReusableMarkdownBlockView(rawMarkdown: msg.content)
+                    }
+
+                    if msg.isStreaming && msg.content.isEmpty {
                         HStack(spacing: 4) {
                             Circle()
                                 .fill(Color.accentColor)
                                 .frame(width: 5, height: 5)
-                            Text("Agent typing...")
+                            Text("Agent reasoning...")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.top, 2)
-                    } else if !msg.content.isEmpty && !msg.content.starts(with: "⚠️") && !msg.content.starts(with: "❌") {
+                    } else if !msg.isStreaming && !msg.content.isEmpty && !msg.content.starts(with: "⚠️") && !msg.content.starts(with: "❌") {
                         Divider().opacity(0.2).padding(.vertical, 2)
 
-                        HStack(spacing: 8) {
-                            // Direct Replace Note Button
-                            Button(action: {
-                                textToReplace = msg.content
-                                showReplaceConfirmation = true
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .font(.system(size: 9))
-                                    Text("Replace Note")
-                                        .font(.system(size: 10.5, weight: .semibold))
+                        // 3. Smart Contextual Action Buttons
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                // Smart Apply to Note
+                                Button(action: {
+                                    applyResponseToNote(msg.content)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "bolt.fill")
+                                            .font(.system(size: 8.5))
+                                        Text("Apply to Note")
+                                            .font(.system(size: 10, weight: .semibold))
+                                    }
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3.5)
+                                    .background(Color.accentColor.opacity(0.12))
+                                    .foregroundStyle(Color.accentColor)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3.5)
-                                .background(Color.orange.opacity(0.12))
-                                .foregroundStyle(Color.orange)
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Replace active document with this text")
+                                .buttonStyle(.plain)
+                                .help("Smartly apply changes to active note")
 
-                            // Append to Note Button
-                            Button(action: {
-                                appendContentToNote(msg.content)
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus.circle")
-                                        .font(.system(size: 9))
-                                    Text("Append")
-                                        .font(.system(size: 10.5, weight: .medium))
+                                // Insert Below
+                                Button(action: {
+                                    insertContentBelow(msg.content)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.down.to.line")
+                                            .font(.system(size: 8.5))
+                                        Text("Insert Below")
+                                            .font(.system(size: 10, weight: .medium))
+                                    }
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3.5)
+                                    .background(Color.primary.opacity(0.05))
+                                    .foregroundStyle(.primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3.5)
-                                .background(Color.accentColor.opacity(0.1))
-                                .foregroundStyle(Color.accentColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Append response to end of active document")
+                                .buttonStyle(.plain)
+                                .help("Insert content after current selection or end")
 
-                            // Copy Raw Text Button
-                            Button(action: {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(msg.content, forType: .string)
-                                copiedMessageId = msg.id
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                    if copiedMessageId == msg.id { copiedMessageId = nil }
+                                // Replace All Button
+                                Button(action: {
+                                    textToReplace = msg.content
+                                    showReplaceConfirmation = true
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .font(.system(size: 8.5))
+                                        Text("Replace All")
+                                            .font(.system(size: 10, weight: .medium))
+                                    }
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3.5)
+                                    .background(Color.orange.opacity(0.12))
+                                    .foregroundStyle(Color.orange)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: copiedMessageId == msg.id ? "checkmark" : "doc.on.doc")
-                                        .font(.system(size: 9))
-                                    Text(copiedMessageId == msg.id ? "Copied" : "Copy")
-                                        .font(.system(size: 10.5, weight: .medium))
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3.5)
-                                .background(Color.primary.opacity(0.04))
-                                .foregroundStyle(.secondary)
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
+                                .buttonStyle(.plain)
+                                .help("Replace active document with this text")
 
-                            Spacer()
+                                // Copy Raw Text Button
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(msg.content, forType: .string)
+                                    copiedMessageId = msg.id
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                        if copiedMessageId == msg.id { copiedMessageId = nil }
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: copiedMessageId == msg.id ? "checkmark" : "doc.on.doc")
+                                            .font(.system(size: 8.5))
+                                        Text(copiedMessageId == msg.id ? "Copied" : "Copy")
+                                            .font(.system(size: 10, weight: .medium))
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3.5)
+                                    .background(Color.primary.opacity(0.04))
+                                    .foregroundStyle(.secondary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -469,22 +503,27 @@ struct AIAssistantPanelView: View {
         VStack(spacing: 6) {
             // Main Input Container
             VStack(spacing: 0) {
-                // Multi-line Text Editor
-                TextEditor(text: $inputPrompt)
-                    .font(.system(size: 12.5))
-                    .frame(minHeight: 40, maxHeight: 110)
-                    .focused($isInputFocused)
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
+                // Multi-line Text Editor with Enter to Send (Shift+Enter for newline)
+                ChatInputEditorView(
+                    text: $inputPrompt,
+                    placeholder: "Ask assistant, edit note, or run tasks...",
+                    onSubmit: dispatchPrompt
+                )
+                .frame(minHeight: 40, maxHeight: 110)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
 
                 Divider().opacity(0.15)
 
-                // Bottom Controls Row: Model Picker, Effort Picker, Send Button
+                // Bottom Controls Row: Provider, Model, Effort, Send
                 HStack(spacing: 6) {
-                    // 1. Model Selector at BOTTOM
+                    // 1. Provider Switcher at BOTTOM
+                    bottomProviderSelectorMenu
+
+                    // 2. Model Selector at BOTTOM
                     bottomModelSelectorMenu
 
-                    // 2. Effort Selector at BOTTOM
+                    // 3. Effort Selector at BOTTOM (for reasoning models)
                     if agentService.currentProvider == .antigravity {
                         bottomEffortSelectorMenu
                     }
@@ -516,11 +555,11 @@ struct AIAssistantPanelView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .help("Send Prompt")
+                        .help("Send Prompt (Enter)")
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, 5)
                 .background(Color.primary.opacity(0.015))
             }
             .background(Color(nsColor: .controlBackgroundColor))
@@ -532,19 +571,59 @@ struct AIAssistantPanelView: View {
 
             // Hint Text
             HStack {
-                Text(activePage != nil ? "Note context attached" : "Global vault context")
+                Text(activePage != nil ? "Note context attached" : "Vault context")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
 
                 Spacer()
 
-                Text("Return to send")
+                Text("Enter to send • ⇧Enter newline")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 2)
         }
         .padding(10)
+    }
+
+    // MARK: - Bottom Provider Selector Menu
+
+    private var bottomProviderSelectorMenu: some View {
+        Menu {
+            ForEach(AIProviderType.allCases) { p in
+                Button(action: {
+                    agentService.currentProvider = p
+                }) {
+                    HStack {
+                        Label(p.shortName, systemImage: p.icon)
+                        if agentService.currentProvider == p {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: agentService.currentProvider.icon)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Color.accentColor)
+
+                Text(agentService.currentProvider.shortName)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 6.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3.5)
+            .background(Color.primary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     // MARK: - Bottom Model Selector Menu
@@ -579,21 +658,21 @@ struct AIAssistantPanelView: View {
                 Label("Custom Model...", systemImage: "pencil")
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.secondary)
 
                 Text(currentName)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 7, weight: .bold))
+                    .font(.system(size: 6.5, weight: .bold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 7)
+            .padding(.horizontal, 6)
             .padding(.vertical, 3.5)
             .background(Color.primary.opacity(0.05))
             .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -639,18 +718,18 @@ struct AIAssistantPanelView: View {
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "brain")
-                    .font(.system(size: 8.5))
+                    .font(.system(size: 8))
                     .foregroundStyle(Color.purple)
 
-                Text("Effort: \(agentService.currentEffort.capitalized)")
-                    .font(.system(size: 10, weight: .medium))
+                Text(agentService.currentEffort.capitalized)
+                    .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.secondary)
 
                 Image(systemName: "chevron.down")
                     .font(.system(size: 6.5, weight: .bold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 5)
             .padding(.vertical, 3.5)
             .background(Color.purple.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -669,77 +748,416 @@ struct AIAssistantPanelView: View {
         agentService.sendMessage(
             prompt: trimmed,
             activePage: activePage,
-            vaultURL: store.vaultURL
+            activePageURL: activePageURL,
+            vaultURL: store.vaultURL,
+            onDiskModified: {
+                if let page = activePage {
+                    DispatchQueue.main.async {
+                        self.store.reloadPageFromDisk(pageId: page.id)
+                    }
+                }
+            }
         )
     }
 
-    private func appendContentToNote(_ content: String) {
-        guard let page = activePage else { return }
-        let cleanAddition = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanAddition.isEmpty else { return }
+    private func applyResponseToNote(_ content: String) {
+        store.replaceActiveSelection(with: content)
+    }
 
-        var updated = page.rawContent
-        if !updated.isEmpty && !updated.hasSuffix("\n\n") {
-            updated += updated.hasSuffix("\n") ? "\n" : "\n\n"
-        }
-        updated += cleanAddition
-
-        store.updatePageContent(updated)
+    private func insertContentBelow(_ content: String) {
+        store.insertContentAfterActiveSelection(content)
     }
 
     private func replaceNoteWithContent(_ content: String) {
-        guard let page = activePage else { return }
         let clean = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
-
         store.updatePageContent(clean)
     }
 }
 
-// MARK: - Formatted Markdown Message View (No Raw Asterisks)
+// MARK: - NSTextView Representable for Direct Enter-to-Send
 
-struct FormattedMarkdownMessageView: View {
+struct ChatInputEditorView: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+
+        let contentSize = scrollView.contentSize
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(containerSize: NSSize(width: contentSize.width, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        textContainer.lineFragmentPadding = 2
+        layoutManager.addTextContainer(textContainer)
+
+        let textView = ChatInputNSTextView(frame: NSRect(origin: .zero, size: contentSize), textContainer: textContainer)
+        textView.minSize = NSSize(width: 0, height: contentSize.height)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.font = NSFont.systemFont(ofSize: 12.5)
+        textView.textColor = NSColor.labelColor
+        textView.placeholder = placeholder
+        textView.onSubmit = onSubmit
+        textView.delegate = context.coordinator
+
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? ChatInputNSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+            textView.needsDisplay = true
+        }
+        textView.placeholder = placeholder
+        textView.onSubmit = onSubmit
+    }
+
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: ChatInputEditorView
+        init(_ parent: ChatInputEditorView) { self.parent = parent }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.text = textView.string
+        }
+    }
+}
+
+final class ChatInputNSTextView: NSTextView {
+    var onSubmit: (() -> Void)?
+    var placeholder: String = ""
+
+    override func keyDown(with event: NSEvent) {
+        // Return key (keyCode 36) without Shift/Command/Option submits immediately
+        if event.keyCode == 36 && !event.modifierFlags.contains(.shift) && !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.option) {
+            onSubmit?()
+            return // Prevent bubbling to default window button or inserting newline!
+        }
+        super.keyDown(with: event)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if string.isEmpty && !placeholder.isEmpty {
+            let attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: NSColor.placeholderTextColor,
+                .font: font ?? NSFont.systemFont(ofSize: 12.5)
+            ]
+            let rect = NSRect(x: 2, y: 1, width: bounds.width - 4, height: bounds.height)
+            (placeholder as NSString).draw(in: rect, withAttributes: attrs)
+        }
+    }
+}
+
+// MARK: - Agent Process Card (Visible Live Process, Tool Executions, Thinking Tokens)
+
+struct AgentProcessCard: View {
+    let steps: [AgentProcessStep]
+    let isStreaming: Bool
+    let thinkingTokens: Int?
+    let durationSeconds: Double?
+
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        if !steps.isEmpty || isStreaming || (thinkingTokens ?? 0) > 0 {
+            VStack(alignment: .leading, spacing: 5) {
+                // Header row
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isExpanded.toggle()
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        if isStreaming {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.green)
+                        }
+
+                        Text(headerStatusText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        if let dur = durationSeconds {
+                            Text(String(format: "%.1fs", dur))
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4.5)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+
+                // Expanded Steps Details
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let tokens = thinkingTokens, tokens > 0 {
+                            HStack(spacing: 5) {
+                                Image(systemName: "brain")
+                                    .font(.system(size: 8.5))
+                                    .foregroundStyle(Color.purple)
+                                Text("Reasoned through context (\(tokens) thinking tokens)")
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                        }
+
+                        ForEach(steps) { step in
+                            HStack(alignment: .top, spacing: 6) {
+                                switch step.state {
+                                case .running:
+                                    ProgressView().controlSize(.mini).padding(.top, 2)
+                                case .completed:
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.green)
+                                        .padding(.top, 3)
+                                case .failed:
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.red)
+                                        .padding(.top, 3)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 4) {
+                                        Text(step.title)
+                                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(.primary)
+
+                                        if let dur = step.durationSeconds {
+                                            Text(String(format: "(%.1fs)", dur))
+                                                .font(.system(size: 8.5, design: .monospaced))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                    }
+
+                                    if let detail = step.detail, !detail.isEmpty {
+                                        Text(detail)
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 4)
+                    .background(Color(nsColor: .textBackgroundColor).opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+        }
+    }
+
+    private var headerStatusText: String {
+        if isStreaming {
+            let runningStep = steps.first(where: { $0.state == .running })
+            if let run = runningStep {
+                return "Agent executing \(run.toolName ?? "tool")..."
+            }
+            return "Agent processing request..."
+        } else {
+            let toolCount = steps.count
+            if toolCount > 0 {
+                return "Agent completed \(toolCount) tool action\(toolCount > 1 ? "s" : "")"
+            }
+            if let tokens = thinkingTokens, tokens > 0 {
+                return "Agent reasoning finished (\(tokens) tokens)"
+            }
+            return "Agent response ready"
+        }
+    }
+}
+
+// MARK: - Reusable Markdown Block Canvas View (Leverages Pustaka's Block Engine & ModernTableView)
+
+struct ReusableMarkdownBlockView: View {
     let rawMarkdown: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            let blocks = MarkdownBlockParser.parse(rawMarkdown)
+        VStack(alignment: .leading, spacing: 8) {
+            let blocks = WorkspaceStore.parseToUIBlocks(content: rawMarkdown)
             ForEach(blocks) { block in
-                switch block.type {
-                case .code(let lang, let code):
-                    CodeBlockCard(language: lang, code: code)
-                case .heading(let level, let text):
-                    Text(LocalizedStringKey(text))
-                        .font(.system(size: headingSize(level), weight: .bold))
-                        .foregroundStyle(.primary)
-                        .padding(.top, 2)
-                case .quote(let text):
-                    HStack(spacing: 8) {
-                        Rectangle()
-                            .fill(Color.accentColor.opacity(0.6))
-                            .frame(width: 3)
-                        Text(LocalizedStringKey(text))
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 2)
-                case .bullet(let text):
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("•")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.accentColor)
-                        Text(LocalizedStringKey(text))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.primary)
-                    }
-                case .divider:
-                    Divider().opacity(0.3)
-                case .paragraph(let text):
-                    Text(LocalizedStringKey(text))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                renderBlock(block)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderBlock(_ block: UIBlockItem) -> some View {
+        switch block.kind {
+        case .heading(let level):
+            Text(LocalizedStringKey(block.text))
+                .font(.system(size: headingSize(level), weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.top, 2)
+
+        case .paragraph:
+            if !block.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+        case .bullet:
+            HStack(alignment: .top, spacing: 6) {
+                Text("•")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+            }
+
+        case .numbered(let index):
+            HStack(alignment: .top, spacing: 6) {
+                Text("\(index).")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 16, alignment: .trailing)
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+            }
+
+        case .quote:
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.6))
+                    .frame(width: 3)
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+
+        case .divider:
+            Divider().opacity(0.3)
+
+        case .code(let lang):
+            CodeBlockCard(language: lang, code: block.text)
+
+        case .callout(let icon, let theme):
+            HStack(alignment: .top, spacing: 8) {
+                Text(icon)
+                    .font(.system(size: 13))
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.primary)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.bg)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(theme.stroke.opacity(0.3), lineWidth: 1)
+            )
+
+        case .math(let expr):
+            HStack {
+                Spacer()
+                Text(expr)
+                    .font(.system(size: 12, design: .monospaced))
+                    .padding(8)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                Spacer()
+            }
+
+        case .grid(let headers, let rows):
+            ModernTableView(
+                headers: headers,
+                rows: rows,
+                onUpdateTable: { _, _ in },
+                onDelete: { }
+            )
+
+        case .todo(let checked):
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: checked ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 11))
+                    .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+            }
+
+        case .toggle(let isExpanded):
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                Text(LocalizedStringKey(block.text))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary)
+            }
+
+        case .bookmark(let url):
+            HStack(spacing: 6) {
+                Image(systemName: "link")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.accentColor)
+                Text(url)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accentColor)
+                    .underline()
+            }
+
+        case .image(let url, let caption):
+            VStack(alignment: .center, spacing: 4) {
+                Text("[Image: \(caption.isEmpty ? url : caption)]")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+
+        case .subpage(let pageId):
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 10))
+                Text("Subpage link: \(pageId)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -810,79 +1228,5 @@ struct CodeBlockCard: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
-    }
-}
-
-// MARK: - Markdown Block Parser
-
-enum MarkdownParsedBlockType {
-    case code(lang: String, content: String)
-    case heading(level: Int, text: String)
-    case quote(text: String)
-    case bullet(text: String)
-    case divider
-    case paragraph(text: String)
-}
-
-struct MarkdownParsedBlock: Identifiable {
-    let id = UUID()
-    let type: MarkdownParsedBlockType
-}
-
-enum MarkdownBlockParser {
-    static func parse(_ raw: String) -> [MarkdownParsedBlock] {
-        var blocks: [MarkdownParsedBlock] = []
-        var inCode = false
-        var codeLang = ""
-        var codeLines: [String] = []
-
-        let lines = raw.components(separatedBy: .newlines)
-
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if trimmed.hasPrefix("```") {
-                if !inCode {
-                    inCode = true
-                    codeLang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-                    codeLines.removeAll()
-                } else {
-                    inCode = false
-                    blocks.append(MarkdownParsedBlock(type: .code(lang: codeLang, content: codeLines.joined(separator: "\n"))))
-                }
-                continue
-            }
-
-            if inCode {
-                codeLines.append(line)
-                continue
-            }
-
-            if trimmed.isEmpty {
-                continue
-            }
-
-            if trimmed.hasPrefix("### ") {
-                blocks.append(MarkdownParsedBlock(type: .heading(level: 3, text: String(trimmed.dropFirst(4)))))
-            } else if trimmed.hasPrefix("## ") {
-                blocks.append(MarkdownParsedBlock(type: .heading(level: 2, text: String(trimmed.dropFirst(3)))))
-            } else if trimmed.hasPrefix("# ") {
-                blocks.append(MarkdownParsedBlock(type: .heading(level: 1, text: String(trimmed.dropFirst(2)))))
-            } else if trimmed.hasPrefix("> ") {
-                blocks.append(MarkdownParsedBlock(type: .quote(text: String(trimmed.dropFirst(2)))))
-            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                blocks.append(MarkdownParsedBlock(type: .bullet(text: String(trimmed.dropFirst(2)))))
-            } else if trimmed == "---" || trimmed == "___" {
-                blocks.append(MarkdownParsedBlock(type: .divider))
-            } else {
-                blocks.append(MarkdownParsedBlock(type: .paragraph(text: trimmed)))
-            }
-        }
-
-        if inCode {
-            blocks.append(MarkdownParsedBlock(type: .code(lang: codeLang, content: codeLines.joined(separator: "\n"))))
-        }
-
-        return blocks
     }
 }

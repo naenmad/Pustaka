@@ -1178,6 +1178,93 @@ class WorkspaceStore: ObservableObject {
         updatePageContent(pageId: id, newContent: newContent)
     }
 
+    /// Reloads page content from disk if modified by external tools or ACP agents
+    func reloadPageFromDisk(pageId: String) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        let url = fileURL(for: pages[idx])
+        guard FileManager.default.fileExists(atPath: url.path),
+              let fullText = try? String(contentsOf: url, encoding: .utf8) else { return }
+
+        var raw = fullText
+        // Strip YAML frontmatter if present
+        if raw.hasPrefix("---\n") {
+            if let endRange = raw.range(of: "\n---\n", range: raw.index(raw.startIndex, offsetBy: 4)..<raw.endIndex) {
+                raw = String(raw[endRange.upperBound...])
+            }
+        }
+        raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip leading markdown title if it mirrors page title
+        let titleH1 = "# \(pages[idx].title)"
+        if raw.hasPrefix(titleH1) {
+            raw = String(raw.dropFirst(titleH1.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        pages[idx].rawContent = raw
+        pages[idx].lastModified = Date()
+        saveToDisk()
+    }
+
+    /// Appends or inserts content after the user's active selection
+    func insertContentAfterActiveSelection(_ content: String, selectedBlockIds: Set<String> = []) {
+        guard let page = selectedPage else { return }
+        let clean = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+
+        if selectedBlockIds.isEmpty {
+            // Append cleanly
+            var updated = page.rawContent
+            if !updated.isEmpty && !updated.hasSuffix("\n\n") {
+                updated += updated.hasSuffix("\n") ? "\n" : "\n\n"
+            }
+            updated += clean
+            updatePageContent(updated)
+            return
+        }
+
+        // Insert after the last selected block
+        var blocks = parseToUIBlocks(content: page.rawContent)
+        var lastSelectedIdx = -1
+        for (i, b) in blocks.enumerated() {
+            if selectedBlockIds.contains(b.id) {
+                lastSelectedIdx = i
+            }
+        }
+
+        let newBlocks = parseToUIBlocks(content: clean)
+        if lastSelectedIdx >= 0 && lastSelectedIdx < blocks.count {
+            blocks.insert(contentsOf: newBlocks, at: lastSelectedIdx + 1)
+        } else {
+            blocks.append(contentsOf: newBlocks)
+        }
+
+        let rebuilt = uiBlocksToPfs(blocks: blocks)
+        updatePageContent(rebuilt)
+    }
+
+    /// Replaces the currently selected blocks or whole document if no blocks selected
+    func replaceActiveSelection(with content: String, selectedBlockIds: Set<String> = []) {
+        guard let page = selectedPage else { return }
+        let clean = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+
+        if selectedBlockIds.isEmpty {
+            updatePageContent(clean)
+            return
+        }
+
+        var blocks = parseToUIBlocks(content: page.rawContent)
+        let firstIdx = blocks.firstIndex(where: { selectedBlockIds.contains($0.id) }) ?? 0
+        blocks.removeAll { selectedBlockIds.contains($0.id) }
+
+        let newBlocks = parseToUIBlocks(content: clean)
+        let insertionPoint = min(firstIdx, blocks.count)
+        blocks.insert(contentsOf: newBlocks, at: insertionPoint)
+
+        let rebuilt = uiBlocksToPfs(blocks: blocks)
+        updatePageContent(rebuilt)
+    }
+
     /// Generates a Typst vector SVG on-demand for previewing, exporting, or copying
     @discardableResult
     func generateTypstSvg(for page: DocumentPage? = nil) -> String {
@@ -1199,6 +1286,10 @@ class WorkspaceStore: ObservableObject {
     // MARK: - Clean Block Parser
 
     func parseToUIBlocks(content: String) -> [UIBlockItem] {
+        return Self.parseToUIBlocks(content: content)
+    }
+
+    static func parseToUIBlocks(content: String) -> [UIBlockItem] {
         let trimmedTotal = content.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedTotal.isEmpty {
             return [UIBlockItem(id: "blk_1", kind: .paragraph, text: "")]
