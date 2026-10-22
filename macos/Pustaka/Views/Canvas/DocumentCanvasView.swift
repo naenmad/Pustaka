@@ -163,7 +163,10 @@ struct DocumentCanvasView: View {
     @State private var coverPickerTab: Int = 0
     @State private var isRepositioningCover: Bool = false
     @State private var currentCoverOffsetY: Double = 0.5
+    @State private var currentCoverOffsetX: Double = 0.5
+    @State private var currentCoverScale: Double = 1.0
     @State private var initialDragOffsetY: Double = 0.5
+    @State private var initialDragOffsetX: Double = 0.5
 
     var currentPage: DocumentPage {
         store.pages.first(where: { $0.id == page.id }) ?? page
@@ -276,10 +279,14 @@ struct DocumentCanvasView: View {
         .onAppear {
             self.titleBuffer = currentPage.title
             self.currentCoverOffsetY = currentPage.coverOffsetY
+            self.currentCoverOffsetX = currentPage.coverOffsetX
+            self.currentCoverScale = currentPage.coverScale
         }
         .onChange(of: page.id) { _, _ in
             self.titleBuffer = currentPage.title
             self.currentCoverOffsetY = currentPage.coverOffsetY
+            self.currentCoverOffsetX = currentPage.coverOffsetX
+            self.currentCoverScale = currentPage.coverScale
             self.isRepositioningCover = false
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenCoverPicker"))) { _ in
@@ -566,14 +573,22 @@ struct DocumentCanvasView: View {
         }
     }
 
-    // MARK: - Cover Banner View (Supports Drag-to-Reposition & Crop)
+    // MARK: - Cover Banner View (Supports Drag, Zoom & Crop Adjustment)
 
     private var pageCoverBannerView: some View {
         ZStack(alignment: .bottomTrailing) {
             GeometryReader { geo in
+                let scale = isRepositioningCover ? currentCoverScale : currentPage.coverScale
+                let offsetY = isRepositioningCover ? currentCoverOffsetY : currentPage.coverOffsetY
+                let offsetX = isRepositioningCover ? currentCoverOffsetX : currentPage.coverOffsetX
+
                 coverImageContent
-                    .frame(width: geo.size.width)
-                    .offset(y: (0.5 - (isRepositioningCover ? currentCoverOffsetY : currentPage.coverOffsetY)) * 180)
+                    .scaleEffect(scale)
+                    .offset(
+                        x: (0.5 - offsetX) * (geo.size.width * (scale - 1.0) + 160),
+                        y: (0.5 - offsetY) * (180 * scale)
+                    )
+                    .frame(width: geo.size.width, height: 270)
             }
             .frame(height: 270)
             .clipped()
@@ -582,131 +597,219 @@ struct DocumentCanvasView: View {
                 isRepositioningCover ?
                 DragGesture()
                     .onChanged { value in
-                        let delta = -Double(value.translation.height) / 200.0
-                        currentCoverOffsetY = max(0.0, min(1.0, initialDragOffsetY + delta))
+                        let deltaY = -Double(value.translation.height) / (200.0 * currentCoverScale)
+                        let deltaX = -Double(value.translation.width) / (300.0 * currentCoverScale)
+                        currentCoverOffsetY = max(0.0, min(1.0, initialDragOffsetY + deltaY))
+                        currentCoverOffsetX = max(0.0, min(1.0, initialDragOffsetX + deltaX))
                     }
                     .onEnded { _ in
                         initialDragOffsetY = currentCoverOffsetY
+                        initialDragOffsetX = currentCoverOffsetX
                     }
                 : nil
             )
 
-            // Reposition Banner Overlay
+            // Crop Guidelines Grid (Visible when adjusting)
             if isRepositioningCover {
-                VStack {
-                    HStack(spacing: 12) {
-                        Image(systemName: "hand.draw.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white)
-
-                        Text("Drag image to reposition")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-
-                        // Precision slider
-                        Slider(value: $currentCoverOffsetY, in: 0.0...1.0)
-                            .frame(width: 90)
-                            .controlSize(.mini)
-
-                        Spacer()
-
-                        Button("Cancel") {
-                            currentCoverOffsetY = currentPage.coverOffsetY
-                            isRepositioningCover = false
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
-                        Button("Save position") {
-                            store.updatePageCoverOffset(pageId: currentPage.id, newOffsetY: currentCoverOffsetY)
-                            isRepositioningCover = false
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                    .shadow(color: Color.black.opacity(0.25), radius: 8, y: 3)
-                    .padding(.top, 14)
-
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-                .transition(.opacity)
+                cropGuidelinesOverlay
             }
 
-            // Normal Hover Action Buttons (Change Cover, Reposition, Remove)
+            // Adjustment & Zoom Control Bar
+            if isRepositioningCover {
+                coverAdjustmentToolbar
+            }
+
+            // Normal Hover Action Buttons (Change Cover, Adjust, Remove)
             if !isRepositioningCover {
-                HStack(spacing: 6) {
-                    Button(action: {
-                        isCoverPickerOpen = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "photo")
-                                .font(.caption)
-                            Text("Change cover")
-                                .font(.caption.weight(.medium))
-                        }
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    // Reposition Button
-                    Button(action: {
-                        currentCoverOffsetY = currentPage.coverOffsetY
-                        initialDragOffsetY = currentPage.coverOffsetY
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isRepositioningCover = true
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                                .font(.caption)
-                            Text("Reposition")
-                                .font(.caption.weight(.medium))
-                        }
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Drag to reposition cover image")
-
-                    Button(action: {
-                        store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "trash")
-                                .font(.caption)
-                            Text("Remove")
-                                .font(.caption.weight(.medium))
-                        }
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(14)
-                .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
+                coverNormalActionButtons
             }
         }
         .contentShape(Rectangle())
         .onHover { isCoverHovered = $0 }
+    }
+
+    private var cropGuidelinesOverlay: some View {
+        GeometryReader { geo in
+            Path { path in
+                let w = geo.size.width
+                let h = geo.size.height
+                // Vertical grid lines (rule of thirds)
+                path.move(to: CGPoint(x: w / 3, y: 0))
+                path.addLine(to: CGPoint(x: w / 3, y: h))
+                path.move(to: CGPoint(x: 2 * w / 3, y: 0))
+                path.addLine(to: CGPoint(x: 2 * w / 3, y: h))
+                // Horizontal grid lines
+                path.move(to: CGPoint(x: 0, y: h / 3))
+                path.addLine(to: CGPoint(x: w, y: h / 3))
+                path.move(to: CGPoint(x: 0, y: 2 * h / 3))
+                path.addLine(to: CGPoint(x: w, y: 2 * h / 3))
+            }
+            .stroke(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    private var coverAdjustmentToolbar: some View {
+        VStack {
+            HStack(spacing: 12) {
+                HStack(spacing: 5) {
+                    Image(systemName: "crop")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("Adjust Cover")
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+
+                Divider()
+                    .frame(height: 12)
+                    .opacity(0.3)
+
+                // Zoom control
+                HStack(spacing: 6) {
+                    Image(systemName: "minus.magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.8))
+
+                    Slider(value: $currentCoverScale, in: 1.0...3.5, step: 0.05)
+                        .frame(width: 90)
+                        .controlSize(.mini)
+
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.8))
+
+                    Text("\(String(format: "%.1f", currentCoverScale))x")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .frame(width: 30)
+                }
+
+                Divider()
+                    .frame(height: 12)
+                    .opacity(0.3)
+
+                // Reset button
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        currentCoverOffsetX = 0.5
+                        currentCoverOffsetY = 0.5
+                        currentCoverScale = 1.0
+                        initialDragOffsetX = 0.5
+                        initialDragOffsetY = 0.5
+                    }
+                }) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .help("Reset to center & 1.0x")
+
+                Spacer()
+
+                Button("Cancel") {
+                    currentCoverOffsetX = currentPage.coverOffsetX
+                    currentCoverOffsetY = currentPage.coverOffsetY
+                    currentCoverScale = currentPage.coverScale
+                    isRepositioningCover = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Done") {
+                    store.updatePageCoverAdjustment(
+                        pageId: currentPage.id,
+                        offsetX: currentCoverOffsetX,
+                        offsetY: currentCoverOffsetY,
+                        scale: currentCoverScale
+                    )
+                    isRepositioningCover = false
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .shadow(color: Color.black.opacity(0.28), radius: 8, y: 3)
+            .padding(.top, 14)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .transition(.opacity)
+    }
+
+    private var coverNormalActionButtons: some View {
+        HStack(spacing: 6) {
+            Button(action: {
+                isCoverPickerOpen = true
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "photo")
+                        .font(.caption)
+                    Text("Change cover")
+                        .font(.caption.weight(.medium))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Adjust Button (Zoom, Pan, Crop)
+            Button(action: {
+                currentCoverOffsetY = currentPage.coverOffsetY
+                currentCoverOffsetX = currentPage.coverOffsetX
+                currentCoverScale = currentPage.coverScale
+                initialDragOffsetY = currentPage.coverOffsetY
+                initialDragOffsetX = currentPage.coverOffsetX
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isRepositioningCover = true
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "crop")
+                        .font(.caption)
+                    Text("Adjust")
+                        .font(.caption.weight(.medium))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Adjust position, zoom, and crop")
+
+            Button(action: {
+                store.updatePageCover(pageId: currentPage.id, newCoverUrl: "")
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                    Text("Remove")
+                        .font(.caption.weight(.medium))
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .opacity((isCoverHovered || isCoverPickerOpen) ? 1.0 : 0.0)
+        .animation(.easeInOut(duration: 0.15), value: isCoverHovered || isCoverPickerOpen)
     }
 
     // MARK: - Cover Image Content Renderer

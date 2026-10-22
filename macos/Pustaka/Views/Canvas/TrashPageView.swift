@@ -315,7 +315,7 @@ struct TrashPageView: View {
 
     private var vaultInfoCalloutBlock: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "info.circle.fill")
+            Image(systemName: "info.circle")
                 .font(.system(size: 16))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 22, alignment: .top)
@@ -354,7 +354,7 @@ struct TrashPageView: View {
 
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark.circle")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -481,7 +481,7 @@ struct TrashPageView: View {
 
         return HStack(spacing: 6) {
             // Gutter: 6-dots handle visible on hover (identical to BlockRowView)
-            Image(systemName: "circle.grid.2x3.fill")
+            Image(systemName: "circle.grid.2x3")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .frame(width: 14, height: 20)
@@ -726,7 +726,7 @@ struct TrashPageView: View {
 
     private func restoreToastView(info: (title: String, category: String, id: String)) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: "checkmark.circle")
                 .foregroundStyle(Color.green)
 
             Text("Restored \"\(info.title)\" to \(info.category)")

@@ -5,7 +5,10 @@ struct ContentView: View {
     @StateObject private var store = WorkspaceStore()
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var isAIAssistantPresented: Bool = false
+    @State private var isFullScreen: Bool = false
     @AppStorage("appAppearance") private var appAppearance: String = "system"
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    @AppStorage("appUiScale") private var appUiScale: Double = 1.0
 
     private var preferredScheme: ColorScheme? {
         switch appAppearance {
@@ -48,9 +51,18 @@ struct ContentView: View {
             .background(Color(nsColor: .windowBackgroundColor))
             .ignoresSafeArea(.container, edges: .top)
         }
+        .toolbar(removing: .sidebarToggle)
+        .toolbar(.hidden, for: .windowToolbar)
+        .tint(Color(hex: appPrimaryColorHex))
         .preferredColorScheme(preferredScheme)
         .background(WindowConfigurator())
         .background(tabKeyboardShortcuts)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
+        }
         .sheet(isPresented: $store.isPreviewDrawerPresented) {
             if let page = store.selectedPage {
                 TypstPreviewView(
@@ -66,8 +78,8 @@ struct ContentView: View {
 
     private var browserTopBar: some View {
         HStack(spacing: 8) {
-            // When sidebar is collapsed/hidden, reserve space for macOS Traffic Lights on the far left
-            if columnVisibility == .detailOnly {
+            // When sidebar is collapsed/hidden, reserve space for macOS Traffic Lights on the far left (only in windowed mode)
+            if columnVisibility == .detailOnly && !isFullScreen {
                 Spacer()
                     .frame(width: 70)
             }
@@ -147,7 +159,7 @@ struct ContentView: View {
                             Label("Export as Markdown (.md)", systemImage: "arrow.down.doc")
                         }
                         Button(action: { exportDocument(page: page, format: "typ") }) {
-                            Label("Export as Typst (.typ)", systemImage: "arrow.down.doc.fill")
+                            Label("Export as Typst (.typ)", systemImage: "arrow.down.doc")
                         }
                         Divider()
                         Button(action: {
@@ -170,7 +182,7 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .regular))
                             .foregroundStyle(.secondary)
                             .frame(width: 28, height: 28)
                             .background(Color.primary.opacity(0.04))
@@ -207,7 +219,7 @@ struct ContentView: View {
                         Button(action: { store.toggleFavorite(id: page.id) }) {
                             Label(
                                 page.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                                systemImage: page.isFavorite ? "star.fill" : "star"
+                                systemImage: "star"
                             )
                         }
                         Button(action: {
@@ -223,7 +235,7 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .regular))
                             .foregroundStyle(.secondary)
                             .frame(width: 28, height: 28)
                             .background(Color.primary.opacity(0.04))
@@ -256,8 +268,8 @@ struct ContentView: View {
                 isAIAssistantPresented.toggle()
             }
         }) {
-            Image(systemName: isAIAssistantPresented ? "sparkles.rectangle.stack.fill" : "sparkles")
-                .font(.system(size: 13, weight: .semibold))
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(isAIAssistantPresented ? Color.accentColor : Color.secondary)
                 .frame(width: 28, height: 28)
                 .background(isAIAssistantPresented ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
@@ -274,10 +286,7 @@ struct ContentView: View {
             let view = NSView()
             DispatchQueue.main.async {
                 if let window = view.window {
-                    window.titleVisibility = .hidden
-                    window.titlebarAppearsTransparent = true
-                    window.toolbar = nil
-                    window.tabbingMode = .disallowed
+                    configure(window: window)
                 }
             }
             return view
@@ -285,11 +294,16 @@ struct ContentView: View {
 
         func updateNSView(_ nsView: NSView, context: Context) {
             if let window = nsView.window {
-                window.titleVisibility = .hidden
-                window.titlebarAppearsTransparent = true
-                window.toolbar = nil
-                window.tabbingMode = .disallowed
+                configure(window: window)
             }
+        }
+
+        private func configure(window: NSWindow) {
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.toolbar = nil
+            window.titlebarSeparatorStyle = .none
+            window.tabbingMode = .disallowed
         }
     }
 

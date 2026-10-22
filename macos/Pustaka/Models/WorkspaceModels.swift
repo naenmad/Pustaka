@@ -51,8 +51,8 @@ enum SidebarFilterOption: String, CaseIterable, Identifiable, Codable {
 
     var icon: String {
         switch self {
-        case .all: return "tray.full"
-        case .favorites: return "star.fill"
+        case .all: return "tray"
+        case .favorites: return "star"
         case .today: return "sun.max"
         case .thisWeek: return "calendar"
         }
@@ -84,6 +84,8 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var icon: String // Emoji or symbol
     var coverUrl: String // Curated free Unsplash cover image URL
     var coverOffsetY: Double = 0.5 // Vertical alignment offset (0.0 = top, 0.5 = center, 1.0 = bottom)
+    var coverOffsetX: Double = 0.5 // Horizontal alignment offset (0.0 = left, 0.5 = center, 1.0 = right)
+    var coverScale: Double = 1.0 // Zoom scale (1.0 = normal, up to 3.0)
     var categoryId: String // References SidebarCategory.id
     var parentPageId: String? = nil // Optional parent page id for nested subpages
     var rawContent: String
@@ -93,7 +95,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var boardTasks: [TaskCard]
 
     enum CodingKeys: String, CodingKey {
-        case id, title, icon, coverUrl, coverOffsetY, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
+        case id, title, icon, coverUrl, coverOffsetY, coverOffsetX, coverScale, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
     }
 
     init(
@@ -102,6 +104,8 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         icon: String,
         coverUrl: String,
         coverOffsetY: Double = 0.5,
+        coverOffsetX: Double = 0.5,
+        coverScale: Double = 1.0,
         categoryId: String,
         parentPageId: String? = nil,
         rawContent: String,
@@ -115,6 +119,8 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         self.icon = icon
         self.coverUrl = coverUrl
         self.coverOffsetY = coverOffsetY
+        self.coverOffsetX = coverOffsetX
+        self.coverScale = coverScale
         self.categoryId = categoryId
         self.parentPageId = parentPageId
         self.rawContent = rawContent
@@ -131,6 +137,8 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         icon = try container.decode(String.self, forKey: .icon)
         coverUrl = try container.decode(String.self, forKey: .coverUrl)
         coverOffsetY = try container.decodeIfPresent(Double.self, forKey: .coverOffsetY) ?? 0.5
+        coverOffsetX = try container.decodeIfPresent(Double.self, forKey: .coverOffsetX) ?? 0.5
+        coverScale = try container.decodeIfPresent(Double.self, forKey: .coverScale) ?? 1.0
         categoryId = try container.decode(String.self, forKey: .categoryId)
         parentPageId = try container.decodeIfPresent(String.self, forKey: .parentPageId)
         rawContent = try container.decode(String.self, forKey: .rawContent)

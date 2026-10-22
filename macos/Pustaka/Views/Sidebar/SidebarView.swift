@@ -69,6 +69,7 @@ struct SidebarView: View {
     @State private var isRecentExpanded: Bool = false
     @State private var isTrashHovered: Bool = false
     @State private var isSettingsSheetPresented: Bool = false
+    @State private var isFullScreen: Bool = false
 
     init(store: WorkspaceStore, columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all)) {
         self.store = store
@@ -130,15 +131,26 @@ struct SidebarView: View {
                 onDismiss: { isSettingsSheetPresented = false }
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
+        }
     }
 
     // MARK: - Vault Header (Beside macOS Traffic Lights)
 
     private var vaultHeaderView: some View {
         HStack(spacing: 7) {
-            // Space reserved for the 3 Traffic Light Buttons (Close, Minimize, Maximize)
-            Spacer()
-                .frame(width: 70)
+            // Space reserved for the 3 Traffic Light Buttons (Close, Minimize, Maximize) only in windowed mode
+            if !isFullScreen {
+                Spacer()
+                    .frame(width: 70)
+            } else {
+                Spacer()
+                    .frame(width: 12)
+            }
 
             // Vault Badge Icon
             ZStack {
@@ -153,7 +165,7 @@ struct SidebarView: View {
                     .frame(width: 18, height: 18)
                     .shadow(color: Color.accentColor.opacity(0.2), radius: 1, y: 0.5)
 
-                Image(systemName: "books.vertical.fill")
+                Image(systemName: "books.vertical")
                     .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(.white)
             }
@@ -245,31 +257,6 @@ struct SidebarView: View {
                 // Order By & Filter Menu
                 filterAndSortMenuButton
             }
-
-            // Active Filter Chip (Visible only when filtering is active)
-            if sidebarFilterOption != .all {
-                HStack(spacing: 5) {
-                    Image(systemName: sidebarFilterOption.icon)
-                        .font(.system(size: 9))
-                    Text("Filter: \(sidebarFilterOption.label)")
-                        .font(.system(size: 10, weight: .medium))
-                    Spacer()
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            sidebarFilterOption = .all
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(Color.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
         }
         .background(
             // Invisible button for ⌘K shortcut to focus search
@@ -283,37 +270,17 @@ struct SidebarView: View {
 
     private var filterAndSortMenuButton: some View {
         Menu {
-            Section("Order By") {
+            Picker("Order By", selection: $sidebarSortOption) {
                 ForEach(SidebarSortOption.allCases) { option in
-                    Button(action: {
-                        sidebarSortOption = option
-                    }) {
-                        HStack {
-                            Text(option.label)
-                            if sidebarSortOption == option {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
+                    Label(option.label, systemImage: option.icon).tag(option)
                 }
             }
 
             Divider()
 
-            Section("Filter") {
+            Picker("Filter", selection: $sidebarFilterOption) {
                 ForEach(SidebarFilterOption.allCases) { filter in
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            sidebarFilterOption = filter
-                        }
-                    }) {
-                        HStack {
-                            Label(filter.label, systemImage: filter.icon)
-                            if sidebarFilterOption == filter {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
+                    Label(filter.label, systemImage: filter.icon).tag(filter)
                 }
             }
 
@@ -330,12 +297,19 @@ struct SidebarView: View {
             }
         } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: isFilterOrSortCustom ? "arrow.up.arrow.down.circle.fill" : "arrow.up.arrow.down")
-                    .font(.system(size: 11, weight: .medium))
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(isFilterOrSortCustom ? Color.accentColor : Color.secondary)
                     .frame(width: 25, height: 25)
                     .background(isFilterOrSortCustom ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                if isFilterOrSortCustom {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 5, height: 5)
+                        .offset(x: -2, y: 2)
+                }
             }
         }
         .menuStyle(.borderlessButton)
@@ -437,9 +411,9 @@ struct SidebarView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "star.fill")
+                    Image(systemName: "star")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.yellow)
+                        .foregroundStyle(.secondary)
                         .frame(width: 14)
 
                     Text("Favorites")
@@ -505,9 +479,9 @@ struct SidebarView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "clock.fill")
+                    Image(systemName: "clock")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.blue.opacity(0.85))
+                        .foregroundStyle(.secondary)
                         .frame(width: 14)
 
                     Text("Recent")
@@ -564,9 +538,9 @@ struct SidebarView: View {
             store.openTrash()
         }) {
             HStack(spacing: 6) {
-                Image(systemName: store.trashPages.isEmpty ? "trash" : "trash.fill")
+                Image(systemName: "trash")
                     .font(.system(size: 11))
-                    .foregroundStyle(store.isShowingTrash ? Color.accentColor : (store.trashPages.isEmpty ? Color.secondary.opacity(0.8) : Color.red.opacity(0.85)))
+                    .foregroundStyle(store.isShowingTrash ? Color.accentColor : Color.secondary)
                     .frame(width: 14)
 
                 Text("Trash")
@@ -577,11 +551,12 @@ struct SidebarView: View {
 
                 if !store.trashPages.isEmpty {
                     Text("\(store.trashPages.count)")
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.red.opacity(0.75)))
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(Capsule())
                 }
             }
             .padding(.horizontal, 6)
@@ -689,7 +664,7 @@ struct SidebarView: View {
     }
 
     private var themeToggleIcon: String {
-        isDarkModeActive ? "sun.max.fill" : "moon.fill"
+        isDarkModeActive ? "sun.max" : "moon"
     }
 
     private var themeToggleTooltip: String {
@@ -773,7 +748,7 @@ struct SidebarView: View {
                 .contextMenu {
                     Button(action: { appAppearance = "light" }) {
                         HStack {
-                            Label("Light Mode", systemImage: "sun.max.fill")
+                            Label("Light Mode", systemImage: "sun.max")
                             if appAppearance == "light" {
                                 Image(systemName: "checkmark")
                             }
@@ -781,7 +756,7 @@ struct SidebarView: View {
                     }
                     Button(action: { appAppearance = "dark" }) {
                         HStack {
-                            Label("Dark Mode", systemImage: "moon.fill")
+                            Label("Dark Mode", systemImage: "moon")
                             if appAppearance == "dark" {
                                 Image(systemName: "checkmark")
                             }
@@ -790,7 +765,7 @@ struct SidebarView: View {
                     Divider()
                     Button(action: { appAppearance = "system" }) {
                         HStack {
-                            Label("System Default", systemImage: "circle.lefthalf.filled")
+                            Label("System Default", systemImage: "circle.lefthalf.striped.horizontal")
                             if appAppearance == "system" {
                                 Image(systemName: "checkmark")
                             }
@@ -1077,9 +1052,9 @@ struct SidebarDocumentItemRow: View {
 
                             // Star / Unstar Favorite
                             Button(action: { store.toggleFavorite(id: page.id) }) {
-                                Image(systemName: page.isFavorite ? "star.fill" : "star")
-                                    .font(.system(size: 9.5))
-                                    .foregroundStyle(page.isFavorite ? Color.yellow : Color.secondary.opacity(0.6))
+                                Image(systemName: "star")
+                                    .font(.system(size: 9.5, weight: page.isFavorite ? .bold : .regular))
+                                    .foregroundStyle(page.isFavorite ? Color.accentColor : Color.secondary.opacity(0.6))
                             }
                             .buttonStyle(.plain)
                             .help(page.isFavorite ? "Remove from Favorites" : "Add to Favorites")
@@ -1463,922 +1438,3 @@ struct NativeIconPickerPopover: View {
 
 
 
-// MARK: - Settings & Workspace Preferences Sheet
-
-struct SettingsSheet: View {
-    @ObservedObject var store: WorkspaceStore
-    var initialTab: SettingsTab = .appearance
-    let onDismiss: () -> Void
-
-    @AppStorage("appAppearance") private var appAppearance: String = "system"
-    @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
-    @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
-    @AppStorage("aiProviderType") private var aiProviderType: String = AIProviderType.antigravity.rawValue
-    @AppStorage("aiAgentCliPath") private var aiAgentCliPath: String = ACPAgentService.defaultAgyPath
-    @AppStorage("aiAgentModel") private var aiAgentModel: String = "gemini-3.8-flash-high"
-    @AppStorage("aiAgentEffort") private var aiAgentEffort: String = "high"
-    @AppStorage("claudeCliPath") private var claudeCliPath: String = ACPAgentService.defaultClaudePath
-    @AppStorage("claudeCliModel") private var claudeCliModel: String = "claude-3-7-sonnet"
-    @AppStorage("geminiCliPath") private var geminiCliPath: String = ACPAgentService.defaultGeminiCliPath
-    @AppStorage("geminiCliModel") private var geminiCliModel: String = "gemini-2.5-flash"
-    @AppStorage("customAcpPath") private var customAcpPath: String = ""
-    @AppStorage("customAcpArgs") private var customAcpArgs: String = "--print {prompt}"
-    @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
-    @AppStorage("geminiModel") private var geminiModel: String = "gemini-2.5-flash"
-    @AppStorage("openaiApiKey") private var openaiApiKey: String = ""
-    @AppStorage("openaiEndpoint") private var openaiEndpoint: String = "https://api.openai.com/v1"
-    @AppStorage("openaiModel") private var openaiModel: String = "gpt-4o"
-    @AppStorage("claudeApiKey") private var claudeApiKey: String = ""
-    @AppStorage("claudeApiModel") private var claudeApiModel: String = "claude-3-7-sonnet-20250219"
-
-    @State private var selectedTab: SettingsTab = .appearance
-
-    enum SettingsTab: String, CaseIterable, Identifiable {
-        case appearance = "Appearance"
-        case ai = "AI & ACP"
-        case vault = "Vault & Storage"
-        case shortcuts = "Shortcuts"
-        case about = "About"
-
-        var id: String { rawValue }
-
-        var icon: String {
-            switch self {
-            case .appearance: return "circle.lefthalf.filled"
-            case .ai: return "sparkles"
-            case .vault: return "folder.badge.gearshape"
-            case .shortcuts: return "command"
-            case .about: return "info.circle"
-            }
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.12))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.accentColor)
-                }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Settings & Preferences")
-                        .font(.headline.weight(.semibold))
-                    Text("Pustaka Workspace Configuration")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Divider()
-
-            // Segmented Tab Picker
-            Picker("", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            Divider()
-
-            // Tab Content
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch selectedTab {
-                    case .appearance:
-                        appearanceSettingsSection
-                    case .ai:
-                        aiSettingsSection
-                    case .vault:
-                        vaultSettingsSection
-                    case .shortcuts:
-                        shortcutsSettingsSection
-                    case .about:
-                        aboutSettingsSection
-                    }
-                }
-                .padding(16)
-            }
-        }
-        .frame(width: 560, height: 490)
-        .onAppear {
-            selectedTab = initialTab
-        }
-    }
-
-    private var appearanceSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("THEME & INTERFACE")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            HStack(spacing: 12) {
-                themeChoiceCard(title: "System", mode: "system", icon: "circle.lefthalf.filled")
-                themeChoiceCard(title: "Light", mode: "light", icon: "sun.max.fill")
-                themeChoiceCard(title: "Dark", mode: "dark", icon: "moon.fill")
-            }
-
-            Text("Choose your preferred visual theme for the Pustaka workspace. System matches your macOS Appearance settings automatically.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-
-            Divider().padding(.vertical, 4)
-
-            Text("SIDEBAR & NAVIGATION")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Default Note Order")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("Order documents appear in sidebar categories")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Picker("", selection: $sidebarSortOption) {
-                    ForEach(SidebarSortOption.allCases) { opt in
-                        Text(opt.label).tag(opt)
-                    }
-                }
-                .frame(width: 170)
-            }
-        }
-    }
-
-    private func themeChoiceCard(title: String, mode: String, icon: String) -> some View {
-        let isSelected = appAppearance == mode
-        return Button(action: {
-            appAppearance = mode
-        }) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-
-                Text(title)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.accentColor)
-                } else {
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                        .frame(width: 12, height: 12)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isSelected ? 2 : 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var aiSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("AI ASSISTANT & ACP PROVIDER")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            // Provider Picker
-            Picker("Provider", selection: $aiProviderType) {
-                ForEach(AIProviderType.allCases) { p in
-                    Label(p.label, systemImage: p.icon).tag(p.rawValue)
-                }
-            }
-            .pickerStyle(.menu)
-
-            Divider().opacity(0.3)
-
-            switch AIProviderType.from(raw: aiProviderType) {
-            case .antigravity:
-                antigravityConfigSection
-            case .claudeCode:
-                claudeCodeConfigSection
-            case .geminiCli:
-                geminiCliConfigSection
-            case .customAcp:
-                customAcpConfigSection
-            case .geminiApi:
-                geminiApiConfigSection
-            case .openai:
-                openAiConfigSection
-            case .claudeApi:
-                claudeApiConfigSection
-            }
-        }
-    }
-
-    // MARK: - Antigravity ACP Config
-
-    private var antigravityConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let isFound = ACPAgentService.resolveExecutablePath(command: "agy", preferredPath: aiAgentCliPath) != nil
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Dedicated Antigravity Agent (Local ACP)")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Subprocess stream-json protocol via stdio • Zero-config local auth")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isFound ? Color.green : Color.red)
-                            .frame(width: 5.5, height: 5.5)
-                        Text(isFound ? "Ready" : "Missing")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isFound ? Color.green : Color.red)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-
-                Text("Pustaka communicates with your local Antigravity CLI directly on macOS. Fast, intelligent, and private.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            // Executable Path
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("CLI Executable Path")
-                        .font(.system(size: 11.5, weight: .medium))
-                    Spacer()
-                    Button("Auto-Detect") {
-                        if let resolved = ACPAgentService.resolveExecutablePath(command: "agy") {
-                            aiAgentCliPath = resolved
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                }
-
-                TextField("Path to agy binary...", text: $aiAgentCliPath)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-                Text("Default location: ~/.local/bin/agy")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            // Default Model Selection
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Default Model")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $aiAgentModel) {
-                    ForEach(AIModelRegistry.models(for: .antigravity)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-
-            // Reasoning Effort Picker
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Reasoning Effort")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $aiAgentEffort) {
-                    Text("Auto / Inherit").tag("default")
-                    Text("Low (Fastest)").tag("low")
-                    Text("Medium (Balanced)").tag("medium")
-                    Text("High (Deep Thinking)").tag("high")
-                    Text("Max (Maximum Intelligence)").tag("max")
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    // MARK: - Claude Code CLI Config
-
-    private var claudeCodeConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let isFound = ACPAgentService.resolveExecutablePath(command: "claude", preferredPath: claudeCliPath) != nil
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.orange, Color.red], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "terminal")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Claude Code CLI Agent")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Local subprocess terminal execution")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isFound ? Color.green : Color.red)
-                            .frame(width: 5.5, height: 5.5)
-                        Text(isFound ? "Ready" : "Missing")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isFound ? Color.green : Color.red)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-
-                Text("Interacts with Anthropic's local CLI assistant on your macOS system.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Claude CLI Path")
-                        .font(.system(size: 11.5, weight: .medium))
-                    Spacer()
-                    Button("Auto-Detect") {
-                        if let resolved = ACPAgentService.resolveExecutablePath(command: "claude") {
-                            claudeCliPath = resolved
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                }
-
-                TextField("Path to claude binary...", text: $claudeCliPath)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model Selection")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $claudeCliModel) {
-                    ForEach(AIModelRegistry.models(for: .claudeCode)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    // MARK: - Gemini CLI Config
-
-    private var geminiCliConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let isFound = ACPAgentService.resolveExecutablePath(command: "gemini", preferredPath: geminiCliPath) != nil
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "command")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Gemini CLI Agent")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Official Google Gemini command line utility")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isFound ? Color.green : Color.red)
-                            .frame(width: 5.5, height: 5.5)
-                        Text(isFound ? "Ready" : "Missing")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isFound ? Color.green : Color.red)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(isFound ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Gemini CLI Path")
-                        .font(.system(size: 11.5, weight: .medium))
-                    Spacer()
-                    Button("Auto-Detect") {
-                        if let resolved = ACPAgentService.resolveExecutablePath(command: "gemini") {
-                            geminiCliPath = resolved
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                }
-
-                TextField("Path to gemini binary...", text: $geminiCliPath)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model Selection")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $geminiCliModel) {
-                    ForEach(AIModelRegistry.models(for: .geminiCli)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    // MARK: - Custom ACP Config
-
-    private var customAcpConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.teal, Color.indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "wrench.and.screwdriver")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Custom Agent Subprocess")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Run any custom CLI or ACP script")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Executable Command or Path")
-                    .font(.system(size: 11.5, weight: .medium))
-                TextField("e.g. /usr/local/bin/my-agent or bun run agent.ts", text: $customAcpPath)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Arguments Template")
-                    .font(.system(size: 11.5, weight: .medium))
-                TextField("e.g. --print {prompt}", text: $customAcpArgs)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-                Text("{prompt} is replaced with the user query & context")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    // MARK: - Direct Google Gemini API Config
-
-    private var geminiApiConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let hasKey = !geminiApiKey.trimmingCharacters(in: .whitespaces).isEmpty
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Google Gemini Direct API")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Cloud connection via Google AI Studio")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(hasKey ? Color.green : Color.orange)
-                            .frame(width: 5.5, height: 5.5)
-                        Text(hasKey ? "Key Set" : "No Key")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(hasKey ? Color.green : Color.orange)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(hasKey ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-
-                Text("Fast cloud access using your Google AI Studio API key.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Gemini API Key")
-                    .font(.system(size: 11.5, weight: .medium))
-                SecureField("Paste your AI Studio API key...", text: $geminiApiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-
-                Button("Get free API Key from Google AI Studio ↗") {
-                    if let url = URL(string: "https://aistudio.google.com/app/apikey") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.caption2)
-                .foregroundStyle(Color.accentColor)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model Selection")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $geminiModel) {
-                    ForEach(AIModelRegistry.models(for: .geminiApi)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    // MARK: - OpenAI / Compatible API Config
-
-    private var openAiConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let hasKey = !openaiApiKey.trimmingCharacters(in: .whitespaces).isEmpty
-            let isLocal = openaiEndpoint.contains("localhost") || openaiEndpoint.contains("127.0.0.1")
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.green, Color.teal], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "bolt.circle")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("OpenAI / Compatible Endpoint")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Supports OpenAI, DeepSeek, Ollama, Groq, OpenRouter")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill((hasKey || isLocal) ? Color.green : Color.orange)
-                            .frame(width: 5.5, height: 5.5)
-                        Text((hasKey || isLocal) ? "Ready" : "No Key")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle((hasKey || isLocal) ? Color.green : Color.orange)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background((hasKey || isLocal) ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Base API Endpoint")
-                    .font(.system(size: 11.5, weight: .medium))
-                TextField("https://api.openai.com/v1 or http://localhost:11434/v1", text: $openaiEndpoint)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("API Key (leave blank for local Ollama)")
-                    .font(.system(size: 11.5, weight: .medium))
-                SecureField("Paste API key...", text: $openaiApiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model Identifier")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $openaiModel) {
-                    ForEach(AIModelRegistry.models(for: .openai)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    // MARK: - Anthropic Claude API Config
-
-    private var claudeApiConfigSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let hasKey = !claudeApiKey.trimmingCharacters(in: .whitespaces).isEmpty
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ZStack {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.purple, Color.pink], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 22, height: 22)
-                        Image(systemName: "brain.head.profile")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Anthropic Claude Direct API")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Direct HTTP connection to api.anthropic.com")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(hasKey ? Color.green : Color.orange)
-                            .frame(width: 5.5, height: 5.5)
-                        Text(hasKey ? "Key Set" : "No Key")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(hasKey ? Color.green : Color.orange)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(hasKey ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
-                    .clipShape(Capsule())
-                }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Anthropic API Key")
-                    .font(.system(size: 11.5, weight: .medium))
-                SecureField("Paste your Anthropic API key...", text: $claudeApiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Model Selection")
-                    .font(.system(size: 11.5, weight: .medium))
-                Picker("", selection: $claudeApiModel) {
-                    ForEach(AIModelRegistry.models(for: .claudeApi)) { m in
-                        Text("\(m.name)\(m.badge != nil ? " [\(m.badge!)]" : "")").tag(m.id)
-                    }
-                }
-                .labelsHidden()
-            }
-        }
-    }
-
-    private var vaultSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Vault Location Card
-            VStack(alignment: .leading, spacing: 8) {
-                Text("VAULT LOCATION")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("~/Documents/Pustaka")
-                            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
-                        Text("Standard local Markdown vault with YAML frontmatter")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button("Reveal in Finder") {
-                        store.revealInFinder()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                .padding(10)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            // Vault Statistics
-            VStack(alignment: .leading, spacing: 8) {
-                Text("WORKSPACE METRICS")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
-
-                HStack(spacing: 12) {
-                    metricCard(title: "Active Notes", value: "\(store.activePages.count)", icon: "doc.text")
-                    metricCard(title: "Folders", value: "\(store.categories.count)", icon: "folder")
-                    metricCard(title: "In Trash", value: "\(store.trashPages.count)", icon: "trash")
-                }
-            }
-
-            // Sync Information
-            VStack(alignment: .leading, spacing: 6) {
-                Text("STORAGE INTEGRITY")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
-
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Auto-save is active. Every keystroke is saved atomically to disk.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Deleted notes are preserved in ~/.trash/ folder.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private func metricCard(title: String, value: String, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Text(value)
-                .font(.title3.weight(.bold))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var shortcutsSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("KEYBOARD SHORTCUTS")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            shortcutRow(key: "⌘N", description: "Create new document")
-            shortcutRow(key: "⌘K", description: "Focus search bar")
-            shortcutRow(key: "⇧⌘R", description: "Reveal vault in Finder")
-            shortcutRow(key: "⌘,", description: "Open Settings")
-            shortcutRow(key: "⌘J", description: "Toggle AI Assistant panel")
-            shortcutRow(key: "⌘B / ⌘I", description: "Format Bold / Italic")
-            shortcutRow(key: "⌘D", description: "Duplicate selected block or note")
-            shortcutRow(key: "/subpage", description: "Insert inline subpage block")
-            shortcutRow(key: "/table", description: "Insert 2D grid table")
-            shortcutRow(key: "1. / -", description: "Auto format numbered or bullet list")
-        }
-    }
-
-    private func shortcutRow(key: String, description: String) -> some View {
-        HStack {
-            Text(description)
-                .font(.system(size: 12))
-            Spacer()
-            Text(key)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var aboutSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("APPLICATION")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.tertiary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Pustaka for macOS")
-                    .font(.headline.bold())
-                Text("Version 1.0 (Build 2026.10)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Zero cloud lock-in. 100% private and offline.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Local-First Architecture")
-                    .font(.subheadline.bold())
-                Text("Native Swift + AppKit desktop application. Fast, lightweight, and fully offline.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}

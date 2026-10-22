@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0E3F6ED7F8F7503021CECC2D /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */; };
 		0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */; };
 		1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75D6E66F74E96C369E4F2E /* BlockListView.swift */; };
 		2F7011EBF695835398C48874 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453BE2BFC9AC54F9709DB879 /* ContentView.swift */; };
@@ -40,6 +41,7 @@
 		67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pustaka.entitlements; sourceTree = "<group>"; };
 		6B77260BF368417A5E852534 /* TypstPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypstPreviewView.swift; sourceTree = "<group>"; };
 		7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeCategorySheet.swift; sourceTree = "<group>"; };
+		7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModels.swift; sourceTree = "<group>"; };
 		997CBAA8E88BE3A435C7891F /* Pustaka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pustaka.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
@@ -67,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */,
+				7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */,
 				5A8275816DA33CAC37606CF1 /* SidebarView.swift */,
 			);
 			path = Sidebar;
@@ -282,6 +285,7 @@
 				1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */,
 				2F7011EBF695835398C48874 /* ContentView.swift in Sources */,
 				0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */,
+				0E3F6ED7F8F7503021CECC2D /* SettingsSheet.swift in Sources */,
 				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
 				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
 				5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */,

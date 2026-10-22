@@ -929,6 +929,8 @@ class WorkspaceStore: ObservableObject {
             icon: page.icon,
             coverUrl: page.coverUrl,
             coverOffsetY: page.coverOffsetY,
+            coverOffsetX: page.coverOffsetX,
+            coverScale: page.coverScale,
             categoryId: page.categoryId,
             rawContent: page.rawContent,
             isFavorite: page.isFavorite,
@@ -1108,6 +1110,16 @@ class WorkspaceStore: ObservableObject {
         guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         objectWillChange.send()
         pages[idx].coverOffsetY = max(0.0, min(1.0, newOffsetY))
+        pages[idx].lastModified = Date()
+        saveToDisk()
+    }
+
+    func updatePageCoverAdjustment(pageId: String, offsetX: Double, offsetY: Double, scale: Double) {
+        guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
+        objectWillChange.send()
+        pages[idx].coverOffsetX = max(0.0, min(1.0, offsetX))
+        pages[idx].coverOffsetY = max(0.0, min(1.0, offsetY))
+        pages[idx].coverScale = max(1.0, min(3.5, scale))
         pages[idx].lastModified = Date()
         saveToDisk()
     }
