@@ -46,7 +46,7 @@ enum PresetGradientCover: String, CaseIterable, Identifiable {
         if let match = PresetGradientCover.allCases.first(where: { $0.rawValue == raw }) {
             return match.colors
         }
-        return [Color.accentColor.opacity(0.8), Color.purple.opacity(0.8)]
+        return [Color.appPrimary.opacity(0.8), Color.purple.opacity(0.8)]
     }
 }
 
@@ -74,6 +74,7 @@ class FocusableTitleTextField: NSTextField {
 struct TitleEditorField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
+    var fontSize: CGFloat = 34.0
     var onCommit: () -> Void
     var onTextChanged: (String) -> Void
     var onBeginEditing: (() -> Void)? = nil
@@ -83,7 +84,7 @@ struct TitleEditorField: NSViewRepresentable {
         tf.isBordered = false
         tf.drawsBackground = false
         tf.focusRingType = .none
-        tf.font = NSFont.systemFont(ofSize: 34, weight: .bold)
+        tf.font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
         tf.textColor = .labelColor
         tf.placeholderString = placeholder
         tf.delegate = context.coordinator
@@ -106,6 +107,9 @@ struct TitleEditorField: NSViewRepresentable {
             nsView.stringValue = text
         }
         nsView.placeholderString = placeholder
+        if nsView.font?.pointSize != fontSize {
+            nsView.font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -144,6 +148,13 @@ struct TitleEditorField: NSViewRepresentable {
 struct DocumentCanvasView: View {
     @ObservedObject var store: WorkspaceStore
     let page: DocumentPage
+
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     @State private var titleBuffer: String = ""
     @State private var focusedBlockId: String? = nil
@@ -519,13 +530,13 @@ struct DocumentCanvasView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: isActive ? .bold : .medium))
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(isActive ? primaryColor : Color.secondary)
                 .frame(width: 26, height: 26)
-                .background(isActive ? Color.accentColor.opacity(0.22) : Color.clear)
+                .background(isActive ? primaryColor.opacity(0.22) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                        .stroke(isActive ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
         }
@@ -863,7 +874,7 @@ struct DocumentCanvasView: View {
                 switch phase {
                 case .empty:
                     LinearGradient(
-                        colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.3)],
+                        colors: [primaryColor.opacity(0.3), Color.purple.opacity(0.3)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -897,11 +908,13 @@ struct DocumentCanvasView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.secondary)
                             DynamicIconView(icon: parent.icon, size: 10, defaultSymbol: "doc.text")
+                                .foregroundStyle(primaryColor)
                             Text(parent.title.isEmpty ? "Untitled" : parent.title)
                                 .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
                         }
-                        .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
 
@@ -911,6 +924,7 @@ struct DocumentCanvasView: View {
 
                     HStack(spacing: 4) {
                         DynamicIconView(icon: currentPage.icon, size: 10, defaultSymbol: "doc.text")
+                            .foregroundStyle(primaryColor)
                         Text(currentPage.title.isEmpty ? "Untitled" : currentPage.title)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.primary)
@@ -930,10 +944,10 @@ struct DocumentCanvasView: View {
                             Text("Add icon")
                                 .font(.caption.weight(.medium))
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(primaryColor)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.primary.opacity(0.05))
+                        .background(primaryColor.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .contentShape(Rectangle())
                     }
@@ -970,10 +984,10 @@ struct DocumentCanvasView: View {
                 }) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.accentColor.opacity(0.1))
+                            .fill(primaryColor.opacity(0.12))
                             .frame(width: 52, height: 52)
                         DynamicIconView(icon: currentPage.icon, size: 30, weight: .medium, defaultSymbol: "doc.text")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(primaryColor)
                     }
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
@@ -985,6 +999,7 @@ struct DocumentCanvasView: View {
             TitleEditorField(
                 text: $titleBuffer,
                 placeholder: "Untitled",
+                fontSize: round(34.0 * (CGFloat(editorFontSize) / 15.0)),
                 onCommit: {
                     focusFirstBlock()
                 },
@@ -1162,7 +1177,7 @@ struct DocumentCanvasView: View {
                                     .contentShape(Rectangle())
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .stroke(currentPage.coverUrl == art.imageUrl ? Color.accentColor : Color.clear, lineWidth: 2)
+                                            .stroke(currentPage.coverUrl == art.imageUrl ? primaryColor : Color.clear, lineWidth: 2)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -1222,11 +1237,11 @@ struct DocumentCanvasView: View {
                         HStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.accentColor.opacity(0.12))
+                                    .fill(primaryColor.opacity(0.12))
                                     .frame(width: 44, height: 44)
                                 Image(systemName: "arrow.up.doc.fill")
                                     .font(.system(size: 18))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(primaryColor)
                             }
 
                             VStack(alignment: .leading, spacing: 3) {
@@ -1326,7 +1341,7 @@ struct DocumentCanvasView: View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(primaryColor)
                     .frame(width: 7, height: 7)
                 Text("\(selectedBlockIds.count) selected")
                     .font(.system(size: 12, weight: .semibold))

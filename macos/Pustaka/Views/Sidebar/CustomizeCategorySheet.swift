@@ -5,9 +5,14 @@ struct CustomizeCategorySheet: View {
     let category: SidebarCategory
     let onDismiss: () -> Void
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @State private var nameBuffer: String = ""
     @State private var iconBuffer: String = "folder"
     @State private var showCountBuffer: Bool = true
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     private let availableSymbols = [
         "folder", "folder.badge.gearshape", "book.closed", "doc.text",
@@ -46,10 +51,10 @@ struct CustomizeCategorySheet: View {
                 HStack(spacing: 8) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.accentColor.opacity(0.12))
+                            .fill(primaryColor.opacity(0.12))
                             .frame(width: 38, height: 38)
                         DynamicIconView(icon: iconBuffer, size: 18, defaultSymbol: "folder")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(primaryColor)
                     }
 
                     TextField("Category name...", text: $nameBuffer)
@@ -79,14 +84,14 @@ struct CustomizeCategorySheet: View {
                         }) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                                    .fill(isSelected ? primaryColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 6)
-                                            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 1)
+                                            .stroke(isSelected ? primaryColor : Color.primary.opacity(0.06), lineWidth: isSelected ? 1.5 : 1)
                                     )
                                 Image(systemName: sym)
                                     .font(.system(size: 14))
-                                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                                    .foregroundStyle(isSelected ? primaryColor : Color.primary)
                             }
                             .frame(height: 32)
                         }

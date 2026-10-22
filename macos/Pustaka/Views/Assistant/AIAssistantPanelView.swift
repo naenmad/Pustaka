@@ -16,6 +16,11 @@ struct AIAssistantPanelView: View {
     @State private var isSettingsOpen: Bool = false
     @State private var showCustomModelDialog: Bool = false
     @State private var customModelInput: String = ""
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     private var activePage: DocumentPage? {
         store.selectedPage
@@ -95,7 +100,7 @@ struct AIAssistantPanelView: View {
         HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(LinearGradient(colors: [Color.purple, Color.accentColor], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(LinearGradient(colors: [Color.purple, primaryColor], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 22, height: 22)
                 Image(systemName: agentService.currentProvider.icon)
                     .font(.system(size: 10, weight: .bold))
@@ -231,8 +236,8 @@ struct AIAssistantPanelView: View {
                         .font(.system(size: 10.5, weight: .semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.accentColor.opacity(0.1))
-                        .foregroundStyle(Color.accentColor)
+                        .background(primaryColor.opacity(0.1))
+                        .foregroundStyle(primaryColor)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
@@ -267,12 +272,12 @@ struct AIAssistantPanelView: View {
 
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(0.08))
+                        .fill(primaryColor.opacity(0.08))
                         .frame(width: 48, height: 48)
 
                     Image(systemName: "wand.and.stars")
                         .font(.system(size: 20))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(primaryColor)
                 }
 
                 VStack(spacing: 4) {
@@ -306,7 +311,7 @@ struct AIAssistantPanelView: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 9.5))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                 Text(title)
                     .font(.system(size: 11.5, weight: .medium))
                 Spacer()
@@ -353,7 +358,7 @@ struct AIAssistantPanelView: View {
                 if msg.role == .assistant {
                     Image(systemName: agentService.currentProvider.icon)
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(primaryColor)
                     Text(agentService.currentProvider.shortName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -383,7 +388,7 @@ struct AIAssistantPanelView: View {
                     if msg.isStreaming && msg.content.isEmpty {
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(Color.accentColor)
+                                .fill(primaryColor)
                                 .frame(width: 5, height: 5)
                             Text("Agent reasoning...")
                                 .font(.system(size: 10))
@@ -408,8 +413,8 @@ struct AIAssistantPanelView: View {
                                     }
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 3.5)
-                                    .background(Color.accentColor.opacity(0.12))
-                                    .foregroundStyle(Color.accentColor)
+                                    .background(primaryColor.opacity(0.12))
+                                    .foregroundStyle(primaryColor)
                                     .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                                 .buttonStyle(.plain)
@@ -493,7 +498,7 @@ struct AIAssistantPanelView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor)
+                    .background(primaryColor)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -553,7 +558,7 @@ struct AIAssistantPanelView: View {
                                 .font(.system(size: 10.5, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 26, height: 26)
-                                .background(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.3) : Color.accentColor)
+                                .background(inputPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? Color.secondary.opacity(0.3) : primaryColor)
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -609,7 +614,7 @@ struct AIAssistantPanelView: View {
             HStack(spacing: 3) {
                 Image(systemName: agentService.currentProvider.icon)
                     .font(.system(size: 8.5))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
 
                 Text(agentService.currentProvider.shortName)
                     .font(.system(size: 10, weight: .medium))
@@ -1016,6 +1021,11 @@ struct AgentProcessCard: View {
 struct ReusableMarkdownBlockView: View {
     let rawMarkdown: String
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             let blocks = WorkspaceStore.parseToUIBlocks(content: rawMarkdown)
@@ -1046,7 +1056,7 @@ struct ReusableMarkdownBlockView: View {
             HStack(alignment: .top, spacing: 6) {
                 Text("•")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                 Text(LocalizedStringKey(block.text))
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
@@ -1066,7 +1076,7 @@ struct ReusableMarkdownBlockView: View {
         case .quote:
             HStack(spacing: 8) {
                 Rectangle()
-                    .fill(Color.accentColor.opacity(0.6))
+                    .fill(primaryColor.opacity(0.6))
                     .frame(width: 3)
                 Text(LocalizedStringKey(block.text))
                     .font(.system(size: 11.5))
@@ -1120,7 +1130,7 @@ struct ReusableMarkdownBlockView: View {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: checked ? "checkmark.square.fill" : "square")
                     .font(.system(size: 11))
-                    .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(checked ? primaryColor : Color.secondary)
                 Text(LocalizedStringKey(block.text))
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
@@ -1140,10 +1150,10 @@ struct ReusableMarkdownBlockView: View {
             HStack(spacing: 6) {
                 Image(systemName: "link")
                     .font(.system(size: 10))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                 Text(url)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                     .underline()
             }
 

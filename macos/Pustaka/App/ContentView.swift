@@ -10,6 +10,10 @@ struct ContentView: View {
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
 
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     private var preferredScheme: ColorScheme? {
         switch appAppearance {
         case "light": return .light
@@ -21,7 +25,11 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(store: store, columnVisibility: $columnVisibility)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
+                .navigationSplitViewColumnWidth(
+                    min: 200 * CGFloat(appUiScale),
+                    ideal: 240 * CGFloat(appUiScale),
+                    max: 340 * CGFloat(appUiScale)
+                )
                 .background(Color(nsColor: .windowBackgroundColor))
         } detail: {
             HStack(spacing: 0) {
@@ -80,7 +88,7 @@ struct ContentView: View {
             // When sidebar is collapsed/hidden, reserve space for macOS Traffic Lights on the far left (only in windowed mode)
             if columnVisibility == .detailOnly && !isFullScreen {
                 Spacer()
-                    .frame(width: 70)
+                    .frame(width: 70 * CGFloat(appUiScale))
             }
 
             // 1. Toggle Sidebar Button (POJOK KIRI PAGE DOCUMENTNYA, PERSIS SEBELAH KANAN SIDEBAR)
@@ -90,9 +98,9 @@ struct ContentView: View {
                 }
             }) {
                 Image(systemName: "sidebar.leading")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13 * CGFloat(appUiScale), weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
                     .background(Color.primary.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
@@ -100,7 +108,7 @@ struct ContentView: View {
             .help("Toggle Sidebar (⌃⌘S)")
 
             Divider()
-                .frame(height: 18)
+                .frame(height: 18 * CGFloat(appUiScale))
                 .opacity(0.3)
 
             // 2. Browser-Style Horizontal Document Tab Bar (Supports multiple tabs including Trash)
@@ -114,9 +122,9 @@ struct ContentView: View {
                         store.revealTrashInFinder()
                     }) {
                         Image(systemName: "folder")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .medium))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
@@ -129,13 +137,13 @@ struct ContentView: View {
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.system(size: 11 * CGFloat(appUiScale), weight: .semibold))
                                 Text("Empty...")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 11 * CGFloat(appUiScale), weight: .medium))
                             }
                             .foregroundStyle(.red.opacity(0.9))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8 * CGFloat(appUiScale))
+                            .padding(.vertical, 4 * CGFloat(appUiScale))
                             .background(Color.red.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
@@ -181,9 +189,9 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13, weight: .regular))
+                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
@@ -218,7 +226,7 @@ struct ContentView: View {
                         Button(action: { store.toggleFavorite(id: page.id) }) {
                             Label(
                                 page.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                                systemImage: "star"
+                                systemImage: page.isFavorite ? "star.fill" : "star"
                             )
                         }
                         Button(action: {
@@ -234,9 +242,9 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 13, weight: .regular))
+                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
@@ -254,7 +262,7 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 40)
+        .frame(height: 40 * CGFloat(appUiScale))
         .background(Color(nsColor: .windowBackgroundColor))
         .background(WindowDragView())
     }
@@ -268,10 +276,10 @@ struct ContentView: View {
             }
         }) {
             Image(systemName: "sparkles")
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(isAIAssistantPresented ? Color.accentColor : Color.secondary)
-                .frame(width: 28, height: 28)
-                .background(isAIAssistantPresented ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.04))
+                .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
+                .foregroundStyle(isAIAssistantPresented ? primaryColor : Color.secondary)
+                .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                .background(isAIAssistantPresented ? primaryColor.opacity(0.12) : Color.primary.opacity(0.04))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)

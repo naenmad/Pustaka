@@ -18,6 +18,11 @@ struct TrashPageView: View {
     @State private var currentCoverUrl: String = "gradient:midnight"
     @State private var isCoverHovered: Bool = false
     @State private var isHeaderHovered: Bool = false
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     enum TrashSortOption: String, CaseIterable {
         case newestDeleted = "Recently Deleted"
@@ -337,7 +342,7 @@ struct TrashPageView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "info.circle")
                 .font(.system(size: 16))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(primaryColor)
                 .frame(width: 22, alignment: .top)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -454,7 +459,7 @@ struct TrashPageView: View {
             .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.85))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+            .background(isSelected ? primaryColor : Color.primary.opacity(0.06))
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -511,7 +516,7 @@ struct TrashPageView: View {
             HStack(spacing: 8) {
                 // Document Icon
                 DynamicIconView(icon: page.icon, size: 14, defaultSymbol: "doc.text")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                     .frame(width: 20)
 
                 // Page Title
@@ -569,10 +574,10 @@ struct TrashPageView: View {
                                 Text("Restore")
                                     .font(.system(size: 11.5, weight: .medium))
                             }
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(primaryColor)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.12))
+                            .background(primaryColor.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
                         .buttonStyle(.plain)
@@ -636,7 +641,7 @@ struct TrashPageView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "sparkles")
                 .font(.system(size: 16))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(primaryColor)
                 .frame(width: 22, alignment: .top)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -759,10 +764,10 @@ struct TrashPageView: View {
             }) {
                 Text("Open Note")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(primaryColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.accentColor.opacity(0.12))
+                    .background(primaryColor.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)

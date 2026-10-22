@@ -10,35 +10,42 @@ struct DocumentTabItemView: View {
     let isSelected: Bool
     var onClose: () -> Void
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    @AppStorage("appUiScale") private var appUiScale: Double = 1.0
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     @State private var isHovered: Bool = false
     @State private var isCloseHovered: Bool = false
 
     var body: some View {
         HStack(spacing: 6) {
-            // Document Icon (Native SF Symbol or Custom Text)
+            // Document Icon (Native SF Symbol, follows primary color)
             if page.id == WorkspaceStore.trashPageId {
                 Image(systemName: "trash")
-                    .font(.system(size: 11))
+                    .font(.system(size: 11 * appUiScale))
                     .foregroundStyle(isSelected ? Color.red.opacity(0.9) : Color.secondary)
             } else {
-                DynamicIconView(icon: page.icon, size: 11.5, defaultSymbol: "doc.text")
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                DynamicIconView(icon: page.icon, size: 11.5 * appUiScale, defaultSymbol: "doc.text")
+                    .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
             }
 
             // Document Title
             Text(page.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : page.title)
-                .font(.system(size: 12, weight: isSelected ? .medium : .regular))
+                .font(.system(size: 12 * appUiScale, weight: isSelected ? .medium : .regular))
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: 160, alignment: .leading)
+                .frame(maxWidth: 160 * appUiScale, alignment: .leading)
 
             // Close Tab Button (xmark)
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 8 * appUiScale, weight: .bold))
                     .foregroundStyle(isCloseHovered ? Color.primary : Color.secondary)
-                    .frame(width: 16, height: 16)
+                    .frame(width: 16 * appUiScale, height: 16 * appUiScale)
                     .background(isCloseHovered ? Color.primary.opacity(0.12) : Color.clear)
                     .clipShape(Circle())
             }
@@ -49,14 +56,14 @@ struct DocumentTabItemView: View {
         }
         .padding(.leading, 10)
         .padding(.trailing, 6)
-        .frame(height: 30)
+        .frame(height: 30 * appUiScale)
         .background(
             RoundedRectangle(cornerRadius: 7)
                 .fill(isSelected ? Color(nsColor: .controlBackgroundColor) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7)
-                .stroke(isSelected ? Color.primary.opacity(0.14) : Color.clear, lineWidth: 1)
+                .stroke(isSelected ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .shadow(color: isSelected ? Color.black.opacity(0.06) : Color.clear, radius: 1.5, y: 0.5)
         .contentShape(Rectangle())
@@ -110,6 +117,13 @@ struct DocumentTabItemView: View {
 
 struct DocumentTabBarView: View {
     @ObservedObject var store: WorkspaceStore
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    @AppStorage("appUiScale") private var appUiScale: Double = 1.0
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     @State private var isHoveringPlus: Bool = false
 
     var body: some View {

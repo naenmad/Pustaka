@@ -135,28 +135,10 @@ class WorkspaceStore: ObservableObject {
 
             // Migrate legacy emoji icons to clean native SF Symbols
             for i in 0..<self.pages.count {
-                let ic = self.pages[i].icon.trimmingCharacters(in: .whitespacesAndNewlines)
-                if ic == "👋" { self.pages[i].icon = "hand.wave" }
-                else if ic == "⚡️" || ic == "⚡" { self.pages[i].icon = "bolt" }
-                else if ic == "📄" { self.pages[i].icon = "doc.text" }
-                else if ic == "🗑️" || ic == "🗑" { self.pages[i].icon = "trash" }
-                else if ic == "💡" { self.pages[i].icon = "lightbulb" }
-                else if ic == "✨" { self.pages[i].icon = "sparkles" }
-                else if ic == "⭐️" || ic == "⭐" { self.pages[i].icon = "star" }
-                else if ic == "🚀" { self.pages[i].icon = "paperplane" }
-                else if ic == "📁" { self.pages[i].icon = "folder" }
-                else if ic == "📝" { self.pages[i].icon = "pencil.and.outline" }
-                else if ic == "📚" { self.pages[i].icon = "book.closed" }
+                self.pages[i].icon = SFIconMapper.convert(self.pages[i].icon, fallback: "doc.text")
             }
             for i in 0..<self.categories.count {
-                let ic = self.categories[i].icon.trimmingCharacters(in: .whitespacesAndNewlines)
-                if ic == "📁" { self.categories[i].icon = "folder" }
-                else if ic == "🗑️" || ic == "🗑" { self.categories[i].icon = "trash" }
-                else if ic == "📚" { self.categories[i].icon = "book.closed" }
-                else if ic == "⭐️" || ic == "⭐" { self.categories[i].icon = "star" }
-                else if ic == "🚀" { self.categories[i].icon = "paperplane" }
-                else if ic == "💡" { self.categories[i].icon = "lightbulb" }
-                else if ic == "⚡️" || ic == "⚡" { self.categories[i].icon = "bolt" }
+                self.categories[i].icon = SFIconMapper.convert(self.categories[i].icon, fallback: "folder")
             }
 
             // Ensure categories don't have cat_fav as a folder (Favorites has its own pinned group)
@@ -835,7 +817,7 @@ class WorkspaceStore: ObservableObject {
     func updateCategory(id: String, newName: String, newIcon: String) {
         if let idx = categories.firstIndex(where: { $0.id == id }) {
             categories[idx].name = newName
-            categories[idx].icon = newIcon
+            categories[idx].icon = newIcon.isEmpty ? "folder" : SFIconMapper.convert(newIcon, fallback: "folder")
             saveToDisk()
         }
     }
@@ -874,7 +856,7 @@ class WorkspaceStore: ObservableObject {
         let newCat = SidebarCategory(
             id: newId,
             name: name,
-            icon: icon,
+            icon: icon.isEmpty ? "folder" : SFIconMapper.convert(icon, fallback: "folder"),
             isExpanded: true,
             showPageCount: true,
             orderIndex: maxIndex + 1
@@ -1193,7 +1175,7 @@ class WorkspaceStore: ObservableObject {
     func updatePageIcon(pageId: String, newIcon: String) {
         guard let idx = pages.firstIndex(where: { $0.id == pageId }) else { return }
         objectWillChange.send()
-        pages[idx].icon = newIcon
+        pages[idx].icon = newIcon.isEmpty ? "" : SFIconMapper.convert(newIcon, fallback: "doc.text")
         pages[idx].lastModified = Date()
         saveToDisk()
     }

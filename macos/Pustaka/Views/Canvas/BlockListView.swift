@@ -570,6 +570,7 @@ struct BlockEditorField: NSViewRepresentable {
     func updateNSView(_ nsView: BlockEditorTextView, context: Context) {
         context.coordinator.parent = self
         nsView.placeholderText = placeholder
+        let fontChanged = (nsView.font?.pointSize != font.pointSize) || (nsView.font?.fontName != font.fontName)
         nsView.font = font
         nsView.textColor = textColor
         nsView.onCommit = onCommit
@@ -591,13 +592,14 @@ struct BlockEditorField: NSViewRepresentable {
         }
 
         let styled = MarkdownStyler.markdownToAttributedString(text, baseFont: font, baseColor: textColor)
-        if nsView.attributedString() != styled && nsView.textStorage?.string != styled.string {
+        if fontChanged || (nsView.attributedString() != styled && nsView.textStorage?.string != styled.string) {
             let prevRange = nsView.selectedRange()
             nsView.textStorage?.setAttributedString(styled)
             if prevRange.location <= (styled.string as NSString).length {
                 nsView.setSelectedRange(prevRange)
             }
             nsView.recalculateHeight()
+            nsView.invalidateIntrinsicContentSize()
         }
 
         if isFocused {
@@ -702,14 +704,19 @@ struct ColabInsertLineView: View {
     let onInsertKind: (UIBlockKind) -> Void
     let onInsertSubpage: () -> Void
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @State private var isHovered: Bool = false
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     var body: some View {
         ZStack {
             // Subtle horizontal dividing line visible on hover
             if isHovered {
                 Rectangle()
-                    .fill(Color.accentColor.opacity(0.35))
+                    .fill(primaryColor.opacity(0.35))
                     .frame(height: 1.5)
             } else {
                 Color.clear
@@ -727,12 +734,12 @@ struct ColabInsertLineView: View {
                             Text("Block")
                                 .font(.system(size: 11, weight: .semibold))
                         }
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(primaryColor)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 3)
                         .background(Color(nsColor: .windowBackgroundColor))
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.accentColor.opacity(0.45), lineWidth: 1))
+                        .overlay(Capsule().stroke(primaryColor.opacity(0.45), lineWidth: 1))
                         .shadow(color: Color.black.opacity(0.08), radius: 3, y: 1)
                     }
                     .buttonStyle(.plain)
@@ -879,6 +886,13 @@ struct BlockListView: View {
     @Binding var blockActionTrigger: BlockActionCommand?
     @Binding var formattingState: EditorFormattingState
 
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     @State private var blocks: [UIBlockItem] = []
     @State private var hoveredBlockId: String? = nil
     @State private var draggedBlock: UIBlockItem? = nil
@@ -909,16 +923,16 @@ struct BlockListView: View {
 
                 if isBottomDropTargeted {
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        .background(Color.accentColor.opacity(0.06))
+                        .strokeBorder(primaryColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        .background(primaryColor.opacity(0.06))
                         .overlay(
                             HStack(spacing: 8) {
                                 Image(systemName: "photo.badge.plus")
                                     .font(.title3)
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(primaryColor)
                                 Text("Drop image to insert at bottom")
                                     .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(primaryColor)
                             }
                         )
                         .padding(.horizontal, 20)
@@ -974,10 +988,10 @@ struct BlockListView: View {
             Group {
                 if let rect = marqueeRect {
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(primaryColor.opacity(0.12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 3)
-                                .stroke(Color.accentColor.opacity(0.65), lineWidth: 1)
+                                .stroke(primaryColor.opacity(0.65), lineWidth: 1)
                         )
                         .frame(width: rect.width, height: rect.height)
                         .position(x: rect.midX, y: rect.midY)
@@ -1548,7 +1562,12 @@ struct SubpageBlockView: View {
     @ObservedObject var store: WorkspaceStore
     let onDelete: () -> Void
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @State private var isHovered: Bool = false
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     private var subpage: DocumentPage? {
         store.page(id: pageId)
@@ -1562,7 +1581,7 @@ struct SubpageBlockView: View {
                 HStack(spacing: 8) {
                     // Page Icon
                     DynamicIconView(icon: subpage?.icon ?? "", size: 14, defaultSymbol: "doc.text")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(primaryColor)
                         .frame(width: 20)
 
                     // Page Title
@@ -1634,6 +1653,13 @@ struct BlockRowView: View {
     let onDeleteEmpty: () -> Void
     let onStartDrag: () -> Void
 
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
+
     @State private var textBuffer: String = ""
     @State private var dynamicHeight: CGFloat = 26
     @State private var isSlashCommandOpen: Bool = false
@@ -1684,11 +1710,11 @@ struct BlockRowView: View {
         .padding(.horizontal, 2)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
+                .fill(isSelected ? primaryColor.opacity(0.14) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                .stroke(isSelected ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onAppear {
@@ -1761,7 +1787,7 @@ struct BlockRowView: View {
         Button(action: onSelectHandle) {
             SixDotsHandleView()
                 .frame(width: 14, height: 18)
-                .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear)
+                .background(isSelected ? primaryColor.opacity(0.25) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
         }
         .buttonStyle(.plain)
@@ -1841,7 +1867,7 @@ struct BlockRowView: View {
                 text: $textBuffer,
                 dynamicHeight: $dynamicHeight,
                 placeholder: (isFocused && textBuffer.isEmpty) ? "Type '/' for commands, or start writing..." : "",
-                font: NSFont.systemFont(ofSize: 15),
+                font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                 textColor: .labelColor,
                 isFocused: isFocused,
                 onCommit: {
@@ -1866,7 +1892,7 @@ struct BlockRowView: View {
         case .bullet:
             HStack(alignment: .top, spacing: 8) {
                 Text("•")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: CGFloat(editorFontSize), weight: .bold))
                     .foregroundStyle(.secondary)
                     .frame(width: 14, alignment: .trailing)
                     .padding(.top, 2)
@@ -1875,7 +1901,7 @@ struct BlockRowView: View {
                     text: $textBuffer,
                     dynamicHeight: $dynamicHeight,
                     placeholder: (isFocused && textBuffer.isEmpty) ? "List item..." : "",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                     textColor: .labelColor,
                     isFocused: isFocused,
                     onCommit: {
@@ -1907,7 +1933,7 @@ struct BlockRowView: View {
         case .numbered(let idx):
             HStack(alignment: .top, spacing: 8) {
                 Text("\(idx).")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: max(11, CGFloat(editorFontSize) - 1), weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 20, alignment: .trailing)
                     .padding(.top, 2)
@@ -1916,7 +1942,7 @@ struct BlockRowView: View {
                     text: $textBuffer,
                     dynamicHeight: $dynamicHeight,
                     placeholder: (isFocused && textBuffer.isEmpty) ? "List item..." : "",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                     textColor: .labelColor,
                     isFocused: isFocused,
                     onCommit: {
@@ -1961,7 +1987,7 @@ struct BlockRowView: View {
                         text: $textBuffer,
                         dynamicHeight: $dynamicHeight,
                         placeholder: (isFocused && textBuffer.isEmpty) ? "Toggle list heading..." : "",
-                        font: NSFont.systemFont(ofSize: 15, weight: .semibold),
+                        font: NSFont.systemFont(ofSize: CGFloat(editorFontSize), weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
                         onCommit: {
@@ -2004,7 +2030,7 @@ struct BlockRowView: View {
                     text: $textBuffer,
                     dynamicHeight: $dynamicHeight,
                     placeholder: (isFocused && textBuffer.isEmpty) ? "Quote..." : "",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                     textColor: .secondaryLabelColor,
                     isFocused: isFocused,
                     onCommit: {
@@ -2053,7 +2079,7 @@ struct BlockRowView: View {
                 Button(action: onToggleTodo) {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
                         .font(.system(size: 14))
-                        .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(checked ? primaryColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(checked ? "Completed task" : "Incomplete task")
@@ -2063,7 +2089,7 @@ struct BlockRowView: View {
                     text: $textBuffer,
                     dynamicHeight: $dynamicHeight,
                     placeholder: (isFocused && textBuffer.isEmpty) ? "To-do..." : "",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                     textColor: checked ? .secondaryLabelColor : .labelColor,
                     isFocused: isFocused,
                     onCommit: {
@@ -2131,7 +2157,7 @@ struct BlockRowView: View {
                     text: $textBuffer,
                     dynamicHeight: $dynamicHeight,
                     placeholder: (isFocused && textBuffer.isEmpty) ? "Callout note..." : "",
-                    font: NSFont.systemFont(ofSize: 15),
+                    font: NSFont.systemFont(ofSize: CGFloat(editorFontSize)),
                     textColor: .labelColor,
                     isFocused: isFocused,
                     onCommit: {
@@ -2283,11 +2309,11 @@ struct BlockRowView: View {
                             VStack(spacing: 6) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.accentColor.opacity(0.12))
+                                        .fill(primaryColor.opacity(0.12))
                                         .frame(width: 48, height: 48)
                                     Image(systemName: "photo.on.rectangle.angled")
                                         .font(.system(size: 22, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
+                                        .foregroundStyle(primaryColor)
                                 }
 
                                 Text("Upload or paste an image")
@@ -2317,7 +2343,7 @@ struct BlockRowView: View {
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 7)
-                                .background(Color.accentColor)
+                                .background(primaryColor)
                                 .foregroundStyle(.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
@@ -2415,8 +2441,8 @@ struct BlockRowView: View {
                                             .font(.system(size: 11, weight: .semibold))
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 6)
-                                            .background(Color.accentColor.opacity(0.15))
-                                            .foregroundStyle(Color.accentColor)
+                                            .background(primaryColor.opacity(0.15))
+                                            .foregroundStyle(primaryColor)
                                             .clipShape(RoundedRectangle(cornerRadius: 5))
                                     }
                                     .buttonStyle(.plain)
@@ -2431,12 +2457,12 @@ struct BlockRowView: View {
                     .frame(maxWidth: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(isImageDropTargeted ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor).opacity(0.45))
+                            .fill(isImageDropTargeted ? primaryColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor).opacity(0.45))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .strokeBorder(
-                                isImageDropTargeted ? Color.accentColor : Color.secondary.opacity(0.22),
+                                isImageDropTargeted ? primaryColor : Color.secondary.opacity(0.22),
                                 style: StrokeStyle(lineWidth: isImageDropTargeted ? 2 : 1, dash: [6, 4])
                             )
                     )
@@ -2757,7 +2783,7 @@ struct BlockRowView: View {
                 }
 
                 TextEditor(text: $textBuffer)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.system(size: max(11, CGFloat(editorFontSize) - 1.5), design: .monospaced))
                     .frame(minHeight: 70)
                     .scrollContentBackground(.hidden)
                     .onChange(of: textBuffer) { _, newVal in
@@ -2901,7 +2927,7 @@ struct BlockRowView: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: cmd.icon)
                                         .font(.system(size: 13))
-                                        .foregroundStyle(isHighlighted ? Color.accentColor : .secondary)
+                                        .foregroundStyle(isHighlighted ? primaryColor : .secondary)
                                         .frame(width: 20)
 
                                     VStack(alignment: .leading, spacing: 1) {
@@ -2920,19 +2946,19 @@ struct BlockRowView: View {
                                     if isHighlighted {
                                         Text("↵ Enter")
                                             .font(.system(size: 9, weight: .semibold))
-                                            .foregroundStyle(Color.accentColor)
+                                            .foregroundStyle(primaryColor)
                                             .padding(.horizontal, 5)
                                             .padding(.vertical, 2)
-                                            .background(Color.accentColor.opacity(0.12))
+                                            .background(primaryColor.opacity(0.12))
                                             .clipShape(RoundedRectangle(cornerRadius: 3))
                                     }
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 5)
-                                .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04))
+                                .background(isHighlighted ? primaryColor.opacity(0.14) : Color.primary.opacity(0.04))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .stroke(isHighlighted ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1)
+                                        .stroke(isHighlighted ? primaryColor.opacity(0.35) : Color.clear, lineWidth: 1)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                                 .contentShape(Rectangle())
@@ -3081,9 +3107,14 @@ struct ModernTableView: View {
     let onUpdateTable: ([String], [[String]]) -> Void
     let onDelete: () -> Void
 
+    @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @State private var hoveredRowIdx: Int? = nil
     @State private var hoveredColIdx: Int? = nil
     @State private var isTableHovered: Bool = false
+
+    private var primaryColor: Color {
+        Color(hex: appPrimaryColorHex)
+    }
 
     private let cellHeight: CGFloat = 34
     private let indexGutterWidth: CGFloat = 36
@@ -3242,7 +3273,7 @@ struct ModernTableView: View {
                             }
                             .background(
                                 hoveredRowIdx == rowIdx
-                                    ? Color.accentColor.opacity(0.05)
+                                    ? primaryColor.opacity(0.05)
                                     : (rowIdx % 2 == 1 ? Color.primary.opacity(0.015) : Color.clear)
                             )
                             .onHover { h in
@@ -3400,16 +3431,22 @@ struct ModernTableCellView: View {
     var isHeader: Bool = false
     let onCommit: (String) -> Void
 
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
     @State private var isEditing: Bool = false
     @State private var editText: String = ""
     @FocusState private var isFocused: Bool
+
+    private var fontSize: CGFloat {
+        let base = CGFloat(editorFontSize)
+        return isHeader ? max(11, base - 3) : max(12, base - 2)
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {
             if isEditing {
                 TextField(placeholder, text: $editText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                    .font(.system(size: fontSize, weight: isHeader ? .semibold : .regular))
                     .focused($isFocused)
                     .onSubmit {
                         finishEditing()
@@ -3424,11 +3461,11 @@ struct ModernTableCellView: View {
                     let trimmed = text.trimmingCharacters(in: .whitespaces)
                     if trimmed.isEmpty {
                         Text(placeholder)
-                            .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                            .font(.system(size: fontSize, weight: isHeader ? .semibold : .regular))
                             .foregroundStyle(.tertiary)
                     } else {
                         Text(LocalizedStringKey(trimmed))
-                            .font(.system(size: isHeader ? 12 : 13, weight: isHeader ? .semibold : .regular))
+                            .font(.system(size: fontSize, weight: isHeader ? .semibold : .regular))
                             .foregroundStyle(isHeader ? Color.primary : Color.primary.opacity(0.95))
                             .lineLimit(1)
                     }

@@ -184,8 +184,8 @@ struct KanbanCardView: View {
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.12))
-                    .foregroundStyle(.tint)
+                    .background(Color.appPrimary.opacity(0.12))
+                    .foregroundStyle(Color.appPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
 
                 Text(task.priority.rawValue)

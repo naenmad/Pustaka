@@ -21,7 +21,69 @@ struct VisualEffectView: NSViewRepresentable {
     }
 }
 
-// MARK: - Dynamic Icon View (Native SF Symbol with seamless fallback)
+// MARK: - Legacy Emoji to Native Outline SF Symbol Converter
+
+enum SFIconMapper {
+    static let map: [String: String] = [
+        "👋": "hand.wave",
+        "⚡️": "bolt", "⚡": "bolt",
+        "📄": "doc.text",
+        "🗑️": "trash", "🗑": "trash",
+        "💡": "lightbulb",
+        "✨": "sparkles",
+        "⭐️": "star", "⭐": "star",
+        "🚀": "paperplane",
+        "📁": "folder",
+        "📝": "pencil.and.outline",
+        "📚": "book.closed",
+        "📌": "pin",
+        "🛠️": "wrench.and.screwdriver", "🛠": "wrench.and.screwdriver",
+        "🔥": "flame",
+        "🎯": "scope",
+        "⚙️": "gearshape", "⚙": "gearshape",
+        "❤️": "heart", "♥️": "heart",
+        "🏷️": "tag", "🏷": "tag",
+        "🚩": "flag", "🏁": "flag",
+        "🔒": "lock",
+        "💼": "briefcase",
+        "👥": "person.2", "👤": "person",
+        "📥": "archivebox", "📦": "archivebox",
+        "☀️": "sun.max", "🔆": "sun.max",
+        "🌙": "moon", "🌓": "circle.lefthalf.striped.horizontal",
+        "💻": "display", "🖥️": "display",
+        "📱": "iphone",
+        "🌐": "globe",
+        "🎨": "paintpalette",
+        "🎵": "music.note",
+        "🔗": "link",
+        "🔍": "magnifyingglass",
+        "✅": "checkmark.circle", "✔️": "checkmark.circle",
+        "⚠️": "exclamationmark.triangle",
+        "❓": "questionmark.circle",
+        "💬": "quote.bubble",
+        "🕒": "clock", "⏱️": "clock",
+        "📅": "calendar",
+        "🔔": "bell",
+        "🔖": "bookmark",
+        "👁️": "eye"
+    ]
+
+    static func convert(_ raw: String, fallback: String = "doc.text") -> String {
+        let clean = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty { return fallback }
+        if let mapped = map[clean] { return mapped }
+        if NSImage(systemSymbolName: clean, accessibilityDescription: nil) != nil {
+            return clean
+        }
+        // If it's an emoji or unknown unicode character, replace with fallback
+        if clean.unicodeScalars.contains(where: { $0.properties.isEmoji }) {
+            return fallback
+        }
+        return clean
+    }
+}
+
+// MARK: - Dynamic Icon View (Native SF Symbol with seamless fallback, NEVER renders emoji)
 
 struct DynamicIconView: View {
     let icon: String
@@ -30,16 +92,13 @@ struct DynamicIconView: View {
     var defaultSymbol: String = "doc.text"
 
     var body: some View {
-        let clean = icon.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.isEmpty {
-            Image(systemName: defaultSymbol)
-                .font(.system(size: size, weight: weight))
-        } else if NSImage(systemSymbolName: clean, accessibilityDescription: nil) != nil {
-            Image(systemName: clean)
+        let symbol = SFIconMapper.convert(icon, fallback: defaultSymbol)
+        if NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil {
+            Image(systemName: symbol)
                 .font(.system(size: size, weight: weight))
         } else {
-            Text(clean)
-                .font(.system(size: size))
+            Image(systemName: defaultSymbol)
+                .font(.system(size: size, weight: weight))
         }
     }
 }
@@ -47,6 +106,10 @@ struct DynamicIconView: View {
 // MARK: - Color Hex Conversion Extension
 
 extension Color {
+    static var appPrimary: Color {
+        let hex = UserDefaults.standard.string(forKey: "appPrimaryColorHex") ?? "#007AFF"
+        return Color(hex: hex)
+    }
     init(hex: String) {
         let hexClean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
