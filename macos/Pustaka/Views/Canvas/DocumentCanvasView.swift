@@ -609,13 +609,18 @@ struct DocumentCanvasView: View {
                 : nil
             )
 
-            // Smooth Gradient Blend to Document Canvas Background (0% opacity at top to 100% solid at bottom)
+            // Smooth Tall Gradient Blend to Document Canvas Background (0% opacity at top to 100% solid at bottom)
             LinearGradient(
                 stops: [
                     .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.0),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.35),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.25), location: 0.65),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.70), location: 0.88),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.02), location: 0.12),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.06), location: 0.25),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.14), location: 0.38),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.25), location: 0.50),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.40), location: 0.63),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.58), location: 0.75),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.78), location: 0.87),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.93), location: 0.95),
                     .init(color: Color(nsColor: .windowBackgroundColor), location: 1.0)
                 ],
                 startPoint: .top,
