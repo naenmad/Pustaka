@@ -609,6 +609,23 @@ struct DocumentCanvasView: View {
                 : nil
             )
 
+            // Smooth Gradient Blend to Document Canvas Background (0% opacity at top to 100% solid at bottom)
+            LinearGradient(
+                stops: [
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.0),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.35),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.25), location: 0.65),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.70), location: 0.88),
+                    .init(color: Color(nsColor: .windowBackgroundColor), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 270)
+            .allowsHitTesting(false)
+            .opacity(isRepositioningCover ? 0.20 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isRepositioningCover)
+
             // Crop Guidelines Grid (Visible when adjusting)
             if isRepositioningCover {
                 cropGuidelinesOverlay

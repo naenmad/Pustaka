@@ -177,7 +177,11 @@ struct WindowDragView: NSViewRepresentable {
 
 class WindowDragNSView: NSView {
     override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
+        if event.clickCount == 2 {
+            window?.zoom(nil)
+        } else {
+            window?.performDrag(with: event)
+        }
     }
 }
 

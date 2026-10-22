@@ -52,7 +52,6 @@ struct ContentView: View {
             .ignoresSafeArea(.container, edges: .top)
         }
         .toolbar(removing: .sidebarToggle)
-        .toolbar(.hidden, for: .windowToolbar)
         .tint(Color(hex: appPrimaryColorHex))
         .preferredColorScheme(preferredScheme)
         .background(WindowConfigurator())
@@ -304,6 +303,15 @@ struct ContentView: View {
             window.toolbar = nil
             window.titlebarSeparatorStyle = .none
             window.tabbingMode = .disallowed
+            
+            // Explicitly enable full screen and window tiling behavior
+            window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
+            
+            // Ensure macOS traffic light buttons (Close, Minimize, FullScreen/Zoom) are visible & active
+            window.standardWindowButton(.closeButton)?.isHidden = false
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+            window.standardWindowButton(.zoomButton)?.isHidden = false
+            window.standardWindowButton(.zoomButton)?.isEnabled = true
         }
     }
 
