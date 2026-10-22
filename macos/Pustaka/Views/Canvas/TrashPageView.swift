@@ -189,13 +189,33 @@ struct TrashPageView: View {
         }
     }
 
-    // MARK: - Notion Cover Banner (Identical 270pt Banner to DocumentCanvasView)
+    // MARK: - Notion Cover Banner (Identical 350pt Banner to DocumentCanvasView)
 
     private var pageCoverBannerView: some View {
         ZStack(alignment: .bottomTrailing) {
             coverImageContent
-                .frame(height: 270)
+                .frame(height: 350)
                 .clipped()
+
+            // Smooth Tall Gradient Blend to Canvas Background (0% opacity at top to 100% solid at bottom)
+            LinearGradient(
+                stops: [
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.0),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.02), location: 0.06),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.07), location: 0.20),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.16), location: 0.34),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.30), location: 0.48),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.48), location: 0.62),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.68), location: 0.74),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.86), location: 0.85),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.97), location: 0.93),
+                    .init(color: Color(nsColor: .windowBackgroundColor), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 350)
+            .allowsHitTesting(false)
 
             // Hover action controls
             HStack(spacing: 6) {

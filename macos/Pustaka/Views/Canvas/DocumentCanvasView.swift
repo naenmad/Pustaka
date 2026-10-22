@@ -586,11 +586,11 @@ struct DocumentCanvasView: View {
                     .scaleEffect(scale)
                     .offset(
                         x: (0.5 - offsetX) * (geo.size.width * (scale - 1.0) + 160),
-                        y: (0.5 - offsetY) * (180 * scale)
+                        y: (0.5 - offsetY) * (230 * scale)
                     )
-                    .frame(width: geo.size.width, height: 270)
+                    .frame(width: geo.size.width, height: 350)
             }
-            .frame(height: 270)
+            .frame(height: 350)
             .clipped()
             .contentShape(Rectangle())
             .gesture(
@@ -613,20 +613,20 @@ struct DocumentCanvasView: View {
             LinearGradient(
                 stops: [
                     .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.0), location: 0.0),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.02), location: 0.12),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.06), location: 0.25),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.14), location: 0.38),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.25), location: 0.50),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.40), location: 0.63),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.58), location: 0.75),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.78), location: 0.87),
-                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.93), location: 0.95),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.02), location: 0.06),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.07), location: 0.20),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.16), location: 0.34),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.30), location: 0.48),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.48), location: 0.62),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.68), location: 0.74),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.86), location: 0.85),
+                    .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.97), location: 0.93),
                     .init(color: Color(nsColor: .windowBackgroundColor), location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 270)
+            .frame(height: 350)
             .allowsHitTesting(false)
             .opacity(isRepositioningCover ? 0.20 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isRepositioningCover)
