@@ -159,26 +159,35 @@ struct SidebarView: View {
                     .frame(width: 12)
             }
 
-            // Vault Badge Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [primaryColor, primaryColor.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            // App Brand Logo
+            if let logoImg = NSImage(named: "AppLogo") ?? Bundle.main.url(forResource: "AppLogo", withExtension: "png").flatMap({ NSImage(contentsOf: $0) }) ?? NSApplication.shared.applicationIconImage {
+                Image(nsImage: logoImg)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 22 * appUiScale, height: 22 * appUiScale)
+                    .clipShape(RoundedRectangle(cornerRadius: 5 * appUiScale, style: .continuous))
+                    .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [primaryColor, primaryColor.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 18 * appUiScale, height: 18 * appUiScale)
-                    .shadow(color: primaryColor.opacity(0.2), radius: 1, y: 0.5)
+                        .frame(width: 18 * appUiScale, height: 18 * appUiScale)
+                        .shadow(color: primaryColor.opacity(0.2), radius: 1, y: 0.5)
 
-                Image(systemName: "books.vertical")
-                    .font(.system(size: 9.5 * appUiScale, weight: .bold))
-                    .foregroundStyle(.white)
+                    Image(systemName: "book.closed.fill")
+                        .font(.system(size: 9.5 * appUiScale, weight: .bold))
+                        .foregroundStyle(.white)
+                }
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("Pustaka Vault")
+                Text("Pustaka")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)

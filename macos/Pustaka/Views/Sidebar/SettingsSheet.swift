@@ -171,14 +171,23 @@ struct SettingsSheet: View {
         VStack(spacing: 6) {
             // App Badge Identity
             HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(hex: appPrimaryColorHex))
-                        .frame(width: 24, height: 24)
+                if let logoImg = NSImage(named: "AppLogo") ?? Bundle.main.url(forResource: "AppLogo", withExtension: "png").flatMap({ NSImage(contentsOf: $0) }) ?? NSApplication.shared.applicationIconImage {
+                    Image(nsImage: logoImg)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(hex: appPrimaryColorHex))
+                            .frame(width: 24, height: 24)
 
-                    Image(systemName: "books.vertical")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -1035,14 +1044,23 @@ struct SettingsSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             settingsCardSection(title: "ABOUT PUSTAKA") {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(Color(hex: appPrimaryColorHex))
-                                .frame(width: 38, height: 38)
-                            Image(systemName: "books.vertical")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(.white)
+                    HStack(spacing: 12) {
+                        if let logoImg = NSImage(named: "AppLogo") ?? Bundle.main.url(forResource: "AppLogo", withExtension: "png").flatMap({ NSImage(contentsOf: $0) }) ?? NSApplication.shared.applicationIconImage {
+                            Image(nsImage: logoImg)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 42, height: 42)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        } else {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color(hex: appPrimaryColorHex))
+                                    .frame(width: 38, height: 38)
+                                Image(systemName: "book.closed.fill")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
                         }
 
                         VStack(alignment: .leading, spacing: 2) {

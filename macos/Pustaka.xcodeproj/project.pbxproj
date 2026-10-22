@@ -7,53 +7,57 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0E3F6ED7F8F7503021CECC2D /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */; };
 		0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */; };
 		1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A75D6E66F74E96C369E4F2E /* BlockListView.swift */; };
 		2F7011EBF695835398C48874 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453BE2BFC9AC54F9709DB879 /* ContentView.swift */; };
 		3B9EAF4488CDE35C6A5D6C4A /* VisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4026F43001111E7A205A7A56 /* VisualEffectView.swift */; };
 		4043214E17E928D42CD32AC4 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */; };
+		40C2D5E4C98B56B23C22A95F /* ACPAgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BE846E43D9511BAE914B7C /* ACPAgentService.swift */; };
 		44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B77260BF368417A5E852534 /* TypstPreviewView.swift */; };
 		5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */; };
 		5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */; };
 		773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */; };
 		7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8275816DA33CAC37606CF1 /* SidebarView.swift */; };
+		7CE57C7C47F513D3CC152DA9 /* AppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9D69C34B06EB8F4E907B667B /* AppIcon.png */; };
 		8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508C85AAC360F0814E117474 /* KanbanBoardView.swift */; };
 		927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF00 /* TheMetService.swift */; };
 		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
+		9FFC7C312943231732E8C032 /* AppLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 71DA7E8CAA8B92C87810098B /* AppLogo.png */; };
+		CBA590E27EAD8551427969E1 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40AFEBB32F29F23696A12D81 /* SettingsSheet.swift */; };
 		E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */; };
 		E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */; };
-		5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829599 /* TrashPageView.swift */; };
-		927181AFDBEB3610699E90C1 /* ACPAgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF01 /* ACPAgentService.swift */; };
-		927181AFDBEB3610699E90C2 /* AIAssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */; };
+		EBDAC7AC7F11899444566DD5 /* TrashPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFE59BA75F20BA3B87AE8D0 /* TrashPageView.swift */; };
+		F564C98DFC2F30FA63773CA0 /* AIAssistantPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16B875F52C46F6744B455AF /* AIAssistantPanelView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02BE846E43D9511BAE914B7C /* ACPAgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPAgentService.swift; sourceTree = "<group>"; };
 		0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		176EC69F5B6BE4AE64CC37BA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24F64070562EB2504B1772B5 /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
 		3A75D6E66F74E96C369E4F2E /* BlockListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockListView.swift; sourceTree = "<group>"; };
 		4026F43001111E7A205A7A56 /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = "<group>"; };
+		40AFEBB32F29F23696A12D81 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		453BE2BFC9AC54F9709DB879 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		508C85AAC360F0814E117474 /* KanbanBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanBoardView.swift; sourceTree = "<group>"; };
 		5A8275816DA33CAC37606CF1 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PustakaApp.swift; sourceTree = "<group>"; };
 		67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Pustaka.entitlements; sourceTree = "<group>"; };
 		6B77260BF368417A5E852534 /* TypstPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypstPreviewView.swift; sourceTree = "<group>"; };
+		71DA7E8CAA8B92C87810098B /* AppLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppLogo.png; sourceTree = "<group>"; };
 		7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeCategorySheet.swift; sourceTree = "<group>"; };
-		7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModels.swift; sourceTree = "<group>"; };
 		997CBAA8E88BE3A435C7891F /* Pustaka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pustaka.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9D69C34B06EB8F4E907B667B /* AppIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppIcon.png; sourceTree = "<group>"; };
 		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
 		AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pustaka_ffi.swift; sourceTree = "<group>"; };
 		B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCanvasView.swift; sourceTree = "<group>"; };
 		E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabBarView.swift; sourceTree = "<group>"; };
 		EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Pustaka-Bridging-Header.h"; sourceTree = "<group>"; };
+		EBFE59BA75F20BA3B87AE8D0 /* TrashPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashPageView.swift; sourceTree = "<group>"; };
+		F16B875F52C46F6744B455AF /* AIAssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantPanelView.swift; sourceTree = "<group>"; };
 		F4745E229503AC532D20FF00 /* TheMetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheMetService.swift; sourceTree = "<group>"; };
 		FE80D35EF555BAEC1497CFAC /* pustaka_ffiFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = pustaka_ffiFFI.modulemap; sourceTree = "<group>"; };
-		B015E83DED5C2530AA829599 /* TrashPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashPageView.swift; sourceTree = "<group>"; };
-		F4745E229503AC532D20FF01 /* ACPAgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPAgentService.swift; sourceTree = "<group>"; };
-		F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantPanelView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -69,7 +73,7 @@
 			isa = PBXGroup;
 			children = (
 				7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */,
-				7378A3CF0C6B292A0F220E7B /* SettingsSheet.swift */,
+				40AFEBB32F29F23696A12D81 /* SettingsSheet.swift */,
 				5A8275816DA33CAC37606CF1 /* SidebarView.swift */,
 			);
 			path = Sidebar;
@@ -81,7 +85,7 @@
 				3A75D6E66F74E96C369E4F2E /* BlockListView.swift */,
 				B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */,
 				E5B060CDBFD6334B8246E62D /* DocumentTabBarView.swift */,
-				B015E83DED5C2530AA829599 /* TrashPageView.swift */,
+				EBFE59BA75F20BA3B87AE8D0 /* TrashPageView.swift */,
 			);
 			path = Canvas;
 			sourceTree = "<group>";
@@ -89,8 +93,8 @@
 		544D6D64B29C5EC2DA4B14D9 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				02BE846E43D9511BAE914B7C /* ACPAgentService.swift */,
 				F4745E229503AC532D20FF00 /* TheMetService.swift */,
-				F4745E229503AC532D20FF01 /* ACPAgentService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -122,6 +126,14 @@
 			path = Generated;
 			sourceTree = "<group>";
 		};
+		A891818B82A204A6663F4467 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				F16B875F52C46F6744B455AF /* AIAssistantPanelView.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
 		A9D0F98EDD7C19E922EC42EE /* Kanban */ = {
 			isa = PBXGroup;
 			children = (
@@ -134,6 +146,8 @@
 			isa = PBXGroup;
 			children = (
 				0E7ABC0676F95D4CB5462A51 /* AppIcon.icns */,
+				9D69C34B06EB8F4E907B667B /* AppIcon.png */,
+				71DA7E8CAA8B92C87810098B /* AppLogo.png */,
 				176EC69F5B6BE4AE64CC37BA /* Info.plist */,
 				EB72B4018D18534ED2263AF0 /* Pustaka-Bridging-Header.h */,
 				67273AFFFE511B1B5562AD47 /* Pustaka.entitlements */,
@@ -171,18 +185,10 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		DC83FE2B60159C31607FB257 /* Assistant */ = {
-			isa = PBXGroup;
-			children = (
-				F4745E229503AC532D20FF02 /* AIAssistantPanelView.swift */,
-			);
-			path = Assistant;
-			sourceTree = "<group>";
-		};
 		DC83FE2B60159C31607FB256 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				DC83FE2B60159C31607FB257 /* Assistant */,
+				A891818B82A204A6663F4467 /* Assistant */,
 				4ECEBF9A62B55877B487E36F /* Canvas */,
 				66315969544D29720622AAB1 /* Common */,
 				A9D0F98EDD7C19E922EC42EE /* Kanban */,
@@ -250,6 +256,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4043214E17E928D42CD32AC4 /* AppIcon.icns in Resources */,
+				7CE57C7C47F513D3CC152DA9 /* AppIcon.png in Resources */,
+				9FFC7C312943231732E8C032 /* AppLogo.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -282,24 +290,24 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				40C2D5E4C98B56B23C22A95F /* ACPAgentService.swift in Sources */,
+				F564C98DFC2F30FA63773CA0 /* AIAssistantPanelView.swift in Sources */,
 				1EF2034B65F0DC27BC29FF45 /* BlockListView.swift in Sources */,
 				2F7011EBF695835398C48874 /* ContentView.swift in Sources */,
 				0E3F6ED7F8F7503021CECC2C /* CustomizeCategorySheet.swift in Sources */,
-				0E3F6ED7F8F7503021CECC2D /* SettingsSheet.swift in Sources */,
 				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
 				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
-				5CE9FE1EBDA62083C3A62299 /* TrashPageView.swift in Sources */,
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
+				CBA590E27EAD8551427969E1 /* SettingsSheet.swift in Sources */,
 				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,
 				927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */,
+				EBDAC7AC7F11899444566DD5 /* TrashPageView.swift in Sources */,
 				44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */,
 				3B9EAF4488CDE35C6A5D6C4A /* VisualEffectView.swift in Sources */,
 				5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */,
 				9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */,
 				773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */,
-				927181AFDBEB3610699E90C1 /* ACPAgentService.swift in Sources */,
-				927181AFDBEB3610699E90C2 /* AIAssistantPanelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
