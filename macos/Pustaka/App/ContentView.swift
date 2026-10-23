@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var isAIAssistantPresented: Bool = false
     @State private var isFullScreen: Bool = false
+    @State private var isQuickSearchPresented: Bool = false
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
@@ -24,7 +25,11 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(store: store, columnVisibility: $columnVisibility)
+            SidebarView(
+                store: store,
+                columnVisibility: $columnVisibility,
+                isQuickSearchPresented: $isQuickSearchPresented
+            )
                 .navigationSplitViewColumnWidth(
                     min: 200 * CGFloat(appUiScale),
                     ideal: 240 * CGFloat(appUiScale),
@@ -78,6 +83,24 @@ struct ContentView: View {
                 )
                 .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 780)
             }
+        }
+        .overlay {
+            if isQuickSearchPresented {
+                QuickSearchPaletteView(store: store, isPresented: $isQuickSearchPresented)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: isQuickSearchPresented)
+        .background {
+            Button(action: {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                    isQuickSearchPresented.toggle()
+                }
+            }) {
+                EmptyView()
+            }
+            .keyboardShortcut("k", modifiers: [.command])
+            .opacity(0)
         }
     }
 

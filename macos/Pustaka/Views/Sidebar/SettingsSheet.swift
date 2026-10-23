@@ -14,7 +14,7 @@ struct SettingsSheet: View {
     // Accessibility & Scaling
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
     @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
     @AppStorage("enhanceContrast") private var enhanceContrast: Bool = false
     @AppStorage("editorFontFamily") private var editorFontFamily: String = "system"
     @AppStorage("editorLineSpacing") private var editorLineSpacing: String = "normal"
@@ -448,10 +448,10 @@ struct SettingsSheet: View {
                     }
                     Spacer()
                     Picker("", selection: $sidebarFontSize) {
-                        Text("Compact (11 pt)").tag(11.0)
-                        Text("Standard (12 pt)").tag(12.0)
-                        Text("Large (13.5 pt)").tag(13.5)
-                        Text("Extra Large (15 pt)").tag(15.0)
+                        Text("Compact (11.5 pt)").tag(11.5)
+                        Text("Standard (13 pt - Apple HIG)").tag(13.0)
+                        Text("Large (14 pt)").tag(14.0)
+                        Text("Extra Large (15.5 pt)").tag(15.5)
                     }
                     .frame(width: 170)
                 }

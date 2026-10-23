@@ -21,6 +21,7 @@
 		7CE57C7C47F513D3CC152DA9 /* AppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9D69C34B06EB8F4E907B667B /* AppIcon.png */; };
 		8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508C85AAC360F0814E117474 /* KanbanBoardView.swift */; };
 		927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4745E229503AC532D20FF00 /* TheMetService.swift */; };
+		9677F91810B268CEDFD88FBD /* QuickSearchPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82761F022381A420068B9CE8 /* QuickSearchPaletteView.swift */; };
 		9B2CBD77B44DAB1B9A937C8F /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F64070562EB2504B1772B5 /* WorkspaceStore.swift */; };
 		9FFC7C312943231732E8C032 /* AppLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 71DA7E8CAA8B92C87810098B /* AppLogo.png */; };
 		CBA590E27EAD8551427969E1 /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40AFEBB32F29F23696A12D81 /* SettingsSheet.swift */; };
@@ -47,6 +48,7 @@
 		71DA7E8CAA8B92C87810098B /* AppLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppLogo.png; sourceTree = "<group>"; };
 		7378A3CF0C6B292A0F220E7A /* CustomizeCategorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomizeCategorySheet.swift; sourceTree = "<group>"; };
 		7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModels.swift; sourceTree = "<group>"; };
+		82761F022381A420068B9CE8 /* QuickSearchPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSearchPaletteView.swift; sourceTree = "<group>"; };
 		997CBAA8E88BE3A435C7891F /* Pustaka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pustaka.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D69C34B06EB8F4E907B667B /* AppIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppIcon.png; sourceTree = "<group>"; };
 		A49417886B16D6C79177709E /* pustaka_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = pustaka_ffiFFI.h; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 		66315969544D29720622AAB1 /* Common */ = {
 			isa = PBXGroup;
 			children = (
+				82761F022381A420068B9CE8 /* QuickSearchPaletteView.swift */,
 				4026F43001111E7A205A7A56 /* VisualEffectView.swift */,
 			);
 			path = Common;
@@ -299,6 +302,7 @@
 				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
+				9677F91810B268CEDFD88FBD /* QuickSearchPaletteView.swift in Sources */,
 				CBA590E27EAD8551427969E1 /* SettingsSheet.swift in Sources */,
 				7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */,
 				927181AFDBEB3610699E90C0 /* TheMetService.swift in Sources */,

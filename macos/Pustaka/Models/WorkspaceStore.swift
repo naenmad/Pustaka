@@ -884,6 +884,15 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
+    func setFavorite(id: String, isFavorite: Bool) {
+        if let idx = pages.firstIndex(where: { $0.id == id }) {
+            if pages[idx].isFavorite != isFavorite {
+                pages[idx].isFavorite = isFavorite
+                saveToDisk()
+            }
+        }
+    }
+
     /// Creates a fresh, clean page with NO pre-filled boilerplate text
     func addNewPage(in categoryId: String = "cat_notes") {
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
@@ -1077,6 +1086,26 @@ class WorkspaceStore: ObservableObject {
         pages[idx].categoryId = categoryId
         pages[idx].parentPageId = nil // Move to root level of folder
         pages[idx].lastModified = Date()
+        saveToDisk()
+    }
+
+    /// Moves a document to become a subpage of another document via drag-and-drop
+    func movePage(id: String, toParentPage parentId: String) {
+        guard id != parentId else { return }
+        guard let childIdx = pages.firstIndex(where: { $0.id == id }) else { return }
+        guard let parent = pages.first(where: { $0.id == parentId }) else { return }
+
+        // Prevent cyclic parenting
+        var curr = parent.parentPageId
+        while let c = curr {
+            if c == id { return } // Cyclic loop detected
+            curr = pages.first(where: { $0.id == c })?.parentPageId
+        }
+
+        objectWillChange.send()
+        pages[childIdx].categoryId = parent.categoryId
+        pages[childIdx].parentPageId = parentId
+        pages[childIdx].lastModified = Date()
         saveToDisk()
     }
 

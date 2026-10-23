@@ -54,10 +54,11 @@ struct SidebarTreeContainer<Content: View>: View {
 struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
     @Binding var columnVisibility: NavigationSplitViewVisibility
+    @Binding var isQuickSearchPresented: Bool
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
     @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
     @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
@@ -65,63 +66,57 @@ struct SidebarView: View {
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
     }
-    @State private var searchText: String = ""
-    @FocusState private var isSearchFocused: Bool
+
     @State private var categoryToCustomize: SidebarCategory? = nil
     @State private var isAddingCategory: Bool = false
     @State private var newCategoryName: String = ""
 
-    // Collapsible navigation states
-    @State private var isFavoritesExpanded: Bool = true
-    @State private var isRecentExpanded: Bool = false
+    // Drag-and-drop & interaction states
+    @State private var isFavoritesDropTargeted: Bool = false
+    @State private var isTrashDropTargeted: Bool = false
     @State private var isTrashHovered: Bool = false
+    @State private var isSearchBtnHovered: Bool = false
     @State private var isSettingsSheetPresented: Bool = false
     @State private var isFullScreen: Bool = false
 
-    init(store: WorkspaceStore, columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all)) {
+    init(
+        store: WorkspaceStore,
+        columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all),
+        isQuickSearchPresented: Binding<Bool> = .constant(false)
+    ) {
         self.store = store
         self._columnVisibility = columnVisibility
+        self._isQuickSearchPresented = isQuickSearchPresented
     }
 
     var body: some View {
         ZStack {
-            // Solid, elegant neutral macOS gray background (never tints blue in fullscreen)
+            // Elegant neutral macOS window background
             Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // 1. Vault Identity Header (Beside macOS Traffic Lights)
                 vaultHeaderView
+                    .padding(.bottom, 2)
 
-                Divider()
+                // 2. Modern Quick Search Trigger Bar (Command Palette ⌘K)
+                quickSearchTriggerBar
                     .padding(.horizontal, 10)
-                    .opacity(0.35)
-
-                // 2. Minimalist Search Bar (Shortcut: ⌘K)
-                searchBarView
-                    .padding(.horizontal, 10)
-                    .padding(.top, 8)
                     .padding(.bottom, 8)
 
-                Divider()
-                    .padding(.horizontal, 10)
-                    .opacity(0.35)
+                // 3. Main Navigation Tree Scroll View
+                vaultNavigationScrollView
 
-                // 3. Main Content: Search Results OR Categorized Vault Tree
-                if !searchText.isEmpty {
-                    searchResultsView
-                } else {
-                    vaultNavigationScrollView
-                }
+                // 4. Dedicated Trash Drop Zone (Anchored at Bottom)
+                trashPinnedRow
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 4)
 
-                Divider()
-                    .padding(.horizontal, 10)
-                    .opacity(0.35)
-
-                // 4. Bottom Action Bar (New Document, Settings, New Folder)
+                // 5. Bottom Action Bar (New Document, Settings, Theme)
                 bottomActionBar
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .padding(.bottom, 8)
             }
             .ignoresSafeArea(.container, edges: .top)
         }
@@ -149,8 +144,8 @@ struct SidebarView: View {
     // MARK: - Vault Header (Beside macOS Traffic Lights)
 
     private var vaultHeaderView: some View {
-        HStack(spacing: 7) {
-            // Space reserved for the 3 Traffic Light Buttons (Close, Minimize, Maximize) only in windowed mode
+        HStack(spacing: 8) {
+            // Space reserved for the 3 Traffic Light Buttons only in windowed mode
             if !isFullScreen {
                 Spacer()
                     .frame(width: 70)
@@ -166,7 +161,7 @@ struct SidebarView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 22 * appUiScale, height: 22 * appUiScale)
                     .clipShape(RoundedRectangle(cornerRadius: 5 * appUiScale, style: .continuous))
-                    .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5)
+                    .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -178,7 +173,6 @@ struct SidebarView: View {
                             )
                         )
                         .frame(width: 18 * appUiScale, height: 18 * appUiScale)
-                        .shadow(color: primaryColor.opacity(0.2), radius: 1, y: 0.5)
 
                     Image(systemName: "book.closed.fill")
                         .font(.system(size: 9.5 * appUiScale, weight: .bold))
@@ -188,22 +182,22 @@ struct SidebarView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Text("Pustaka")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13.5 * appUiScale, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Button(action: {
                     store.revealInFinder()
                 }) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 3) {
                         Text("~/Documents/Pustaka")
-                            .font(.system(size: 9, weight: .regular))
+                            .font(.system(size: 10 * appUiScale, weight: .regular))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
 
                         Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 7))
+                            .font(.system(size: 8 * appUiScale))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -218,11 +212,11 @@ struct SidebarView: View {
                 store.revealInFinder()
             }) {
                 Image(systemName: "folder")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 22, height: 22)
                     .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
             .help("Reveal in Finder (⇧⌘R)")
@@ -232,56 +226,55 @@ struct SidebarView: View {
         .background(WindowDragView())
     }
 
-    // MARK: - Minimal Search & Order / Filter Bar
+    // MARK: - Quick Search Trigger Bar (Command Palette ⌘K & Filter Menu)
 
     private var isFilterOrSortCustom: Bool {
         sidebarSortOption != .modifiedDesc || sidebarFilterOption != .all
     }
 
-    private var searchBarView: some View {
-        VStack(spacing: 5) {
-            HStack(spacing: 5) {
-                // Main search input field
-                HStack(spacing: 6) {
+    private var quickSearchTriggerBar: some View {
+        HStack(spacing: 6) {
+            Button(action: {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                    isQuickSearchPresented = true
+                }
+            }) {
+                HStack(spacing: 7) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
+                        .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("Search notes... (⌘K)", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                        .focused($isSearchFocused)
+                    Text("Quick Search...")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.secondary)
 
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    Spacer()
+
+                    Text("⌘K")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 5)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isSearchFocused ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(isSearchBtnHovered ? 0.07 : 0.035))
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .onHover { isSearchBtnHovered = $0 }
+            .help("Spotlight Search Notes (⌘K)")
 
-                // Order By & Filter Menu
-                filterAndSortMenuButton
-            }
+            filterAndSortMenuButton
         }
-        .background(
-            // Invisible button for ⌘K shortcut to focus search
-            Button("") {
-                isSearchFocused = true
-            }
-            .keyboardShortcut("k", modifiers: .command)
-            .opacity(0)
-        )
     }
 
     private var filterAndSortMenuButton: some View {
@@ -333,270 +326,205 @@ struct SidebarView: View {
         .help("Order By: \(sidebarSortOption.label)\(sidebarFilterOption != .all ? " • Filter: \(sidebarFilterOption.label)" : "")")
     }
 
-    // MARK: - Live Search Results View
-
-    private var searchResultsView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 3) {
-                let matching = store.activePages.filter { page in
-                    (page.title.localizedCaseInsensitiveContains(searchText) ||
-                    page.rawContent.localizedCaseInsensitiveContains(searchText)) &&
-                    store.pageMatchesFilter(page, filter: sidebarFilterOption)
-                }
-                let sortedMatching = store.sortPages(matching, by: sidebarSortOption)
-
-                if sortedMatching.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.tertiary)
-                        Text("No documents matching \"\(searchText)\"")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
-                } else {
-                    HStack {
-                        Text("\(sortedMatching.count) MATCH\(sortedMatching.count == 1 ? "" : "ES") • \(sidebarSortOption.label.uppercased())")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.tertiary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.top, 6)
-                    .padding(.bottom, 2)
-
-                    ForEach(sortedMatching) { page in
-                        SearchResultItemRow(
-                            store: store,
-                            page: page,
-                            isSelected: store.selectedPageId == page.id,
-                            searchText: searchText
-                        )
-                    }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-        }
-    }
-
     // MARK: - Vault Navigation Scroll View
 
     private var vaultNavigationScrollView: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 12) {
-                // Top Pinned Navigation Group (Favorites, Recent, Trash)
-                pinnedNavigationGroup
+            VStack(alignment: .leading, spacing: 14) {
+                // 1. Pinned Favorites Quick Access Group
+                favoritesPinnedSection
 
-                Divider()
-                    .opacity(0.3)
-                    .padding(.horizontal, 4)
-
-                // Folders / Categories Section
+                // 2. Workspaces & Documents Tree
                 foldersSection
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
             .padding(.horizontal, 6)
         }
     }
 
-    // MARK: - Pinned Navigation Group (Favorites, Recent, Trash)
-
-    private var pinnedNavigationGroup: some View {
-        VStack(spacing: 3) {
-            // 1. Favorites Collapsible Section
-            favoritesPinnedSection
-
-            // 2. Recent Collapsible Section
-            recentPinnedSection
-
-            // 3. Trash Section Row
-            trashPinnedRow
-        }
-    }
-
-    // MARK: - Favorites Pinned Section (With Visible Tree Branches)
+    // MARK: - Favorites Pinned Section (With Dedicated Card & Drop Zone)
 
     private var favoritesPinnedSection: some View {
-        VStack(spacing: 2) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    isFavoritesExpanded.toggle()
-                }
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: sidebarFontSize - 1, weight: .semibold))
+        VStack(alignment: .leading, spacing: 4) {
+            // Section Header
+            HStack(spacing: 5) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.yellow.opacity(0.95))
+
+                Text("FAVORITES")
+                    .font(.system(size: 10.5 * appUiScale, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.6)
+
+                Spacer()
+
+                if isFavoritesDropTargeted {
+                    Text("Drop to star")
+                        .font(.system(size: 9.5 * appUiScale, weight: .semibold))
                         .foregroundStyle(primaryColor)
-                        .frame(width: 14)
-
-                    Text("Favorites")
-                        .font(.system(size: sidebarFontSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
-
-                    Image(systemName: isFavoritesExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7.5, weight: .bold))
-                        .foregroundStyle(.tertiary)
-
-                    Spacer()
-
-                    if !store.favoritePages.isEmpty {
-                        Text("\(store.favoritePages.count)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.primary.opacity(0.04))
-                            .clipShape(Capsule())
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isFavoritesExpanded {
-                let favs = store.sortedFavoritePages(by: sidebarSortOption)
-                if favs.isEmpty {
-                    Text("No favorites yet. Star notes to pin them here.")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 24)
-                        .padding(.vertical, 2)
-                } else {
-                    SidebarTreeContainer {
-                        ForEach(favs) { favPage in
-                            SidebarDocumentItemRow(
-                                store: store,
-                                pageId: favPage.id,
-                                isSelected: store.selectedPageId == favPage.id,
-                                depth: 0,
-                                sortOption: sidebarSortOption,
-                                filterOption: sidebarFilterOption
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Recent Pinned Section (With Visible Tree Branches)
-
-    private var recentPinnedSection: some View {
-        VStack(spacing: 2) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    isRecentExpanded.toggle()
-                }
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 14)
-
-                    Text("Recent")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-
-                    Image(systemName: isRecentExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7.5, weight: .bold))
-                        .foregroundStyle(.tertiary)
-
-                    Spacer()
-
-                    Text("\(store.recentPages.count)")
-                        .font(.system(size: 10, weight: .medium))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(primaryColor.opacity(0.12))
+                        .clipShape(Capsule())
+                } else if !store.favoritePages.isEmpty {
+                    Text("\(store.favoritePages.count)")
+                        .font(.system(size: 9.5 * appUiScale, weight: .semibold))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
                         .background(Color.primary.opacity(0.04))
                         .clipShape(Capsule())
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .padding(.top, 2)
 
-            if isRecentExpanded {
-                if store.recentPages.isEmpty {
-                    Text("No recent notes.")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 24)
-                        .padding(.vertical, 2)
-                } else {
-                    SidebarTreeContainer {
-                        ForEach(store.recentPages) { recentPage in
-                            RecentDocumentRow(
-                                store: store,
-                                page: recentPage,
-                                isSelected: store.selectedPageId == recentPage.id
-                            )
+            let favs = store.sortedFavoritePages(by: sidebarSortOption)
+
+            if favs.isEmpty {
+                // Empty drop placeholder
+                HStack(spacing: 6) {
+                    Image(systemName: "star")
+                        .font(.system(size: 11 * appUiScale))
+                        .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.4))
+
+                    Text(isFavoritesDropTargeted ? "Drop note here to star" : "Drag notes here to favorite")
+                        .font(.system(size: 11 * appUiScale, weight: .regular))
+                        .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.5))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.primary.opacity(0.02))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(
+                            isFavoritesDropTargeted ? primaryColor : Color.primary.opacity(0.06),
+                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        )
+                )
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(favs) { favPage in
+                        FavoriteItemCardRow(
+                            store: store,
+                            page: favPage,
+                            isSelected: store.selectedPageId == favPage.id,
+                            appUiScale: appUiScale,
+                            sidebarFontSize: sidebarFontSize,
+                            primaryColor: primaryColor
+                        )
+                    }
+                }
+                .padding(3)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(
+                            isFavoritesDropTargeted ? primaryColor : Color.clear,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                        )
+                )
+            }
+        }
+        .padding(.horizontal, 2)
+        .onDrop(of: [.text], isTargeted: $isFavoritesDropTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: String.self) { string, _ in
+                if let pageId = string {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            store.setFavorite(id: pageId, isFavorite: true)
                         }
                     }
                 }
             }
+            return true
         }
     }
 
-    // MARK: - Trash Pinned Row
+    // MARK: - Dedicated Trash Drop Zone
 
     private var trashPinnedRow: some View {
         Button(action: {
             store.openTrash()
         }) {
-            HStack(spacing: 6) {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-                    .foregroundStyle(store.isShowingTrash ? primaryColor : Color.secondary)
-                    .frame(width: 14)
+            HStack(spacing: 8) {
+                Image(systemName: isTrashDropTargeted ? "trash.fill" : "trash")
+                    .font(.system(size: 12.5 * appUiScale, weight: .medium))
+                    .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? primaryColor : Color.secondary))
+                    .frame(width: 16)
 
-                Text("Trash")
-                    .font(.system(size: 12, weight: store.isShowingTrash ? .semibold : .medium))
-                    .foregroundStyle(store.isShowingTrash ? Color.primary : Color.secondary)
+                Text(isTrashDropTargeted ? "Drop to Move to Trash" : "Trash")
+                    .font(.system(size: sidebarFontSize, weight: (isTrashDropTargeted || store.isShowingTrash) ? .semibold : .medium))
+                    .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? Color.primary : Color.secondary))
 
                 Spacer()
 
                 if !store.trashPages.isEmpty {
                     Text("\(store.trashPages.count)")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10 * appUiScale, weight: .semibold))
+                        .foregroundStyle(isTrashDropTargeted ? Color.red : .secondary)
                         .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.primary.opacity(0.04))
+                        .padding(.vertical, 1.5)
+                        .background(isTrashDropTargeted ? Color.red.opacity(0.18) : Color.primary.opacity(0.04))
                         .clipShape(Capsule())
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(store.isShowingTrash ? primaryColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.04) : Color.clear))
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(
+                        isTrashDropTargeted
+                            ? Color.red.opacity(0.14)
+                            : (store.isShowingTrash ? primaryColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.04) : Color.clear))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(
+                        isTrashDropTargeted ? Color.red.opacity(0.6) : Color.clear,
+                        lineWidth: 1.5
+                    )
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isTrashHovered = $0 }
-        .help("View deleted documents (.trash/)")
+        .onDrop(of: [.text], isTargeted: $isTrashDropTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: String.self) { string, _ in
+                if let pageId = string {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            store.moveToTrash(id: pageId)
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        .help("Drag notes here to move to Trash, or click to open Trash")
     }
 
-    // MARK: - Folders / Categories Section
+    // MARK: - Folders / Workspaces Section
 
     private var foldersSection: some View {
         VStack(spacing: 8) {
-            // Folders Header
+            // Workspaces Header
             HStack {
-                Text("FOLDERS")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundStyle(.tertiary)
+                Text("WORKSPACES")
+                    .font(.system(size: 10.5 * appUiScale, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.6)
 
                 Spacer()
 
@@ -604,12 +532,14 @@ struct SidebarView: View {
                     isAddingCategory = true
                 }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 9.5, weight: .bold))
+                        .font(.system(size: 10 * appUiScale, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .padding(2)
+                        .padding(3)
+                        .background(Color.primary.opacity(0.03))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Add Folder")
+                .help("Add Workspace Folder")
             }
             .padding(.horizontal, 6)
             .padding(.top, 2)
@@ -619,7 +549,7 @@ struct SidebarView: View {
                 CategorySectionView(
                     store: store,
                     category: category,
-                    searchText: searchText,
+                    searchText: "",
                     sortOption: sidebarSortOption,
                     filterOption: sidebarFilterOption,
                     onCustomize: {
@@ -794,6 +724,76 @@ struct SidebarView: View {
     }
 }
 
+// MARK: - Favorite Item Card Row (Distinct Pinned Style with Drag Support)
+
+struct FavoriteItemCardRow: View {
+    @ObservedObject var store: WorkspaceStore
+    let page: DocumentPage
+    let isSelected: Bool
+    let appUiScale: Double
+    let sidebarFontSize: Double
+    let primaryColor: Color
+
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: {
+            store.selectPage(id: page.id)
+        }) {
+            HStack(spacing: 7) {
+                // Gold star badge + Document Icon
+                Image(systemName: "star.fill")
+                    .font(.system(size: 8.5 * appUiScale))
+                    .foregroundStyle(Color.yellow.opacity(0.95))
+
+                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
+                    .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
+                    .frame(width: max(14, sidebarFontSize + 1))
+
+                Text(page.title.isEmpty ? "Untitled Document" : page.title)
+                    .font(.system(size: sidebarFontSize, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.88))
+                    .lineLimit(1)
+
+                Spacer()
+
+                if isHovered || isSelected {
+                    Button(action: {
+                        store.setFavorite(id: page.id, isFavorite: false)
+                    }) {
+                        Image(systemName: "star.slash")
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove from Favorites")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.045) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .onDrag {
+            NSItemProvider(object: page.id as NSString)
+        }
+        .contextMenu {
+            Button(action: { store.setFavorite(id: page.id, isFavorite: false) }) {
+                Label("Remove from Favorites", systemImage: "star.slash")
+            }
+            Divider()
+            Button(role: .destructive, action: { store.moveToTrash(id: page.id) }) {
+                Label("Move to Trash", systemImage: "trash")
+            }
+        }
+    }
+}
+
 // MARK: - Category Section View (Supports Drag-and-Drop & Tree Guide Lines)
 
 struct CategorySectionView: View {
@@ -805,7 +805,7 @@ struct CategorySectionView: View {
     let onCustomize: () -> Void
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
     @State private var isHovered: Bool = false
     @State private var isDropTargeted: Bool = false
 
@@ -974,13 +974,14 @@ struct SidebarDocumentItemRow: View {
     var filterOption: SidebarFilterOption = .all
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
     }
 
     @State private var isHovered: Bool = false
+    @State private var isRowDropTargeted: Bool = false
     @State private var isSubpagesExpanded: Bool = true
     @State private var isRenaming: Bool = false
     @State private var renameTitle: String = ""
@@ -1105,8 +1106,16 @@ struct SidebarDocumentItemRow: View {
                 .padding(.vertical, 3.5)
                 .padding(.horizontal, 6)
                 .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            isRowDropTargeted
+                                ? primaryColor.opacity(0.18)
+                                : (isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.045) : Color.clear))
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(isRowDropTargeted ? primaryColor : Color.clear, lineWidth: 1.5)
                 )
                 .contentShape(Rectangle())
             }
@@ -1115,6 +1124,21 @@ struct SidebarDocumentItemRow: View {
             // Native macOS Drag Provider
             .onDrag {
                 NSItemProvider(object: page.id as NSString)
+            }
+            // Drop target: drop another document here to nest it as a subpage
+            .onDrop(of: [.text], isTargeted: $isRowDropTargeted) { providers in
+                guard let provider = providers.first else { return false }
+                _ = provider.loadObject(ofClass: String.self) { string, _ in
+                    if let draggedPageId = string, draggedPageId != page.id {
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                store.movePage(id: draggedPageId, toParentPage: page.id)
+                                isSubpagesExpanded = true
+                            }
+                        }
+                    }
+                }
+                return true
             }
             // Rich Right-Click Context Menu
             .contextMenu {
