@@ -222,32 +222,38 @@ struct DocumentCanvasView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            documentCanvasBody
+        ScrollViewReader { scrollProxy in
+            ZStack(alignment: .bottom) {
+                documentCanvasBody
 
-            // Floating Action Toolbar (Notion & Bear style glassmorphic island)
-            if !selectedBlockIds.isEmpty {
-                floatingSelectionToolbar
-                    .padding(.bottom, 22)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 0.95).combined(with: .opacity)
-                    ))
-            } else {
-                floatingEditorToolbar
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 0.95).combined(with: .opacity)
-                    ))
-            }
-        }
-        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: selectedBlockIds.isEmpty)
-        .background(
-            Group {
-                Button("") {
-                    blockActionTrigger = .selectAll
+                // Floating Action Toolbar (Notion & Bear style glassmorphic island)
+                if !selectedBlockIds.isEmpty {
+                    floatingSelectionToolbar(scrollProxy: scrollProxy)
+                        .padding(.bottom, 22)
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
+                } else {
+                    floatingEditorToolbar(scrollProxy: scrollProxy)
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.95).combined(with: .opacity)
+                        ))
                 }
-                .keyboardShortcut("a", modifiers: .command)
+            }
+            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: selectedBlockIds.isEmpty)
+            .background(
+                Group {
+                    Button("") {
+                        scrollToTop(proxy: scrollProxy)
+                    }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+
+                    Button("") {
+                        blockActionTrigger = .selectAll
+                    }
+                    .keyboardShortcut("a", modifiers: .command)
 
                 Button("") {
                     if !selectedBlockIds.isEmpty {
@@ -325,6 +331,13 @@ struct DocumentCanvasView: View {
             self.isIconPickerOpen = true
         }
     }
+}
+
+    private func scrollToTop(proxy: ScrollViewProxy) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            proxy.scrollTo("document_canvas_top", anchor: .top)
+        }
+    }
 
     private func focusFirstBlock() {
         let blocks = store.parseToUIBlocks(content: currentPage.rawContent)
@@ -388,7 +401,7 @@ struct DocumentCanvasView: View {
 
     // MARK: - Floating Editor Toolbar (Notion & Bear Glassmorphic Island)
 
-    private var floatingEditorToolbar: some View {
+    private func floatingEditorToolbar(scrollProxy: ScrollViewProxy) -> some View {
         HStack(spacing: 8) {
             // 1. Quick Insert Menu Button
             Menu {
@@ -530,6 +543,13 @@ struct DocumentCanvasView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 4)
+
+            Divider().frame(height: 16)
+
+            // 6. Scroll to Top (Sejajar dengan Add & Style di pill bar)
+            toolbarButton(icon: "arrow.up", help: "Scroll to Top (⌥⌘↑)") {
+                scrollToTop(proxy: scrollProxy)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -567,6 +587,10 @@ struct DocumentCanvasView: View {
     private var documentCanvasBody: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: 0)
+                    .id("document_canvas_top")
+
                 if !currentPage.coverUrl.isEmpty {
                     pageCoverBannerView
                 }
@@ -1355,7 +1379,7 @@ struct DocumentCanvasView: View {
 
     // MARK: - Floating Selection Toolbar
 
-    private var floatingSelectionToolbar: some View {
+    private func floatingSelectionToolbar(scrollProxy: ScrollViewProxy) -> some View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Circle()
@@ -1455,6 +1479,10 @@ struct DocumentCanvasView: View {
 
             Divider()
                 .frame(height: 14)
+
+            toolbarButton(icon: "arrow.up", help: "Scroll to Top (⌥⌘↑)") {
+                scrollToTop(proxy: scrollProxy)
+            }
 
             Button(action: {
                 selectedBlockIds.removeAll()

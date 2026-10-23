@@ -58,6 +58,13 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .topTrailing) {
+                    if let text = zoomHudText {
+                        zoomHudPill(text: text)
+                            .padding(.top, 48 * CGFloat(appUiScale))
+                            .padding(.trailing, 16 * CGFloat(appUiScale))
+                    }
+                }
 
                 if isAIAssistantPresented {
                     Divider().opacity(0.35)
@@ -103,29 +110,6 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .overlay(alignment: .bottom) {
-            if let text = zoomHudText {
-                HStack(spacing: 7) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(text)
-                        .font(.system(size: 12.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
-                .padding(.bottom, 24)
-                .transition(.opacity.combined(with: .scale(scale: 0.92)))
-            }
-        }
-        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: zoomHudText)
         .animation(.spring(response: 0.22, dampingFraction: 0.85), value: isQuickSearchPresented)
         .background {
             Button(action: {
@@ -506,15 +490,62 @@ struct ContentView: View {
         let percent = Int(round((editorFontSize / 15.0) * 100))
         zoomHudTimer?.invalidate()
         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-            zoomHudText = "Zoom \(percent)%"
+            zoomHudText = "\(percent)%"
         }
-        zoomHudTimer = Timer.scheduledTimer(withTimeInterval: 1.25, repeats: false) { _ in
+        zoomHudTimer = Timer.scheduledTimer(withTimeInterval: 1.8, repeats: false) { _ in
             DispatchQueue.main.async {
                 withAnimation(.easeOut(duration: 0.25)) {
                     zoomHudText = nil
                 }
             }
         }
+    }
+
+    private func zoomHudPill(text: String) -> some View {
+        HStack(spacing: 6) {
+            Button(action: { zoomOut() }) {
+                Image(systemName: "minus")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Zoom Out (⌘-)")
+
+            Button(action: { resetZoom() }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(text)
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Reset Zoom to 100% (⌘0)")
+
+            Button(action: { zoomIn() }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Zoom In (⌘+)")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+        .transition(.opacity.combined(with: .scale(scale: 0.94)))
     }
 
     // MARK: - Empty State (When All Tabs Are Closed)
