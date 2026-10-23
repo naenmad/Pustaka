@@ -431,7 +431,7 @@ struct SettingsSheet: View {
                         fontSizePresetButton("Huge (22)", value: 22.0)
                     }
 
-                    Slider(value: $editorFontSize, in: 12.0...24.0, step: 1.0)
+                    Slider(value: $editorFontSize, in: 11.0...28.0, step: 1.0)
                         .controlSize(.small)
                 }
             }

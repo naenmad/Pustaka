@@ -304,6 +304,24 @@ final class BlockEditorTextView: NSTextView {
         }
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .command || flags == [.command, .shift] {
+            let chars = event.charactersIgnoringModifiers ?? ""
+            if chars == "=" || chars == "+" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaZoomIn"), object: nil)
+                return true
+            } else if chars == "-" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaZoomOut"), object: nil)
+                return true
+            } else if chars == "0" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaResetZoom"), object: nil)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         // Down Arrow Key (keyCode 125): navigate slash menu if open
         if event.keyCode == 125 {
@@ -2211,7 +2229,7 @@ struct BlockRowView: View {
                         text: $textBuffer,
                         dynamicHeight: $dynamicHeight,
                         placeholder: (isFocused && textBuffer.isEmpty) ? "Bookmark Title..." : "",
-                        font: NSFont.systemFont(ofSize: 14, weight: .semibold),
+                        font: NSFont.systemFont(ofSize: max(12, CGFloat(editorFontSize) - 1), weight: .semibold),
                         textColor: .labelColor,
                         isFocused: isFocused,
                         onCommit: {
@@ -2723,7 +2741,7 @@ struct BlockRowView: View {
                     HStack {
                         Spacer()
                         Text(textBuffer)
-                            .font(.system(size: 16, design: .serif).italic())
+                            .font(.system(size: round(16.0 * (CGFloat(editorFontSize) / 15.0)), design: .serif).italic())
                             .foregroundStyle(.primary)
                             .padding(.vertical, 6)
                         Spacer()
@@ -3091,10 +3109,11 @@ struct BlockRowView: View {
     }
 
     private func headingFontSize(_ level: Int) -> CGFloat {
+        let scale = CGFloat(editorFontSize) / 15.0
         switch level {
-        case 1: return 26
-        case 2: return 20
-        default: return 16
+        case 1: return round(26.0 * scale)
+        case 2: return round(20.0 * scale)
+        default: return round(16.0 * scale)
         }
     }
 }
@@ -3108,6 +3127,7 @@ struct ModernTableView: View {
     let onDelete: () -> Void
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
     @State private var hoveredRowIdx: Int? = nil
     @State private var hoveredColIdx: Int? = nil
     @State private var isTableHovered: Bool = false
@@ -3116,7 +3136,9 @@ struct ModernTableView: View {
         Color(hex: appPrimaryColorHex)
     }
 
-    private let cellHeight: CGFloat = 34
+    private var cellHeight: CGFloat {
+        max(34.0, CGFloat(editorFontSize) + 18.0)
+    }
     private let indexGutterWidth: CGFloat = 36
 
     var body: some View {

@@ -67,6 +67,24 @@ class FocusableTitleTextField: NSTextField {
         onDidBecomeFirstResponder?()
         super.mouseDown(with: event)
     }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .command || flags == [.command, .shift] {
+            let chars = event.charactersIgnoringModifiers ?? ""
+            if chars == "=" || chars == "+" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaZoomIn"), object: nil)
+                return true
+            } else if chars == "-" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaZoomOut"), object: nil)
+                return true
+            } else if chars == "0" {
+                NotificationCenter.default.post(name: NSNotification.Name("PustakaResetZoom"), object: nil)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 // MARK: - Native Title Editor Field (Supports Enter to Jump to Content)

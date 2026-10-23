@@ -10,6 +10,10 @@ struct ContentView: View {
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
+
+    @State private var zoomHudText: String? = nil
+    @State private var zoomHudTimer: Timer? = nil
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
@@ -84,12 +88,44 @@ struct ContentView: View {
                 .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 780)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PustakaZoomIn"))) { _ in
+            zoomIn()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PustakaZoomOut"))) { _ in
+            zoomOut()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PustakaResetZoom"))) { _ in
+            resetZoom()
+        }
         .overlay {
             if isQuickSearchPresented {
                 QuickSearchPaletteView(store: store, isPresented: $isQuickSearchPresented)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .overlay(alignment: .bottom) {
+            if let text = zoomHudText {
+                HStack(spacing: 7) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(text)
+                        .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+                .padding(.bottom, 24)
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            }
+        }
+        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: zoomHudText)
         .animation(.spring(response: 0.22, dampingFraction: 0.85), value: isQuickSearchPresented)
         .background {
             Button(action: {
@@ -413,9 +449,72 @@ struct ContentView: View {
                 }
             }
             .keyboardShortcut("j", modifiers: .command)
+
+            // ⌘= / ⌘+ -> Zoom In Document
+            Button("") {
+                zoomIn()
+            }
+            .keyboardShortcut("=", modifiers: .command)
+
+            Button("") {
+                zoomIn()
+            }
+            .keyboardShortcut("+", modifiers: .command)
+
+            // ⌘- -> Zoom Out Document
+            Button("") {
+                zoomOut()
+            }
+            .keyboardShortcut("-", modifiers: .command)
+
+            // ⌘0 -> Reset Zoom to 100%
+            Button("") {
+                resetZoom()
+            }
+            .keyboardShortcut("0", modifiers: .command)
         }
         .opacity(0)
         .frame(width: 0, height: 0)
+    }
+
+    // MARK: - Document Zoom Helpers (⌘+, ⌘-, ⌘0)
+
+    private func zoomIn() {
+        let newSize = min(28.0, round(editorFontSize) + 1.0)
+        if newSize != editorFontSize {
+            editorFontSize = newSize
+        }
+        showZoomHud()
+    }
+
+    private func zoomOut() {
+        let newSize = max(11.0, round(editorFontSize) - 1.0)
+        if newSize != editorFontSize {
+            editorFontSize = newSize
+        }
+        showZoomHud()
+    }
+
+    private func resetZoom() {
+        if editorFontSize != 15.0 {
+            editorFontSize = 15.0
+        }
+        showZoomHud()
+    }
+
+    private func showZoomHud() {
+        let percent = Int(round((editorFontSize / 15.0) * 100))
+        zoomHudTimer?.invalidate()
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+            zoomHudText = "Zoom \(percent)%"
+        }
+        zoomHudTimer = Timer.scheduledTimer(withTimeInterval: 1.25, repeats: false) { _ in
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    zoomHudText = nil
+                }
+            }
+        }
     }
 
     // MARK: - Empty State (When All Tabs Are Closed)
