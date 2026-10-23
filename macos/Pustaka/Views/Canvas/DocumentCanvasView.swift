@@ -226,21 +226,29 @@ struct DocumentCanvasView: View {
             ZStack(alignment: .bottom) {
                 documentCanvasBody
 
-                // Floating Action Toolbar (Notion & Bear style glassmorphic island)
+                // Center: Floating Action Toolbar (Notion & Bear style glassmorphic island)
                 if !selectedBlockIds.isEmpty {
-                    floatingSelectionToolbar(scrollProxy: scrollProxy)
+                    floatingSelectionToolbar
                         .padding(.bottom, 22)
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.95).combined(with: .opacity),
                             removal: .scale(scale: 0.95).combined(with: .opacity)
                         ))
                 } else {
-                    floatingEditorToolbar(scrollProxy: scrollProxy)
+                    floatingEditorToolbar
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.95).combined(with: .opacity),
                             removal: .scale(scale: 0.95).combined(with: .opacity)
                         ))
                 }
+
+                // Bottom-Right: Standalone Floating Scroll-to-Top Button (Sejajar horizontal dengan toolbar)
+                HStack {
+                    Spacer()
+                    scrollToTopFloatingButton(scrollProxy: scrollProxy)
+                }
+                .padding(.trailing, 22)
+                .padding(.bottom, 22)
             }
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: selectedBlockIds.isEmpty)
             .background(
@@ -401,7 +409,7 @@ struct DocumentCanvasView: View {
 
     // MARK: - Floating Editor Toolbar (Notion & Bear Glassmorphic Island)
 
-    private func floatingEditorToolbar(scrollProxy: ScrollViewProxy) -> some View {
+    private var floatingEditorToolbar: some View {
         HStack(spacing: 8) {
             // 1. Quick Insert Menu Button
             Menu {
@@ -543,13 +551,6 @@ struct DocumentCanvasView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 4)
-
-            Divider().frame(height: 16)
-
-            // 6. Scroll to Top (Sejajar dengan Add & Style di pill bar)
-            toolbarButton(icon: "arrow.up", help: "Scroll to Top (⌥⌘↑)") {
-                scrollToTop(proxy: scrollProxy)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -1379,7 +1380,7 @@ struct DocumentCanvasView: View {
 
     // MARK: - Floating Selection Toolbar
 
-    private func floatingSelectionToolbar(scrollProxy: ScrollViewProxy) -> some View {
+    private var floatingSelectionToolbar: some View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Circle()
@@ -1480,10 +1481,6 @@ struct DocumentCanvasView: View {
             Divider()
                 .frame(height: 14)
 
-            toolbarButton(icon: "arrow.up", help: "Scroll to Top (⌥⌘↑)") {
-                scrollToTop(proxy: scrollProxy)
-            }
-
             Button(action: {
                 selectedBlockIds.removeAll()
             }) {
@@ -1505,5 +1502,29 @@ struct DocumentCanvasView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
+    }
+
+    // MARK: - Standalone Floating Scroll-to-Top Button
+
+    private func scrollToTopFloatingButton(scrollProxy: ScrollViewProxy) -> some View {
+        Button(action: {
+            scrollToTop(proxy: scrollProxy)
+        }) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 36, height: 36)
+                .background(.ultraThickMaterial)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.14), radius: 10, y: 4)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Scroll to Top (⌥⌘↑)")
+        .accessibilityLabel("Scroll to top of document")
     }
 }
