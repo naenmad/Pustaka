@@ -35,9 +35,9 @@ struct ContentView: View {
                 isQuickSearchPresented: $isQuickSearchPresented
             )
                 .navigationSplitViewColumnWidth(
-                    min: 200 * CGFloat(appUiScale),
-                    ideal: 240 * CGFloat(appUiScale),
-                    max: 340 * CGFloat(appUiScale)
+                    min: 220 * CGFloat(appUiScale),
+                    ideal: 260 * CGFloat(appUiScale),
+                    max: 360 * CGFloat(appUiScale)
                 )
                 .background(Color(nsColor: .windowBackgroundColor))
         } detail: {
@@ -61,8 +61,8 @@ struct ContentView: View {
                 .overlay(alignment: .topTrailing) {
                     if let text = zoomHudText {
                         zoomHudPill(text: text)
-                            .padding(.top, 48 * CGFloat(appUiScale))
-                            .padding(.trailing, 16 * CGFloat(appUiScale))
+                            .padding(.top, 54 * CGFloat(appUiScale))
+                            .padding(.trailing, 18 * CGFloat(appUiScale))
                     }
                 }
 
@@ -141,17 +141,17 @@ struct ContentView: View {
                 }
             }) {
                 Image(systemName: "sidebar.leading")
-                    .font(.system(size: 13 * CGFloat(appUiScale), weight: .medium))
+                    .font(.system(size: 14.5 * CGFloat(appUiScale), weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                    .frame(width: 32 * CGFloat(appUiScale), height: 32 * CGFloat(appUiScale))
                     .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
             }
             .buttonStyle(.plain)
             .help("Toggle Sidebar (⌃⌘S)")
 
             Divider()
-                .frame(height: 18 * CGFloat(appUiScale))
+                .frame(height: 20 * CGFloat(appUiScale))
                 .opacity(0.3)
 
             // 2. Browser-Style Horizontal Document Tab Bar (Supports multiple tabs including Trash)
@@ -165,11 +165,11 @@ struct ContentView: View {
                         store.revealTrashInFinder()
                     }) {
                         Image(systemName: "folder")
-                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .medium))
+                            .font(.system(size: 14.5 * CGFloat(appUiScale), weight: .medium))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                            .frame(width: 32 * CGFloat(appUiScale), height: 32 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain)
                     .help("Reveal .trash in Finder")
@@ -180,15 +180,15 @@ struct ContentView: View {
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "trash")
-                                    .font(.system(size: 11 * CGFloat(appUiScale), weight: .semibold))
+                                    .font(.system(size: 12 * CGFloat(appUiScale), weight: .semibold))
                                 Text("Empty...")
-                                    .font(.system(size: 11 * CGFloat(appUiScale), weight: .medium))
+                                    .font(.system(size: 12 * CGFloat(appUiScale), weight: .medium))
                             }
                             .foregroundStyle(.red.opacity(0.9))
-                            .padding(.horizontal, 8 * CGFloat(appUiScale))
-                            .padding(.vertical, 4 * CGFloat(appUiScale))
+                            .padding(.horizontal, 10 * CGFloat(appUiScale))
+                            .padding(.vertical, 5 * CGFloat(appUiScale))
                             .background(Color.red.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                         }
                         .buttonStyle(.plain)
                         .help("Empty all items in Trash")
@@ -232,11 +232,11 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
+                            .font(.system(size: 14.5 * CGFloat(appUiScale), weight: .regular))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                            .frame(width: 32 * CGFloat(appUiScale), height: 32 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -285,11 +285,11 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
+                            .font(.system(size: 14.5 * CGFloat(appUiScale), weight: .regular))
                             .foregroundStyle(.secondary)
-                            .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                            .frame(width: 32 * CGFloat(appUiScale), height: 32 * CGFloat(appUiScale))
                             .background(Color.primary.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -305,7 +305,7 @@ struct ContentView: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 40 * CGFloat(appUiScale))
+        .frame(height: 46 * CGFloat(appUiScale))
         .background(Color(nsColor: .windowBackgroundColor))
         .background(WindowDragView())
     }
@@ -319,11 +319,11 @@ struct ContentView: View {
             }
         }) {
             Image(systemName: "sparkles")
-                .font(.system(size: 13 * CGFloat(appUiScale), weight: .regular))
+                .font(.system(size: 14.5 * CGFloat(appUiScale), weight: .regular))
                 .foregroundStyle(isAIAssistantPresented ? primaryColor : Color.secondary)
-                .frame(width: 28 * CGFloat(appUiScale), height: 28 * CGFloat(appUiScale))
+                .frame(width: 32 * CGFloat(appUiScale), height: 32 * CGFloat(appUiScale))
                 .background(isAIAssistantPresented ? primaryColor.opacity(0.12) : Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
         .help(isAIAssistantPresented ? "Hide AI Assistant (⌘J)" : "Open AI Assistant (⌘J)")
@@ -502,24 +502,24 @@ struct ContentView: View {
     }
 
     private func zoomHudPill(text: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 7) {
             Button(action: { zoomOut() }) {
                 Image(systemName: "minus")
-                    .font(.system(size: 9.5, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Zoom Out (⌘-)")
 
             Button(action: { resetZoom() }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                     Text(text)
-                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                 }
                 .contentShape(Rectangle())
@@ -529,16 +529,16 @@ struct ContentView: View {
 
             Button(action: { zoomIn() }) {
                 Image(systemName: "plus")
-                    .font(.system(size: 9.5, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20)
+                    .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Zoom In (⌘+)")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()

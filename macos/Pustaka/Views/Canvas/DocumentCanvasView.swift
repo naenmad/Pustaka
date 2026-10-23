@@ -168,7 +168,7 @@ struct DocumentCanvasView: View {
     let page: DocumentPage
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 16.0
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
@@ -445,17 +445,17 @@ struct DocumentCanvasView: View {
                     Button("Divider") { blockActionTrigger = .insertBlock(.divider) }
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12.5, weight: .bold))
                     Text("Add")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13.5, weight: .semibold))
                 }
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6.5)
                 .background(Color.primary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -482,28 +482,28 @@ struct DocumentCanvasView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 3) {
+                HStack(spacing: 4) {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                     Text("Style")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 7))
+                        .font(.system(size: 8))
                 }
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6.5)
                 .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .help("Change block type")
 
-            Divider().frame(height: 16)
+            Divider().frame(height: 20)
 
             // 3. Formatting Buttons with Live Active Indicators
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 toolbarButton(icon: "bold", isActive: formattingState.isBold, help: "Bold (⌘B)") {
                     blockActionTrigger = .formatActiveBlock("**")
                 }
@@ -518,10 +518,10 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            Divider().frame(height: 16)
+            Divider().frame(height: 20)
 
             // 4. Quick Action Shortcuts
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 toolbarButton(icon: "tablecells", help: "Insert Table") {
                     blockActionTrigger = .insertBlock(.grid(
                         headers: ["Column 1", "Column 2", "Column 3"],
@@ -536,29 +536,29 @@ struct DocumentCanvasView: View {
                 }
             }
 
-            Divider().frame(height: 16)
+            Divider().frame(height: 20)
 
             // 5. Live Document Reading Stats
             HStack(spacing: 5) {
                 Text("\(wordCount) w")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Text("•")
                     .font(.system(size: 8))
                     .foregroundStyle(.tertiary)
                 Text("~\(readingTimeMinutes)m")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 5)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
         .background(.ultraThickMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: Color.black.opacity(0.16), radius: 14, y: 5)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
         .padding(.bottom, 22)
@@ -568,13 +568,13 @@ struct DocumentCanvasView: View {
     private func toolbarButton(icon: String, isActive: Bool = false, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: isActive ? .bold : .medium))
+                .font(.system(size: 13.5, weight: isActive ? .bold : .medium))
                 .foregroundStyle(isActive ? primaryColor : Color.secondary)
-                .frame(width: 26, height: 26)
+                .frame(width: 32, height: 32)
                 .background(isActive ? primaryColor.opacity(0.22) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 7)
                         .stroke(isActive ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
@@ -1042,7 +1042,7 @@ struct DocumentCanvasView: View {
             TitleEditorField(
                 text: $titleBuffer,
                 placeholder: "Untitled",
-                fontSize: round(34.0 * (CGFloat(editorFontSize) / 15.0)),
+                fontSize: round(34.0 * (CGFloat(editorFontSize) / 16.0)),
                 onCommit: {
                     focusFirstBlock()
                 },
@@ -1511,16 +1511,16 @@ struct DocumentCanvasView: View {
             scrollToTop(proxy: scrollProxy)
         }) {
             Image(systemName: "arrow.up")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14.5, weight: .semibold))
                 .foregroundStyle(.primary)
-                .frame(width: 36, height: 36)
+                .frame(width: 40, height: 40)
                 .background(.ultraThickMaterial)
                 .clipShape(Circle())
                 .overlay(
                     Circle()
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.14), radius: 10, y: 4)
+                .shadow(color: Color.black.opacity(0.16), radius: 12, y: 5)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

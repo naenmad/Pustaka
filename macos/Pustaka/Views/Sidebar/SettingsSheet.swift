@@ -13,8 +13,8 @@ struct SettingsSheet: View {
 
     // Accessibility & Scaling
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
-    @AppStorage("editorFontSize") private var editorFontSize: Double = 15.0
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
+    @AppStorage("editorFontSize") private var editorFontSize: Double = 16.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
     @AppStorage("enhanceContrast") private var enhanceContrast: Bool = false
     @AppStorage("editorFontFamily") private var editorFontFamily: String = "system"
     @AppStorage("editorLineSpacing") private var editorLineSpacing: String = "normal"
@@ -424,14 +424,14 @@ struct SettingsSheet: View {
                     }
 
                     HStack(spacing: 8) {
-                        fontSizePresetButton("Small (13)", value: 13.0)
-                        fontSizePresetButton("Regular (15)", value: 15.0)
-                        fontSizePresetButton("Medium (17)", value: 17.0)
-                        fontSizePresetButton("Large (19)", value: 19.0)
-                        fontSizePresetButton("Huge (22)", value: 22.0)
+                        fontSizePresetButton("Small (14)", value: 14.0)
+                        fontSizePresetButton("Regular (16)", value: 16.0)
+                        fontSizePresetButton("Medium (18)", value: 18.0)
+                        fontSizePresetButton("Large (20)", value: 20.0)
+                        fontSizePresetButton("Huge (24)", value: 24.0)
                     }
 
-                    Slider(value: $editorFontSize, in: 11.0...28.0, step: 1.0)
+                    Slider(value: $editorFontSize, in: 12.0...28.0, step: 1.0)
                         .controlSize(.small)
                 }
             }
@@ -448,10 +448,10 @@ struct SettingsSheet: View {
                     }
                     Spacer()
                     Picker("", selection: $sidebarFontSize) {
-                        Text("Compact (11.5 pt)").tag(11.5)
-                        Text("Standard (13 pt - Apple HIG)").tag(13.0)
-                        Text("Large (14 pt)").tag(14.0)
-                        Text("Extra Large (15.5 pt)").tag(15.5)
+                        Text("Compact (12.5 pt)").tag(12.5)
+                        Text("Standard (14 pt)").tag(14.0)
+                        Text("Large (15.5 pt)").tag(15.5)
+                        Text("Extra Large (17 pt)").tag(17.0)
                     }
                     .frame(width: 170)
                 }

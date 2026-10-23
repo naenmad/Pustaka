@@ -58,7 +58,7 @@ struct SidebarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
     @AppStorage("sidebarSortOption") private var sidebarSortOption: SidebarSortOption = .modifiedDesc
     @AppStorage("sidebarFilterOption") private var sidebarFilterOption: SidebarFilterOption = .all
@@ -159,12 +159,12 @@ struct SidebarView: View {
                 Image(nsImage: logoImg)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 22 * appUiScale, height: 22 * appUiScale)
-                    .clipShape(RoundedRectangle(cornerRadius: 5 * appUiScale, style: .continuous))
+                    .frame(width: 26 * appUiScale, height: 26 * appUiScale)
+                    .clipShape(RoundedRectangle(cornerRadius: 6 * appUiScale, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [primaryColor, primaryColor.opacity(0.8)],
@@ -172,17 +172,17 @@ struct SidebarView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 18 * appUiScale, height: 18 * appUiScale)
+                        .frame(width: 22 * appUiScale, height: 22 * appUiScale)
 
                     Image(systemName: "book.closed.fill")
-                        .font(.system(size: 9.5 * appUiScale, weight: .bold))
+                        .font(.system(size: 11 * appUiScale, weight: .bold))
                         .foregroundStyle(.white)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Pustaka")
-                    .font(.system(size: 13.5 * appUiScale, weight: .semibold))
+                    .font(.system(size: 15 * appUiScale, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -191,13 +191,13 @@ struct SidebarView: View {
                 }) {
                     HStack(spacing: 3) {
                         Text("~/Documents/Pustaka")
-                            .font(.system(size: 10 * appUiScale, weight: .regular))
+                            .font(.system(size: 11 * appUiScale, weight: .regular))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
 
                         Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 8 * appUiScale))
+                            .font(.system(size: 9 * appUiScale))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -212,17 +212,17 @@ struct SidebarView: View {
                 store.revealInFinder()
             }) {
                 Image(systemName: "folder")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 26, height: 26)
                     .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
             .help("Reveal in Finder (⇧⌘R)")
         }
         .padding(.trailing, 10)
-        .frame(height: 40 * appUiScale)
+        .frame(height: 46 * appUiScale)
         .background(WindowDragView())
     }
 
@@ -239,33 +239,33 @@ struct SidebarView: View {
                     isQuickSearchPresented = true
                 }
             }) {
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11.5, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
 
                     Text("Quick Search...")
-                        .font(.system(size: 12, weight: .regular))
+                        .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
 
                     Spacer()
 
                     Text("⌘K")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
                         .background(Color.primary.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7.5)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.primary.opacity(isSearchBtnHovered ? 0.07 : 0.035))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
                 )
             }
@@ -307,22 +307,22 @@ struct SidebarView: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: 12.5, weight: .regular))
                     .foregroundStyle(isFilterOrSortCustom ? primaryColor : Color.secondary)
-                    .frame(width: 25, height: 25)
+                    .frame(width: 28, height: 28)
                     .background(isFilterOrSortCustom ? primaryColor.opacity(0.12) : Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
 
                 if isFilterOrSortCustom {
                     Circle()
                         .fill(primaryColor)
-                        .frame(width: 5, height: 5)
+                        .frame(width: 5.5, height: 5.5)
                         .offset(x: -2, y: 2)
                 }
             }
         }
         .menuStyle(.borderlessButton)
-        .frame(width: 25, height: 25)
+        .frame(width: 28, height: 28)
         .help("Order By: \(sidebarSortOption.label)\(sidebarFilterOption != .all ? " • Filter: \(sidebarFilterOption.label)" : "")")
     }
 
@@ -349,11 +349,11 @@ struct SidebarView: View {
             // Section Header
             HStack(spacing: 5) {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 11 * appUiScale, weight: .bold))
                     .foregroundStyle(Color.yellow.opacity(0.95))
 
                 Text("FAVORITES")
-                    .font(.system(size: 10.5 * appUiScale, weight: .bold))
+                    .font(.system(size: 11.5 * appUiScale, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(0.6)
 
@@ -361,18 +361,18 @@ struct SidebarView: View {
 
                 if isFavoritesDropTargeted {
                     Text("Drop to star")
-                        .font(.system(size: 9.5 * appUiScale, weight: .semibold))
+                        .font(.system(size: 10.5 * appUiScale, weight: .semibold))
                         .foregroundStyle(primaryColor)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1.5)
                         .background(primaryColor.opacity(0.12))
                         .clipShape(Capsule())
                 } else if !store.favoritePages.isEmpty {
                     Text("\(store.favoritePages.count)")
-                        .font(.system(size: 9.5 * appUiScale, weight: .semibold))
+                        .font(.system(size: 10.5 * appUiScale, weight: .semibold))
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1.5)
                         .background(Color.primary.opacity(0.04))
                         .clipShape(Capsule())
                 }
@@ -386,16 +386,16 @@ struct SidebarView: View {
                 // Empty drop placeholder
                 HStack(spacing: 6) {
                     Image(systemName: "star")
-                        .font(.system(size: 11 * appUiScale))
+                        .font(.system(size: 12 * appUiScale))
                         .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.4))
 
                     Text(isFavoritesDropTargeted ? "Drop note here to star" : "Drag notes here to favorite")
-                        .font(.system(size: 11 * appUiScale, weight: .regular))
+                        .font(.system(size: 12 * appUiScale, weight: .regular))
                         .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.primary.opacity(0.02))
@@ -458,9 +458,9 @@ struct SidebarView: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: isTrashDropTargeted ? "trash.fill" : "trash")
-                    .font(.system(size: 12.5 * appUiScale, weight: .medium))
+                    .font(.system(size: 14 * appUiScale, weight: .medium))
                     .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? primaryColor : Color.secondary))
-                    .frame(width: 16)
+                    .frame(width: 18)
 
                 Text(isTrashDropTargeted ? "Drop to Move to Trash" : "Trash")
                     .font(.system(size: sidebarFontSize, weight: (isTrashDropTargeted || store.isShowingTrash) ? .semibold : .medium))
@@ -470,26 +470,26 @@ struct SidebarView: View {
 
                 if !store.trashPages.isEmpty {
                     Text("\(store.trashPages.count)")
-                        .font(.system(size: 10 * appUiScale, weight: .semibold))
+                        .font(.system(size: 11 * appUiScale, weight: .semibold))
                         .foregroundStyle(isTrashDropTargeted ? Color.red : .secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(isTrashDropTargeted ? Color.red.opacity(0.18) : Color.primary.opacity(0.04))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isTrashDropTargeted ? Color.red.opacity(0.18) : Color.primary.opacity(0.05))
                         .clipShape(Capsule())
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7.5 * appUiScale)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
                         isTrashDropTargeted
                             ? Color.red.opacity(0.14)
-                            : (store.isShowingTrash ? primaryColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.04) : Color.clear))
+                            : (store.isShowingTrash ? primaryColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.045) : Color.clear))
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(
                         isTrashDropTargeted ? Color.red.opacity(0.6) : Color.clear,
                         lineWidth: 1.5
@@ -522,7 +522,7 @@ struct SidebarView: View {
             // Workspaces Header
             HStack {
                 Text("WORKSPACES")
-                    .font(.system(size: 10.5 * appUiScale, weight: .bold))
+                    .font(.system(size: 11.5 * appUiScale, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(0.6)
 
@@ -532,11 +532,11 @@ struct SidebarView: View {
                     isAddingCategory = true
                 }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 10 * appUiScale, weight: .semibold))
+                        .font(.system(size: 11 * appUiScale, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .padding(3)
-                        .background(Color.primary.opacity(0.03))
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .frame(width: 22, height: 22)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Add Workspace Folder")
@@ -630,50 +630,50 @@ struct SidebarView: View {
     }
 
     private var bottomActionBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 7) {
             // Primary Action: New Document
             Button(action: {
                 store.addNewPage(in: "cat_notes")
             }) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(primaryColor)
                     Text("New Document")
-                        .font(.system(size: sidebarFontSize, weight: .semibold))
+                        .font(.system(size: max(13.5, sidebarFontSize), weight: .semibold))
                     Spacer()
                     Text("⌘N")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6 * appUiScale)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 8.5 * appUiScale)
                 .background(Color.primary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
 
             // Secondary Action Row: Settings (⌘,) & Exactly 1 Single Quick Theme Button
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Button(action: {
                     isSettingsSheetPresented = true
                 }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 7) {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13, weight: .medium))
                         Text("Settings")
-                            .font(.system(size: sidebarFontSize, weight: .medium))
+                            .font(.system(size: max(13, sidebarFontSize), weight: .medium))
                         Spacer()
                         Text("⌘,")
-                            .font(.system(size: 10, weight: .regular))
+                            .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(.tertiary)
                     }
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5 * appUiScale)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7.5 * appUiScale)
+                    .background(Color.primary.opacity(0.045))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Settings & Vault Preferences (⌘,)")
@@ -684,11 +684,11 @@ struct SidebarView: View {
                     toggleTheme()
                 }) {
                     Image(systemName: themeToggleIcon)
-                        .font(.system(size: 11.5 * appUiScale, weight: .medium))
+                        .font(.system(size: 13.5 * appUiScale, weight: .medium))
                         .foregroundStyle(isDarkModeActive ? primaryColor : Color.secondary)
-                        .frame(width: 28 * appUiScale, height: 25 * appUiScale)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .frame(width: 36 * appUiScale, height: 34 * appUiScale)
+                        .background(Color.primary.opacity(0.045))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help(themeToggleTooltip)
@@ -740,15 +740,15 @@ struct FavoriteItemCardRow: View {
         Button(action: {
             store.selectPage(id: page.id)
         }) {
-            HStack(spacing: 7) {
+            HStack(spacing: 8) {
                 // Gold star badge + Document Icon
                 Image(systemName: "star.fill")
-                    .font(.system(size: 8.5 * appUiScale))
+                    .font(.system(size: 10.5 * appUiScale))
                     .foregroundStyle(Color.yellow.opacity(0.95))
 
                 DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
-                    .frame(width: max(14, sidebarFontSize + 1))
+                    .frame(width: max(16, sidebarFontSize + 2))
 
                 Text(page.title.isEmpty ? "Untitled Document" : page.title)
                     .font(.system(size: sidebarFontSize, weight: isSelected ? .semibold : .medium))
@@ -762,17 +762,17 @@ struct FavoriteItemCardRow: View {
                         store.setFavorite(id: page.id, isFavorite: false)
                     }) {
                         Image(systemName: "star.slash")
-                            .font(.system(size: 9.5))
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                     .help("Remove from Favorites")
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6.5)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.045) : Color.clear))
             )
             .contentShape(Rectangle())
@@ -805,7 +805,7 @@ struct CategorySectionView: View {
     let onCustomize: () -> Void
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
     @State private var isHovered: Bool = false
     @State private var isDropTargeted: Bool = false
 
@@ -861,13 +861,13 @@ struct CategorySectionView: View {
     }
 
     private var categoryHeader: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.16)) {
                     store.toggleCategoryExpanded(id: category.id)
                 }
             }) {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     DynamicIconView(icon: category.icon, size: sidebarFontSize, defaultSymbol: "folder")
                         .foregroundStyle(primaryColor.opacity(0.85))
 
@@ -877,9 +877,9 @@ struct CategorySectionView: View {
                         .lineLimit(1)
 
                     Image(systemName: category.isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7.5, weight: .bold))
+                        .font(.system(size: 9.5, weight: .bold))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 10, height: 10)
+                        .frame(width: 12, height: 12)
                 }
             }
             .buttonStyle(.plain)
@@ -887,25 +887,25 @@ struct CategorySectionView: View {
             if category.showPageCount {
                 let count = store.pages(in: category.id).count
                 Text("\(count)")
-                    .font(.system(size: 9.5, weight: .medium))
+                    .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Color.primary.opacity(0.04))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.045))
                     .clipShape(Capsule())
             }
 
             Spacer()
 
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 if isHovered {
                     Button(action: {
                         store.addNewPage(in: category.id)
                     }) {
                         Image(systemName: "plus")
-                            .font(.system(size: 9.5, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.secondary)
-                            .padding(3)
+                            .padding(3.5)
                     }
                     .buttonStyle(.plain)
                     .help("Add note to \(category.name)")
@@ -940,21 +940,21 @@ struct CategorySectionView: View {
                     }
                 } label: {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(isHovered ? Color.primary : Color.clear)
                         .padding(3)
                 }
                 .menuStyle(.borderlessButton)
-                .frame(width: 16)
+                .frame(width: 18)
             }
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 5.5)
+        .padding(.horizontal, 7)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(isDropTargeted ? primaryColor.opacity(0.18) : Color.clear)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 7)
                         .stroke(isDropTargeted ? primaryColor : Color.clear, lineWidth: 1.5)
                 )
         )
@@ -974,7 +974,7 @@ struct SidebarDocumentItemRow: View {
     var filterOption: SidebarFilterOption = .all
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 13.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
@@ -1030,22 +1030,22 @@ struct SidebarDocumentItemRow: View {
                             }
                         }) {
                             Image(systemName: isSubpagesExpanded ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 7.5, weight: .bold))
+                                .font(.system(size: 9.5, weight: .bold))
                                 .foregroundStyle(.secondary.opacity(0.8))
-                                .frame(width: 11, height: 11)
+                                .frame(width: 13, height: 13)
                         }
                         .buttonStyle(.plain)
                     } else if depth > 0 {
                         Circle()
                             .fill(Color.secondary.opacity(0.25))
-                            .frame(width: 2.5, height: 2.5)
-                            .frame(width: 11, height: 11)
+                            .frame(width: 3, height: 3)
+                            .frame(width: 13, height: 13)
                     }
 
                     // Document Icon (Follows primary color)
                     DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
                         .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
-                        .frame(width: max(14, sidebarFontSize + 2))
+                        .frame(width: max(16, sidebarFontSize + 2))
 
                     // Title OR Inline Rename TextField
                     if isRenaming {
@@ -1067,16 +1067,16 @@ struct SidebarDocumentItemRow: View {
 
                     // Hover Quick Actions
                     if !isRenaming && (isHovered || isSelected) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             // Add Subpage Quick Button
                             Button(action: {
                                 store.addNewSubpage(parentPageId: page.id)
                                 isSubpagesExpanded = true
                             }) {
                                 Image(systemName: "plus")
-                                    .font(.system(size: 8.5, weight: .bold))
+                                    .font(.system(size: 10.5, weight: .bold))
                                     .foregroundStyle(.secondary)
-                                    .padding(2)
+                                    .padding(2.5)
                             }
                             .buttonStyle(.plain)
                             .help("Add subpage")
@@ -1084,7 +1084,7 @@ struct SidebarDocumentItemRow: View {
                             // Star / Unstar Favorite (Follows primary color)
                             Button(action: { store.toggleFavorite(id: page.id) }) {
                                 Image(systemName: page.isFavorite ? "star.fill" : "star")
-                                    .font(.system(size: max(9.0, sidebarFontSize - 2.5), weight: page.isFavorite ? .bold : .regular))
+                                    .font(.system(size: max(11.0, sidebarFontSize - 1.5), weight: page.isFavorite ? .bold : .regular))
                                     .foregroundStyle(page.isFavorite ? primaryColor : Color.secondary.opacity(0.6))
                             }
                             .buttonStyle(.plain)
@@ -1095,18 +1095,18 @@ struct SidebarDocumentItemRow: View {
                                 documentContextMenuContent
                             } label: {
                                 Image(systemName: "slider.horizontal.3")
-                                    .font(.system(size: 9.5))
+                                    .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                             .menuStyle(.borderlessButton)
-                            .frame(width: 12)
+                            .frame(width: 16)
                         }
                     }
                 }
-                .padding(.vertical, 3.5)
-                .padding(.horizontal, 6)
+                .padding(.vertical, 5.5)
+                .padding(.horizontal, 7)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(
                             isRowDropTargeted
                                 ? primaryColor.opacity(0.18)
@@ -1114,7 +1114,7 @@ struct SidebarDocumentItemRow: View {
                         )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .strokeBorder(isRowDropTargeted ? primaryColor : Color.clear, lineWidth: 1.5)
                 )
                 .contentShape(Rectangle())
@@ -1282,7 +1282,7 @@ struct RecentDocumentRow: View {
     let isSelected: Bool
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
@@ -1294,10 +1294,10 @@ struct RecentDocumentRow: View {
         Button(action: {
             store.selectPage(id: page.id)
         }) {
-            HStack(spacing: 5) {
+            HStack(spacing: 7) {
                 DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
-                    .frame(width: max(14, sidebarFontSize + 2))
+                    .frame(width: max(16, sidebarFontSize + 2))
 
                 Text(page.title.isEmpty ? "Untitled" : page.title)
                     .font(.system(size: sidebarFontSize))
@@ -1307,18 +1307,18 @@ struct RecentDocumentRow: View {
                 Spacer()
 
                 Text(relativeTimeString(from: page.lastModified))
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.primary.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.045))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
-            .padding(.vertical, 3)
-            .padding(.horizontal, 6)
+            .padding(.vertical, 5.5)
+            .padding(.horizontal, 7)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.045) : Color.clear))
             )
             .contentShape(Rectangle())
         }
@@ -1351,7 +1351,7 @@ struct SearchResultItemRow: View {
     let searchText: String
 
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
-    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 12.0
+    @AppStorage("sidebarFontSize") private var sidebarFontSize: Double = 14.0
 
     private var primaryColor: Color {
         Color(hex: appPrimaryColorHex)
@@ -1367,33 +1367,33 @@ struct SearchResultItemRow: View {
         Button(action: {
             store.selectPage(id: page.id)
         }) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
-                    .frame(width: max(14, sidebarFontSize + 2))
+                    .frame(width: max(16, sidebarFontSize + 2))
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(page.title.isEmpty ? "Untitled" : page.title)
                         .font(.system(size: sidebarFontSize, weight: isSelected ? .medium : .regular))
                         .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.9))
                         .lineLimit(1)
 
                     Text(categoryName)
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
 
                 Spacer()
 
                 Text(relativeTimeString(from: page.lastModified))
-                    .font(.system(size: 9.5))
+                    .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
+            .padding(.vertical, 5.5)
+            .padding(.horizontal, 7)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isSelected ? primaryColor.opacity(0.14) : (isHovered ? Color.primary.opacity(0.045) : Color.clear))
             )
             .contentShape(Rectangle())
         }

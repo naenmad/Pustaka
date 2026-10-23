@@ -21,31 +21,31 @@ struct DocumentTabItemView: View {
     @State private var isCloseHovered: Bool = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 7) {
             // Document Icon (Native SF Symbol, follows primary color)
             if page.id == WorkspaceStore.trashPageId {
                 Image(systemName: "trash")
-                    .font(.system(size: 11 * appUiScale))
+                    .font(.system(size: 13 * appUiScale))
                     .foregroundStyle(isSelected ? Color.red.opacity(0.9) : Color.secondary)
             } else {
-                DynamicIconView(icon: page.icon, size: 11.5 * appUiScale, defaultSymbol: "doc.text")
+                DynamicIconView(icon: page.icon, size: 13 * appUiScale, defaultSymbol: "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
             }
 
             // Document Title
             Text(page.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : page.title)
-                .font(.system(size: 12 * appUiScale, weight: isSelected ? .medium : .regular))
+                .font(.system(size: 13 * appUiScale, weight: isSelected ? .medium : .regular))
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(maxWidth: 160 * appUiScale, alignment: .leading)
+                .frame(maxWidth: 180 * appUiScale, alignment: .leading)
 
             // Close Tab Button (xmark)
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 8 * appUiScale, weight: .bold))
+                    .font(.system(size: 9.5 * appUiScale, weight: .bold))
                     .foregroundStyle(isCloseHovered ? Color.primary : Color.secondary)
-                    .frame(width: 16 * appUiScale, height: 16 * appUiScale)
+                    .frame(width: 18 * appUiScale, height: 18 * appUiScale)
                     .background(isCloseHovered ? Color.primary.opacity(0.12) : Color.clear)
                     .clipShape(Circle())
             }
@@ -54,15 +54,15 @@ struct DocumentTabItemView: View {
             .onHover { h in isCloseHovered = h }
             .help("Close Tab (⌘W)")
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 6)
-        .frame(height: 30 * appUiScale)
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .frame(height: 34 * appUiScale)
         .background(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(isSelected ? Color(nsColor: .controlBackgroundColor) : (isHovered ? Color.primary.opacity(0.06) : Color.clear))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 8)
                 .stroke(isSelected ? primaryColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .shadow(color: isSelected ? Color.black.opacity(0.06) : Color.clear, radius: 1.5, y: 0.5)
@@ -155,11 +155,11 @@ struct DocumentTabBarView: View {
                         }
                     }) {
                         Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 12.5 * appUiScale, weight: .semibold))
                             .foregroundStyle(.secondary)
-                            .frame(width: 26, height: 26)
+                            .frame(width: 30 * appUiScale, height: 30 * appUiScale)
                             .background(isHoveringPlus ? Color.primary.opacity(0.08) : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain)
                     .onHover { h in isHoveringPlus = h }
