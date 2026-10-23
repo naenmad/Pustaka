@@ -110,8 +110,8 @@ struct SidebarView: View {
 
                 // 4. Dedicated Trash Drop Zone (Anchored at Bottom)
                 trashPinnedRow
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 4)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
 
                 // 5. Bottom Action Bar (New Document, Settings, Theme)
                 bottomActionBar
@@ -342,69 +342,109 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Favorites Pinned Section (With Dedicated Card & Drop Zone)
+    // MARK: - Favorites Pinned Section (Dedicated Drag & Drop Box)
 
     private var favoritesPinnedSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Section Header
-            HStack(spacing: 5) {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 11 * appUiScale, weight: .bold))
-                    .foregroundStyle(Color.yellow.opacity(0.95))
+        let favs = store.sortedFavoritePages(by: sidebarSortOption)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            // Box Header
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(Color.yellow.opacity(0.18))
+                        .frame(width: 18 * appUiScale, height: 18 * appUiScale)
+
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 9.5 * appUiScale))
+                        .foregroundStyle(Color.yellow.opacity(0.95))
+                }
 
                 Text("FAVORITES")
-                    .font(.system(size: 11.5 * appUiScale, weight: .bold))
+                    .font(.system(size: 11 * appUiScale, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(0.6)
 
                 Spacer()
 
                 if isFavoritesDropTargeted {
-                    Text("Drop to star")
-                        .font(.system(size: 10.5 * appUiScale, weight: .semibold))
-                        .foregroundStyle(primaryColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1.5)
-                        .background(primaryColor.opacity(0.12))
-                        .clipShape(Capsule())
-                } else if !store.favoritePages.isEmpty {
-                    Text("\(store.favoritePages.count)")
-                        .font(.system(size: 10.5 * appUiScale, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1.5)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(Capsule())
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 9.5))
+                        Text("Drop to star")
+                            .font(.system(size: 10 * appUiScale, weight: .bold))
+                    }
+                    .foregroundStyle(primaryColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(primaryColor.opacity(0.16))
+                    .clipShape(Capsule())
+                } else if !favs.isEmpty {
+                    HStack(spacing: 3.5) {
+                        Image(systemName: "arrow.down.to.line")
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(.tertiary)
+                        Text("\(favs.count)")
+                            .font(.system(size: 10 * appUiScale, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(Capsule())
+                } else {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.down.to.line")
+                            .font(.system(size: 8.5))
+                        Text("Drop zone")
+                            .font(.system(size: 9.5 * appUiScale, weight: .medium))
+                    }
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(Capsule())
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.top, 2)
+            .padding(.horizontal, 4)
 
-            let favs = store.sortedFavoritePages(by: sidebarSortOption)
-
+            // Box Body
             if favs.isEmpty {
-                // Empty drop placeholder
-                HStack(spacing: 6) {
-                    Image(systemName: "star")
-                        .font(.system(size: 12 * appUiScale))
-                        .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.4))
+                // Inviting Drop Target Empty State
+                VStack(spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: isFavoritesDropTargeted ? "arrow.down.circle.fill" : "star.dashed")
+                            .font(.system(size: 15 * appUiScale, weight: isFavoritesDropTargeted ? .bold : .medium))
+                            .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.7))
 
-                    Text(isFavoritesDropTargeted ? "Drop note here to star" : "Drag notes here to favorite")
-                        .font(.system(size: 12 * appUiScale, weight: .regular))
-                        .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.5))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(isFavoritesDropTargeted ? "Drop note here to star" : "Drag notes here to favorite")
+                                .font(.system(size: 12 * appUiScale, weight: isFavoritesDropTargeted ? .bold : .medium))
+                                .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary)
+
+                            Text("Quick access to pinned documents")
+                                .font(.system(size: 10 * appUiScale))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.down.to.line")
+                            .font(.system(size: 11 * appUiScale))
+                            .foregroundStyle(isFavoritesDropTargeted ? primaryColor : Color.secondary.opacity(0.35))
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10 * appUiScale)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.primary.opacity(0.02))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.12) : Color.primary.opacity(0.025))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(
-                            isFavoritesDropTargeted ? primaryColor : Color.primary.opacity(0.06),
-                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                            isFavoritesDropTargeted ? primaryColor : Color.primary.opacity(0.1),
+                            style: StrokeStyle(lineWidth: isFavoritesDropTargeted ? 1.5 : 1, dash: [4, 3])
                         )
                 )
             } else {
@@ -419,22 +459,65 @@ struct SidebarView: View {
                             primaryColor: primaryColor
                         )
                     }
+
+                    // Active or subtle drop strip at the bottom of favorites
+                    if isFavoritesDropTargeted {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 12))
+                            Text("Drop to add to favorites")
+                                .font(.system(size: 11.5 * appUiScale, weight: .semibold))
+                        }
+                        .foregroundStyle(primaryColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(primaryColor.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .padding(.top, 2)
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.to.line")
+                                .font(.system(size: 8.5))
+                            Text("Drag more notes here to pin")
+                                .font(.system(size: 9.5 * appUiScale))
+                        }
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                    }
                 }
-                .padding(3)
+                .padding(4)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.clear)
+                        .fill(isFavoritesDropTargeted ? primaryColor.opacity(0.08) : Color.primary.opacity(0.02))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(
-                            isFavoritesDropTargeted ? primaryColor : Color.clear,
-                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                            isFavoritesDropTargeted ? primaryColor : Color.primary.opacity(0.08),
+                            style: StrokeStyle(lineWidth: isFavoritesDropTargeted ? 1.5 : 1, dash: [4, 3])
                         )
                 )
             }
         }
-        .padding(.horizontal, 2)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(
+                    isFavoritesDropTargeted
+                        ? primaryColor.opacity(0.08)
+                        : Color.primary.opacity(0.02)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    isFavoritesDropTargeted ? primaryColor : Color.primary.opacity(0.09),
+                    style: StrokeStyle(lineWidth: isFavoritesDropTargeted ? 1.5 : 1, dash: isFavoritesDropTargeted ? [] : [5, 3])
+                )
+        )
+        .contentShape(Rectangle())
         .onDrop(of: [.text], isTargeted: $isFavoritesDropTargeted) { providers in
             guard let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: String.self) { string, _ in
@@ -450,49 +533,79 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Dedicated Trash Drop Zone
+    // MARK: - Dedicated Trash Drop Zone (Dedicated Drag & Drop Box)
 
     private var trashPinnedRow: some View {
         Button(action: {
             store.openTrash()
         }) {
-            HStack(spacing: 8) {
-                Image(systemName: isTrashDropTargeted ? "trash.fill" : "trash")
-                    .font(.system(size: 14 * appUiScale, weight: .medium))
-                    .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? primaryColor : Color.secondary))
-                    .frame(width: 18)
+            HStack(spacing: 9) {
+                // Red Trash Icon Badge
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(
+                            isTrashDropTargeted
+                                ? Color.red.opacity(0.25)
+                                : (store.isShowingTrash ? primaryColor.opacity(0.2) : Color.red.opacity(0.12))
+                        )
+                        .frame(width: 32 * appUiScale, height: 32 * appUiScale)
 
-                Text(isTrashDropTargeted ? "Drop to Move to Trash" : "Trash")
-                    .font(.system(size: sidebarFontSize, weight: (isTrashDropTargeted || store.isShowingTrash) ? .semibold : .medium))
-                    .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? Color.primary : Color.secondary))
+                    Image(systemName: isTrashDropTargeted ? "trash.fill" : (store.trashPages.isEmpty ? "trash" : "trash.fill"))
+                        .font(.system(size: 14 * appUiScale, weight: isTrashDropTargeted ? .bold : .medium))
+                        .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? primaryColor : Color.red.opacity(0.95)))
+                }
+
+                // Text Description & Drop Affordance
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(isTrashDropTargeted ? "Drop to Move to Trash" : "Trash")
+                            .font(.system(size: sidebarFontSize, weight: (isTrashDropTargeted || store.isShowingTrash) ? .bold : .semibold))
+                            .foregroundStyle(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? Color.primary : Color.primary.opacity(0.9)))
+
+                        if !store.trashPages.isEmpty {
+                            Text("\(store.trashPages.count)")
+                                .font(.system(size: 10 * appUiScale, weight: .bold))
+                                .foregroundStyle(isTrashDropTargeted ? Color.white : (store.isShowingTrash ? Color.white : Color.red))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(isTrashDropTargeted ? Color.red : (store.isShowingTrash ? primaryColor : Color.red.opacity(0.15)))
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    Text(isTrashDropTargeted ? "Release to delete note" : "Drag notes here to delete")
+                        .font(.system(size: 10 * appUiScale, weight: .regular))
+                        .foregroundStyle(isTrashDropTargeted ? Color.red : Color.secondary)
+                        .lineLimit(1)
+                }
 
                 Spacer()
 
-                if !store.trashPages.isEmpty {
-                    Text("\(store.trashPages.count)")
-                        .font(.system(size: 11 * appUiScale, weight: .semibold))
-                        .foregroundStyle(isTrashDropTargeted ? Color.red : .secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isTrashDropTargeted ? Color.red.opacity(0.18) : Color.primary.opacity(0.05))
-                        .clipShape(Capsule())
-                }
+                // Visual Drop Arrow Icon
+                Image(systemName: isTrashDropTargeted ? "arrow.down.circle.fill" : "arrow.down.to.line")
+                    .font(.system(size: 12 * appUiScale, weight: .medium))
+                    .foregroundStyle(isTrashDropTargeted ? Color.red : Color.secondary.opacity(0.45))
+                    .padding(.trailing, 2)
             }
             .padding(.horizontal, 9)
-            .padding(.vertical, 7.5 * appUiScale)
+            .padding(.vertical, 8 * appUiScale)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(
                         isTrashDropTargeted
-                            ? Color.red.opacity(0.14)
-                            : (store.isShowingTrash ? primaryColor.opacity(0.14) : (isTrashHovered ? Color.primary.opacity(0.045) : Color.clear))
+                            ? Color.red.opacity(0.16)
+                            : (store.isShowingTrash ? primaryColor.opacity(0.12) : (isTrashHovered ? Color.red.opacity(0.08) : Color.red.opacity(0.035)))
                     )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(
-                        isTrashDropTargeted ? Color.red.opacity(0.6) : Color.clear,
-                        lineWidth: 1.5
+                        isTrashDropTargeted
+                            ? Color.red
+                            : (store.isShowingTrash
+                                ? primaryColor
+                                : (isTrashHovered ? Color.red.opacity(0.4) : Color.red.opacity(0.2))),
+                        style: StrokeStyle(lineWidth: (isTrashDropTargeted || store.isShowingTrash) ? 1.5 : 1, dash: (isTrashDropTargeted || store.isShowingTrash) ? [] : [4, 3])
                     )
             )
             .contentShape(Rectangle())
@@ -511,6 +624,19 @@ struct SidebarView: View {
                 }
             }
             return true
+        }
+        .contextMenu {
+            Button("Open Trash") {
+                store.openTrash()
+            }
+            if !store.trashPages.isEmpty {
+                Divider()
+                Button(role: .destructive, action: {
+                    store.emptyTrash()
+                }) {
+                    Label("Empty Trash (\(store.trashPages.count) items)", systemImage: "trash.slash")
+                }
+            }
         }
         .help("Drag notes here to move to Trash, or click to open Trash")
     }
