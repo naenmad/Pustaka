@@ -76,6 +76,29 @@ struct SidebarCategory: Identifiable, Hashable, Codable {
     }
 }
 
+// MARK: - Document Page Type
+
+enum DocumentPageType: String, Codable, CaseIterable, Identifiable {
+    case document = "document"
+    case kanban = "kanban"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .document: return "Document"
+        case .kanban: return "Kanban Board"
+        }
+    }
+
+    var defaultIcon: String {
+        switch self {
+        case .document: return "doc.text"
+        case .kanban: return "square.grid.3x2"
+        }
+    }
+}
+
 // MARK: - Document Page
 
 struct DocumentPage: Identifiable, Hashable, Codable {
@@ -93,9 +116,10 @@ struct DocumentPage: Identifiable, Hashable, Codable {
     var isDeleted: Bool = false // Soft-delete flag (Obsidian .trash/ compatible)
     var lastModified: Date
     var boardTasks: [TaskCard]
+    var pageType: DocumentPageType = .document
 
     enum CodingKeys: String, CodingKey {
-        case id, title, icon, coverUrl, coverOffsetY, coverOffsetX, coverScale, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks
+        case id, title, icon, coverUrl, coverOffsetY, coverOffsetX, coverScale, categoryId, parentPageId, rawContent, isFavorite, isDeleted, lastModified, boardTasks, pageType
     }
 
     init(
@@ -112,7 +136,8 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         isFavorite: Bool,
         isDeleted: Bool = false,
         lastModified: Date,
-        boardTasks: [TaskCard]
+        boardTasks: [TaskCard],
+        pageType: DocumentPageType = .document
     ) {
         self.id = id
         self.title = title
@@ -128,6 +153,7 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         self.isDeleted = isDeleted
         self.lastModified = lastModified
         self.boardTasks = boardTasks
+        self.pageType = pageType
     }
 
     init(from decoder: Decoder) throws {
@@ -146,6 +172,13 @@ struct DocumentPage: Identifiable, Hashable, Codable {
         isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
         lastModified = try container.decode(Date.self, forKey: .lastModified)
         boardTasks = try container.decodeIfPresent([TaskCard].self, forKey: .boardTasks) ?? []
+        if let decodedType = try container.decodeIfPresent(DocumentPageType.self, forKey: .pageType) {
+            pageType = decodedType
+        } else if !(boardTasks.isEmpty) {
+            pageType = .kanban
+        } else {
+            pageType = .document
+        }
     }
 
     func hash(into hasher: inout Hasher) {

@@ -314,6 +314,9 @@ class WorkspaceStore: ObservableObject {
             md += "isFavorite: \(page.isFavorite)\n"
             md += "isDeleted: \(page.isDeleted)\n"
             md += "lastModified: \"\(isoDate)\"\n"
+            if page.pageType != .document {
+                md += "type: \"\(page.pageType.rawValue)\"\n"
+            }
             md += "---\n\n"
 
             if !page.title.isEmpty {
@@ -893,22 +896,58 @@ class WorkspaceStore: ObservableObject {
         }
     }
 
-    /// Creates a fresh, clean page with NO pre-filled boilerplate text
-    func addNewPage(in categoryId: String = "cat_notes") {
+    /// Creates a fresh page: either a default blank document or a Kanban board
+    func addNewPage(in categoryId: String = "cat_notes", type: DocumentPageType = .document, title: String = "") {
         let newId = "doc_\(UUID().uuidString.prefix(8).lowercased())"
+        let isKanban = type == .kanban
+        let initialTitle = title.isEmpty ? (isKanban ? "Kanban Board" : "") : title
+        let initialIcon = isKanban ? "square.grid.3x2" : ""
+
+        var initialTasks: [TaskCard] = []
+        if isKanban {
+            initialTasks = [
+                TaskCard(
+                    id: "tsk_\(UUID().uuidString.prefix(6))",
+                    title: "Welcome to your Kanban board! Tap to edit",
+                    status: .todo,
+                    tag: "Getting Started",
+                    assignee: "Me",
+                    priority: .high
+                ),
+                TaskCard(
+                    id: "tsk_\(UUID().uuidString.prefix(6))",
+                    title: "Drag cards between columns or add new ones",
+                    status: .inProgress,
+                    tag: "Workflow",
+                    assignee: "Me",
+                    priority: .medium
+                ),
+                TaskCard(
+                    id: "tsk_\(UUID().uuidString.prefix(6))",
+                    title: "Completed tasks land here",
+                    status: .done,
+                    tag: "Done",
+                    assignee: "Me",
+                    priority: .low
+                )
+            ]
+        }
+
         let newPage = DocumentPage(
             id: newId,
-            title: "",
-            icon: "",
+            title: initialTitle,
+            icon: initialIcon,
             coverUrl: "",
             categoryId: categoryId,
-            rawContent: "",
+            rawContent: isKanban ? "Kanban Task Board" : "",
             isFavorite: categoryId == "cat_fav",
             lastModified: Date(),
-            boardTasks: []
+            boardTasks: initialTasks,
+            pageType: type
         )
         pages.append(newPage)
         selectPage(id: newId)
+        saveToDisk()
     }
 
     func duplicatePage(id: String) {
@@ -923,10 +962,13 @@ class WorkspaceStore: ObservableObject {
             coverOffsetX: page.coverOffsetX,
             coverScale: page.coverScale,
             categoryId: page.categoryId,
+            parentPageId: page.parentPageId,
             rawContent: page.rawContent,
             isFavorite: page.isFavorite,
+            isDeleted: page.isDeleted,
             lastModified: Date(),
-            boardTasks: page.boardTasks
+            boardTasks: page.boardTasks,
+            pageType: page.pageType
         )
         if let idx = pages.firstIndex(where: { $0.id == id }) {
             pages.insert(copy, at: idx + 1)

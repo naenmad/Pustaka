@@ -37,6 +37,7 @@ struct KanbanColumnView: View {
     let onCancelAdd: () -> Void
 
     @State private var newTitle: String = ""
+    @State private var isColumnDropTargeted: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -131,12 +132,31 @@ struct KanbanColumnView: View {
         }
         .frame(width: 270)
         .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .background(
+            Color(nsColor: .controlBackgroundColor)
+                .opacity(isColumnDropTargeted ? 0.75 : 0.4)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                .stroke(
+                    isColumnDropTargeted ? status.color : Color.secondary.opacity(0.12),
+                    lineWidth: isColumnDropTargeted ? 2 : 1
+                )
         )
+        .onDrop(of: [.text], isTargeted: $isColumnDropTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: String.self) { string, _ in
+                if let taskId = string {
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            store.updateTaskStatus(pageId: page.id, taskId: taskId, newStatus: status)
+                        }
+                    }
+                }
+            }
+            return true
+        }
     }
 }
 
@@ -222,5 +242,9 @@ struct KanbanCardView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onDrag {
+            NSItemProvider(object: task.id as NSString)
+        }
     }
 }
