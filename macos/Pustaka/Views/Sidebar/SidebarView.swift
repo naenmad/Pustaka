@@ -617,10 +617,19 @@ struct SidebarView: View {
 
     private var bottomActionBar: some View {
         VStack(spacing: 7) {
-            // Primary Action: New Document
-            Button(action: {
-                store.addNewPage(in: "cat_notes")
-            }) {
+            // Primary Action: New Document / Kanban
+            Menu {
+                Button(action: {
+                    store.addNewPage(in: "cat_notes", type: .document)
+                }) {
+                    Label("Blank Document (Normal)", systemImage: "doc.text")
+                }
+                Button(action: {
+                    store.addNewPage(in: "cat_notes", type: .kanban)
+                }) {
+                    Label("Kanban Board", systemImage: "square.grid.3x2")
+                }
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .bold))
@@ -628,8 +637,8 @@ struct SidebarView: View {
                     Text("New Document")
                         .font(.system(size: max(13.5, sidebarFontSize), weight: .semibold))
                     Spacer()
-                    Text("⌘N")
-                        .font(.system(size: 11, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
                 .padding(.horizontal, 11)
@@ -637,7 +646,9 @@ struct SidebarView: View {
                 .background(Color.primary.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("Create Document or Kanban Board (⌘N / ⇧⌘N)")
 
             // Secondary Action Row: Settings (⌘,) & Exactly 1 Single Quick Theme Button
             HStack(spacing: 7) {
@@ -732,7 +743,7 @@ struct FavoriteItemCardRow: View {
                     .font(.system(size: 10.5 * appUiScale))
                     .foregroundStyle(Color.yellow.opacity(0.95))
 
-                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
+                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: page.pageType == .kanban ? "square.grid.3x2" : "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
                     .frame(width: max(16, sidebarFontSize + 2))
 
@@ -885,16 +896,23 @@ struct CategorySectionView: View {
 
             HStack(spacing: 3) {
                 if isHovered {
-                    Button(action: {
-                        store.addNewPage(in: category.id)
-                    }) {
+                    Menu {
+                        Button(action: { store.addNewPage(in: category.id, type: .document) }) {
+                            Label("New Document", systemImage: "doc.text")
+                        }
+                        Button(action: { store.addNewPage(in: category.id, type: .kanban) }) {
+                            Label("New Kanban Board", systemImage: "square.grid.3x2")
+                        }
+                    } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.secondary)
                             .padding(3.5)
                     }
                     .buttonStyle(.plain)
-                    .help("Add note to \(category.name)")
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .help("Add document or Kanban board to \(category.name)")
                 }
 
                 Menu {
@@ -915,8 +933,11 @@ struct CategorySectionView: View {
                     Button(action: onCustomize) {
                         Label("Customize (Rename & Emoji)...", systemImage: "pencil.and.outline")
                     }
-                    Button(action: { store.addNewPage(in: category.id) }) {
-                        Label("New Note in \(category.name)", systemImage: "plus")
+                    Button(action: { store.addNewPage(in: category.id, type: .document) }) {
+                        Label("New Document in \(category.name)", systemImage: "doc.text")
+                    }
+                    Button(action: { store.addNewPage(in: category.id, type: .kanban) }) {
+                        Label("New Kanban Board in \(category.name)", systemImage: "square.grid.3x2")
                     }
                     if category.id != "cat_notes" {
                         Divider()
@@ -1029,7 +1050,7 @@ struct SidebarDocumentItemRow: View {
                     }
 
                     // Document Icon (Follows primary color)
-                    DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
+                    DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: page.pageType == .kanban ? "square.grid.3x2" : "doc.text")
                         .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
                         .frame(width: max(16, sidebarFontSize + 2))
 
@@ -1222,6 +1243,29 @@ struct SidebarDocumentItemRow: View {
             }
         }
 
+        if page.pageType == .kanban {
+            Button(action: {
+                if let idx = store.pages.firstIndex(where: { $0.id == page.id }) {
+                    store.pages[idx].pageType = .document
+                    store.saveToDisk()
+                }
+            }) {
+                Label("Convert to Document", systemImage: "doc.text")
+            }
+        } else {
+            Button(action: {
+                if let idx = store.pages.firstIndex(where: { $0.id == page.id }) {
+                    store.pages[idx].pageType = .kanban
+                    if store.pages[idx].icon.isEmpty {
+                        store.pages[idx].icon = "square.grid.3x2"
+                    }
+                    store.saveToDisk()
+                }
+            }) {
+                Label("Convert to Kanban Board", systemImage: "square.grid.3x2")
+            }
+        }
+
         Button(action: {
             store.duplicatePage(id: page.id)
         }) {
@@ -1281,7 +1325,7 @@ struct RecentDocumentRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 7) {
-                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
+                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: page.pageType == .kanban ? "square.grid.3x2" : "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
                     .frame(width: max(16, sidebarFontSize + 2))
 
@@ -1354,7 +1398,7 @@ struct SearchResultItemRow: View {
             store.selectPage(id: page.id)
         }) {
             HStack(spacing: 8) {
-                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: "doc.text")
+                DynamicIconView(icon: page.icon, size: sidebarFontSize, defaultSymbol: page.pageType == .kanban ? "square.grid.3x2" : "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
                     .frame(width: max(16, sidebarFontSize + 2))
 

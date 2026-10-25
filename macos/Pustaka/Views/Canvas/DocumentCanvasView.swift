@@ -409,7 +409,115 @@ struct DocumentCanvasView: View {
 
     // MARK: - Floating Editor Toolbar (Notion & Bear Glassmorphic Island)
 
+    @ViewBuilder
     private var floatingEditorToolbar: some View {
+        if currentPage.pageType == .kanban {
+            kanbanEditorToolbar
+        } else {
+            documentEditorToolbar
+        }
+    }
+
+    private var kanbanEditorToolbar: some View {
+        HStack(spacing: 12) {
+            // 1. Add Task Button
+            Button(action: {
+                store.addTask(to: currentPage.id, title: "New Task", status: .todo)
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Add Task")
+                        .font(.system(size: 13.5, weight: .semibold))
+                }
+                .foregroundStyle(primaryColor)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6.5)
+                .background(primaryColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .help("Add new task card to To Do column")
+
+            Divider().frame(height: 20)
+
+            // 2. Column Counters
+            let todoCount = currentPage.boardTasks.filter { $0.status == .todo }.count
+            let inProgressCount = currentPage.boardTasks.filter { $0.status == .inProgress }.count
+            let doneCount = currentPage.boardTasks.filter { $0.status == .done }.count
+
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Circle().fill(Color.secondary).frame(width: 6, height: 6)
+                    Text("\(todoCount) To Do")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("•").font(.system(size: 8)).foregroundStyle(.tertiary)
+
+                HStack(spacing: 4) {
+                    Circle().fill(primaryColor).frame(width: 6, height: 6)
+                    Text("\(inProgressCount) In Progress")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(primaryColor)
+                }
+
+                Text("•").font(.system(size: 8)).foregroundStyle(.tertiary)
+
+                HStack(spacing: 4) {
+                    Circle().fill(Color.green).frame(width: 6, height: 6)
+                    Text("\(doneCount) Done")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal, 4)
+
+            Divider().frame(height: 20)
+
+            // 3. Switch / Toggle Page Type
+            Menu {
+                Button(action: {
+                    if let idx = store.pages.firstIndex(where: { $0.id == currentPage.id }) {
+                        store.pages[idx].pageType = .document
+                        store.saveToDisk()
+                    }
+                }) {
+                    Label("Convert to Standard Document", systemImage: "doc.text")
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "square.grid.3x2")
+                        .font(.system(size: 12))
+                    Text("Kanban")
+                        .font(.system(size: 13, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("Page Type: Kanban Board")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThickMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.bottom, 22)
+    }
+
+    private var documentEditorToolbar: some View {
         HStack(spacing: 8) {
             // 1. Quick Insert Menu Button
             Menu {
@@ -479,6 +587,16 @@ struct DocumentCanvasView: View {
                             headers: ["Column 1", "Column 2", "Column 3"],
                             rows: [["", "", ""], ["", "", ""]]
                         ))
+                    }
+                    Divider()
+                    Button("Convert to Kanban Board") {
+                        if let idx = store.pages.firstIndex(where: { $0.id == currentPage.id }) {
+                            store.pages[idx].pageType = .kanban
+                            if store.pages[idx].icon.isEmpty {
+                                store.pages[idx].icon = "square.grid.3x2"
+                            }
+                            store.saveToDisk()
+                        }
                     }
                 }
             } label: {
@@ -599,25 +717,30 @@ struct DocumentCanvasView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     notionPageHeaderView
 
-                    BlockListView(
-                        store: store,
-                        page: currentPage,
-                        focusedBlockId: $focusedBlockId,
-                        selectedBlockIds: $selectedBlockIds,
-                        blockActionTrigger: $blockActionTrigger,
-                        formattingState: $formattingState
-                    )
+                    if currentPage.pageType == .kanban {
+                        KanbanBoardView(store: store, page: currentPage)
+                            .padding(.top, 6)
+                    } else {
+                        BlockListView(
+                            store: store,
+                            page: currentPage,
+                            focusedBlockId: $focusedBlockId,
+                            selectedBlockIds: $selectedBlockIds,
+                            blockActionTrigger: $blockActionTrigger,
+                            formattingState: $formattingState
+                        )
 
-                    // Clickable empty canvas space to immediately start writing at the bottom
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 180)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            blockActionTrigger = .insertBlock(.paragraph)
-                        }
+                        // Clickable empty canvas space to immediately start writing at the bottom
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 180)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                blockActionTrigger = .insertBlock(.paragraph)
+                            }
 
-                    Spacer(minLength: 100)
+                        Spacer(minLength: 100)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.horizontal, 16)

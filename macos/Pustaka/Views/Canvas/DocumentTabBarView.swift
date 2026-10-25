@@ -28,7 +28,7 @@ struct DocumentTabItemView: View {
                     .font(.system(size: 13 * appUiScale))
                     .foregroundStyle(isSelected ? Color.red.opacity(0.9) : Color.secondary)
             } else {
-                DynamicIconView(icon: page.icon, size: 13 * appUiScale, defaultSymbol: "doc.text")
+                DynamicIconView(icon: page.icon, size: 13 * appUiScale, defaultSymbol: page.pageType == .kanban ? "square.grid.3x2" : "doc.text")
                     .foregroundStyle(isSelected ? primaryColor : primaryColor.opacity(0.85))
             }
 
@@ -148,12 +148,23 @@ struct DocumentTabBarView: View {
                         ))
                     }
 
-                    // "+" New Tab Button
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            store.addNewPage()
+                    // "+" New Tab Button (Menu for Document / Kanban)
+                    Menu {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                store.addNewPage(type: .document)
+                            }
+                        }) {
+                            Label("New Document", systemImage: "doc.text")
                         }
-                    }) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                store.addNewPage(type: .kanban)
+                            }
+                        }) {
+                            Label("New Kanban Board", systemImage: "square.grid.3x2")
+                        }
+                    } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 12.5 * appUiScale, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -162,8 +173,10 @@ struct DocumentTabBarView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                     .onHover { h in isHoveringPlus = h }
-                    .help("New Tab (⌘T)")
+                    .help("New Tab (⌘T for Document, ⇧⌘N for Kanban)")
                     .padding(.leading, 2)
                 }
                 .padding(.horizontal, 4)

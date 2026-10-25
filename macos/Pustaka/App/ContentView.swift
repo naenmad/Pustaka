@@ -388,17 +388,33 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Tab Keyboard Shortcuts (⌘T, ⌘W, ⌘⇧], ⌘⇧[)
+    // MARK: - Tab Keyboard Shortcuts (⌘T, ⌘N, ⇧⌘N, ⌘W, ⌘⇧], ⌘⇧[)
 
     private var tabKeyboardShortcuts: some View {
         Group {
             // ⌘T -> New Document Tab
             Button("") {
                 withAnimation(.easeInOut(duration: 0.15)) {
-                    store.addNewPage()
+                    store.addNewPage(type: .document)
                 }
             }
             .keyboardShortcut("t", modifiers: .command)
+
+            // ⌘N -> New Document
+            Button("") {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    store.addNewPage(type: .document)
+                }
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            // ⇧⌘N -> New Kanban Board
+            Button("") {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    store.addNewPage(type: .kanban)
+                }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
 
             // ⌘W -> Close Active Tab
             Button("") {
@@ -566,16 +582,29 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    store.addNewPage()
+            HStack(spacing: 12) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        store.addNewPage(type: .document)
+                    }
+                }) {
+                    Label("New Document (⌘N)", systemImage: "doc.text")
+                        .font(.subheadline.weight(.medium))
                 }
-            }) {
-                Label("New Document (⌘T)", systemImage: "plus")
-                    .font(.subheadline.weight(.medium))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        store.addNewPage(type: .kanban)
+                    }
+                }) {
+                    Label("New Kanban Board (⇧⌘N)", systemImage: "square.grid.3x2")
+                        .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
