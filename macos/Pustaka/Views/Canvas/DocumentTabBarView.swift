@@ -148,23 +148,10 @@ struct DocumentTabBarView: View {
                         ))
                     }
 
-                    // "+" New Tab Button (Menu for Document / Kanban)
-                    Menu {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                store.addNewPage(type: .document)
-                            }
-                        }) {
-                            Label("New Document", systemImage: "doc.text")
-                        }
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                store.addNewPage(type: .kanban)
-                            }
-                        }) {
-                            Label("New Kanban Board", systemImage: "square.grid.3x2")
-                        }
-                    } label: {
+                    // "+" New Tab Button (Opens New Document Center Palette)
+                    Button(action: {
+                        NotificationCenter.default.post(name: NSNotification.Name("PustakaOpenNewDocumentPalette"), object: nil)
+                    }) {
                         Image(systemName: "plus")
                             .font(.system(size: 12.5 * appUiScale, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -173,10 +160,8 @@ struct DocumentTabBarView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain)
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
                     .onHover { h in isHoveringPlus = h }
-                    .help("New Tab (⌘T for Document, ⇧⌘N for Kanban)")
+                    .help("New Document or Kanban (⌘N)")
                     .padding(.leading, 2)
                 }
                 .padding(.horizontal, 4)

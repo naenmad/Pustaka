@@ -16,6 +16,7 @@
 		44CDDC72CCC18A7EB6EC62F2 /* TypstPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B77260BF368417A5E852534 /* TypstPreviewView.swift */; };
 		5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015E83DED5C2530AA829524 /* DocumentCanvasView.swift */; };
 		5DE567E7DF778A7727BF0AB3 /* WorkspaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E19B415C1CBE2EEE82C84C2 /* WorkspaceModels.swift */; };
+		6400DADBA0B440960012087E /* NewDocumentPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0EDCD70EA20F192F72EE9A /* NewDocumentPaletteView.swift */; };
 		773C931E2934FA3954FFD757 /* pustaka_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEDA163FC7A3FDF18EA2EF10 /* pustaka_ffi.swift */; };
 		7A6ACD513906FF9EA0FAFF2F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8275816DA33CAC37606CF1 /* SidebarView.swift */; };
 		7CE57C7C47F513D3CC152DA9 /* AppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9D69C34B06EB8F4E907B667B /* AppIcon.png */; };
@@ -40,6 +41,7 @@
 		4026F43001111E7A205A7A56 /* VisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectView.swift; sourceTree = "<group>"; };
 		40AFEBB32F29F23696A12D81 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		453BE2BFC9AC54F9709DB879 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4C0EDCD70EA20F192F72EE9A /* NewDocumentPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewDocumentPaletteView.swift; sourceTree = "<group>"; };
 		508C85AAC360F0814E117474 /* KanbanBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanBoardView.swift; sourceTree = "<group>"; };
 		5A8275816DA33CAC37606CF1 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		5B8492971AC704DEB1C88DA5 /* PustakaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PustakaApp.swift; sourceTree = "<group>"; };
@@ -104,6 +106,7 @@
 		66315969544D29720622AAB1 /* Common */ = {
 			isa = PBXGroup;
 			children = (
+				4C0EDCD70EA20F192F72EE9A /* NewDocumentPaletteView.swift */,
 				82761F022381A420068B9CE8 /* QuickSearchPaletteView.swift */,
 				4026F43001111E7A205A7A56 /* VisualEffectView.swift */,
 			);
@@ -301,6 +304,7 @@
 				5CE9FE1EBDA62083C3A62218 /* DocumentCanvasView.swift in Sources */,
 				E3D2D617CB2FF12DF755323A /* DocumentTabBarView.swift in Sources */,
 				8D34C8B5E9F9F8143A59FECF /* KanbanBoardView.swift in Sources */,
+				6400DADBA0B440960012087E /* NewDocumentPaletteView.swift in Sources */,
 				E381AFC491FB78354F10E551 /* PustakaApp.swift in Sources */,
 				9677F91810B268CEDFD88FBD /* QuickSearchPaletteView.swift in Sources */,
 				CBA590E27EAD8551427969E1 /* SettingsSheet.swift in Sources */,

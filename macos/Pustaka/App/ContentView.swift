@@ -7,6 +7,8 @@ struct ContentView: View {
     @State private var isAIAssistantPresented: Bool = false
     @State private var isFullScreen: Bool = false
     @State private var isQuickSearchPresented: Bool = false
+    @State private var isNewDocumentPalettePresented: Bool = false
+    @State private var targetCategoryForNewDoc: String? = nil
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
     @AppStorage("appUiScale") private var appUiScale: Double = 1.0
@@ -32,7 +34,9 @@ struct ContentView: View {
             SidebarView(
                 store: store,
                 columnVisibility: $columnVisibility,
-                isQuickSearchPresented: $isQuickSearchPresented
+                isQuickSearchPresented: $isQuickSearchPresented,
+                isNewDocumentPalettePresented: $isNewDocumentPalettePresented,
+                targetCategoryForNewDoc: $targetCategoryForNewDoc
             )
                 .navigationSplitViewColumnWidth(
                     min: 220 * CGFloat(appUiScale),
@@ -104,13 +108,32 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PustakaResetZoom"))) { _ in
             resetZoom()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PustakaOpenNewDocumentPalette"))) { notification in
+            if let catId = notification.object as? String {
+                targetCategoryForNewDoc = catId
+            } else {
+                targetCategoryForNewDoc = nil
+            }
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                isNewDocumentPalettePresented = true
+            }
+        }
         .overlay {
             if isQuickSearchPresented {
                 QuickSearchPaletteView(store: store, isPresented: $isQuickSearchPresented)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
+            if isNewDocumentPalettePresented {
+                NewDocumentPaletteView(
+                    store: store,
+                    isPresented: $isNewDocumentPalettePresented,
+                    targetCategoryId: targetCategoryForNewDoc
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
         }
         .animation(.spring(response: 0.22, dampingFraction: 0.85), value: isQuickSearchPresented)
+        .animation(.spring(response: 0.22, dampingFraction: 0.85), value: isNewDocumentPalettePresented)
         .background {
             Button(action: {
                 withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
@@ -400,10 +423,11 @@ struct ContentView: View {
             }
             .keyboardShortcut("t", modifiers: .command)
 
-            // ⌘N -> New Document
+            // ⌘N -> Open New Document Palette (Center Modal Search Bar)
             Button("") {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    store.addNewPage(type: .document)
+                targetCategoryForNewDoc = nil
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                    isNewDocumentPalettePresented = true
                 }
             }
             .keyboardShortcut("n", modifiers: .command)
@@ -584,11 +608,12 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        store.addNewPage(type: .document)
+                    targetCategoryForNewDoc = nil
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                        isNewDocumentPalettePresented = true
                     }
                 }) {
-                    Label("New Document (⌘N)", systemImage: "doc.text")
+                    Label("New Document (⌘N)", systemImage: "sparkles")
                         .font(.subheadline.weight(.medium))
                 }
                 .buttonStyle(.borderedProminent)

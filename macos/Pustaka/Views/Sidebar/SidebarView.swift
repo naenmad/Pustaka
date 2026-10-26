@@ -55,6 +55,8 @@ struct SidebarView: View {
     @ObservedObject var store: WorkspaceStore
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var isQuickSearchPresented: Bool
+    @Binding var isNewDocumentPalettePresented: Bool
+    @Binding var targetCategoryForNewDoc: String?
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("appAppearance") private var appAppearance: String = "system"
     @AppStorage("appPrimaryColorHex") private var appPrimaryColorHex: String = "#007AFF"
@@ -82,11 +84,15 @@ struct SidebarView: View {
     init(
         store: WorkspaceStore,
         columnVisibility: Binding<NavigationSplitViewVisibility> = .constant(.all),
-        isQuickSearchPresented: Binding<Bool> = .constant(false)
+        isQuickSearchPresented: Binding<Bool> = .constant(false),
+        isNewDocumentPalettePresented: Binding<Bool> = .constant(false),
+        targetCategoryForNewDoc: Binding<String?> = .constant(nil)
     ) {
         self.store = store
         self._columnVisibility = columnVisibility
         self._isQuickSearchPresented = isQuickSearchPresented
+        self._isNewDocumentPalettePresented = isNewDocumentPalettePresented
+        self._targetCategoryForNewDoc = targetCategoryForNewDoc
     }
 
     var body: some View {
@@ -617,19 +623,13 @@ struct SidebarView: View {
 
     private var bottomActionBar: some View {
         VStack(spacing: 7) {
-            // Primary Action: New Document / Kanban
-            Menu {
-                Button(action: {
-                    store.addNewPage(in: "cat_notes", type: .document)
-                }) {
-                    Label("Blank Document (Normal)", systemImage: "doc.text")
+            // Primary Action: New Document / Kanban (Opens Center Command Palette)
+            Button(action: {
+                targetCategoryForNewDoc = nil
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.85)) {
+                    isNewDocumentPalettePresented = true
                 }
-                Button(action: {
-                    store.addNewPage(in: "cat_notes", type: .kanban)
-                }) {
-                    Label("Kanban Board", systemImage: "square.grid.3x2")
-                }
-            } label: {
+            }) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .bold))
@@ -637,18 +637,21 @@ struct SidebarView: View {
                     Text("New Document")
                         .font(.system(size: max(13.5, sidebarFontSize), weight: .semibold))
                     Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
+                    Text("⌘N")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.primary.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8.5 * appUiScale)
                 .background(Color.primary.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .help("Create Document or Kanban Board (⌘N / ⇧⌘N)")
+            .buttonStyle(.plain)
+            .help("New Document or Kanban Board (⌘N)")
 
             // Secondary Action Row: Settings (⌘,) & Exactly 1 Single Quick Theme Button
             HStack(spacing: 7) {
@@ -896,22 +899,18 @@ struct CategorySectionView: View {
 
             HStack(spacing: 3) {
                 if isHovered {
-                    Menu {
-                        Button(action: { store.addNewPage(in: category.id, type: .document) }) {
-                            Label("New Document", systemImage: "doc.text")
-                        }
-                        Button(action: { store.addNewPage(in: category.id, type: .kanban) }) {
-                            Label("New Kanban Board", systemImage: "square.grid.3x2")
-                        }
-                    } label: {
+                    Button(action: {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("PustakaOpenNewDocumentPalette"),
+                            object: category.id
+                        )
+                    }) {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.secondary)
                             .padding(3.5)
                     }
                     .buttonStyle(.plain)
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
                     .help("Add document or Kanban board to \(category.name)")
                 }
 
